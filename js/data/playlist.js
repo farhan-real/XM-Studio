@@ -4,11 +4,18 @@
 (function(window) {
   function getPlaylists() {
     try {
-      return JSON.parse(localStorage.getItem('xm_playlists')) || [
-        { id: 'pl_default', name: 'Demoscene Favorites', tracks: [] }
-      ];
+      const pls = JSON.parse(localStorage.getItem('xm_playlists'));
+      if (Array.isArray(pls)) {
+        pls.forEach(p => {
+          if (p.id === 'pl_default' && p.name === 'Demoscene Favorites') {
+            p.name = 'Demoscene Classics';
+          }
+        });
+        return pls;
+      }
+      return [{ id: 'pl_default', name: 'Demoscene Classics', tracks: [] }];
     } catch (e) {
-      return [];
+      return [{ id: 'pl_default', name: 'Demoscene Classics', tracks: [] }];
     }
   }
 

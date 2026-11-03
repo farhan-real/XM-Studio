@@ -1,5 +1,5 @@
 /**
- * js/data/library.js - Multi-line track list, playlist per-item export, and catalog management.
+ * js/data/library.js - Multi-line track list, playlist per-item export, and shuffle playback.
  */
 (function(window) {
   const DEFAULT_REPO_URL = 'https://farhan-real.github.io/XM-Music/';
@@ -54,6 +54,7 @@
   const playlistDetailTitle = document.getElementById('playlistDetailTitle');
   const btnBackPlaylists = document.getElementById('btnBackPlaylists');
   const btnPlayAllPlaylist = document.getElementById('btnPlayAllPlaylist');
+  const btnShufflePlaylist = document.getElementById('btnShufflePlaylist');
   const btnAddFromCollection = document.getElementById('btnAddFromCollection');
   const btnExportCurPlaylist = document.getElementById('btnExportCurPlaylist');
   const btnModifyPlaylist = document.getElementById('btnModifyPlaylist');
@@ -267,6 +268,23 @@
     const pl = window.XMPlaylist.getPlaylists().find(p => p.id === currentPlaylistId);
     if (pl && pl.tracks.length > 0) playTrack(pl.tracks[0], pl.tracks, 0);
   });
+
+  if (btnShufflePlaylist) {
+    btnShufflePlaylist.addEventListener('click', () => {
+      if (!currentPlaylistId) return;
+      const pl = window.XMPlaylist.getPlaylists().find(p => p.id === currentPlaylistId);
+      if (pl && pl.tracks.length > 0) {
+        if (window.XMAudio && !window.XMAudio.isShuffle) {
+          window.XMAudio.toggleShuffle();
+          const shuffBtn = document.getElementById('btnShuffle');
+          if (shuffBtn) shuffBtn.classList.add('active');
+        }
+        const startIdx = Math.floor(Math.random() * pl.tracks.length);
+        playTrack(pl.tracks[startIdx], pl.tracks, startIdx);
+      }
+    });
+  }
+
   btnModifyPlaylist.addEventListener('click', () => {
     if (currentPlaylistId) {
       const pls = window.XMPlaylist.getPlaylists();
