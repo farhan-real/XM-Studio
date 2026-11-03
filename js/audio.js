@@ -1,5 +1,5 @@
 /**
- * js/audio.js - Master playback coordinator with stable queue, looping, and shuffle.
+ * js/audio.js - Master playback coordinator with FLAC lossless stream support.
  */
 (function(window) {
   const player = new ChiptuneJsPlayer();
@@ -17,7 +17,7 @@
   let currentQueue = null;
   let currentQueueIdx = -1;
 
-  const NATIVE_STREAM_EXTS = ['.mp3', '.ogg', '.wav'];
+  const NATIVE_STREAM_EXTS = ['.mp3', '.ogg', '.wav', '.flac'];
 
   function routeNativeAudioToWebAudio() {
     if (!nativeAudioSource && player.context) {

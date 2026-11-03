@@ -1,5 +1,5 @@
 /**
- * js/library.js - Multi-line track list, archive blending with custom music, and instant search.
+ * js/library.js - Multi-line track list, FLAC tag detection, and catalog rendering.
  */
 (function(window) {
   const DEFAULT_REPO_URL = 'https://farhan-real.github.io/XM-Music/';
@@ -31,6 +31,7 @@
     if (e === 'mod') return 'fmt-mod';
     if (e === 'it') return 'fmt-it';
     if (e === 's3m') return 'fmt-s3m';
+    if (e === 'flac') return 'fmt-flac';
     return 'fmt-default';
   }
 
@@ -90,10 +91,7 @@
               </svg>
             </button>
             <button class="km-btn-icon" data-action="add-pl" title="Add to playlist">
-              <svg viewBox="0 0 24 24" class="t-icon-xs">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
+              <svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             </button>
           </div>
         </div>
@@ -167,16 +165,10 @@
         </div>
         <div class="pl-card-actions">
           <button class="km-btn-icon" data-action="modify" title="Rename Playlist">
-            <svg viewBox="0 0 24 24" class="t-icon-xs">
-              <path d="M12 20h9"></path>
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-            </svg>
+            <svg viewBox="0 0 24 24" class="t-icon-xs"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
           </button>
           <button class="km-btn-icon" data-action="delete" title="Delete Playlist">
-            <svg viewBox="0 0 24 24" class="t-icon-xs">
-              <polyline points="3 6 5 6 21 6"></polyline>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            </svg>
+            <svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
           </button>
         </div>
       `;
@@ -232,10 +224,7 @@
           <span class="track-card-artist">${track.artist}</span>
           <div class="track-card-actions">
             <button class="km-btn-icon" data-action="remove-added" title="Remove track">
-              <svg viewBox="0 0 24 24" class="t-icon-xs">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
+              <svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
           </div>
         </div>

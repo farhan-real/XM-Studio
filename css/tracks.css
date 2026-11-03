@@ -118,13 +118,19 @@
   border: 1px solid rgba(234, 179, 8, 0.25);
 }
 
+.fmt-flac {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
 .fmt-default {
   color: var(--col-slate);
   background: rgba(148, 163, 184, 0.08);
   border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
-/* Action Icons (Star & Add to Playlist) */
+/* Action Icons */
 .km-btn-icon {
   background: transparent;
   border: none;

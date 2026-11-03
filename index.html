@@ -122,15 +122,15 @@
           <div class="source-status-msg" id="backupStatusMsg"></div>
         </div>
 
-        <!-- Section B: Custom Music Management -->
+        <!-- Section B: Custom Music Management (FLAC Supported) -->
         <div class="source-config-card">
           <div class="source-card-header">
             <span class="spec-key">CUSTOM MUSIC ARCHIVE</span>
             <span class="badge" id="customCountBadge">0 ADDED</span>
           </div>
-          <p class="source-subtext">Add tracker or audio files (.xm, .mod, .it, .s3m, .mp3, .wav). Stored permanently in your browser's IndexedDB and blended into Archive.</p>
+          <p class="source-subtext">Add tracker or audio files (.xm, .mod, .it, .s3m, .flac, .mp3, .wav). Stored permanently in your browser's IndexedDB and blended into Archive.</p>
           <div class="source-actions">
-            <input type="file" id="inputCustomFiles" multiple accept=".xm,.mod,.it,.s3m,.mtm,.mp3,.ogg,.wav,.v2m,.mid,.ahx,.sid" class="hide" />
+            <input type="file" id="inputCustomFiles" multiple accept=".xm,.mod,.it,.s3m,.mtm,.flac,.mp3,.ogg,.wav,.v2m,.mid,.ahx,.sid" class="hide" />
             <button class="action-btn" id="btnAddCustomFile">
               <svg viewBox="0 0 24 24" class="action-icon"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
               <span>ADD TRACKS</span>
@@ -246,7 +246,7 @@
       </div>
 
       <div class="ingest-deck">
-        <input type="file" id="fileInput" accept=".xm,.mod,.it,.s3m,.mtm,.mp3,.ogg,.wav,.v2m,.mid,.ahx,.sid" />
+        <input type="file" id="fileInput" accept=".xm,.mod,.it,.s3m,.mtm,.flac,.mp3,.ogg,.wav,.v2m,.mid,.ahx,.sid" />
         <button class="action-btn" id="btnBrowse">
           <svg viewBox="0 0 24 24" class="action-icon"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
           <span>OPEN TRACK</span>

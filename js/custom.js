@@ -109,12 +109,13 @@
     tracks.forEach(track => {
       const row = document.createElement('div');
       row.className = 'custom-track-item';
+      const fmtClass = track.ext.toLowerCase() === 'flac' ? 'fmt-flac' : 'fmt-xm';
       row.innerHTML = `
         <div class="custom-track-meta">
           <div class="custom-track-title">${track.title}</div>
           <div class="custom-track-artist">${track.artist}</div>
         </div>
-        <span class="fmt-badge fmt-xm">${track.ext}</span>
+        <span class="fmt-badge ${fmtClass}">${track.ext}</span>
         <button class="km-btn-icon btn-danger-text" data-del-id="${track.id}" title="Delete Custom Track">
           <svg viewBox="0 0 24 24" class="t-icon-xs">
             <polyline points="3 6 5 6 21 6"></polyline>
