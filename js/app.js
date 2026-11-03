@@ -102,18 +102,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function getTrackDuration() {
+    if (window.XMAudio.isNativeStream) return (audioEl.duration && !isNaN(audioEl.duration)) ? audioEl.duration : 0;
+    return player.currentPlayingNode ? player.duration() : 0;
+  }
+
+  function getTrackCurrentTime() {
+    if (window.XMAudio.isNativeStream) return audioEl.currentTime || 0;
+    return player.currentPlayingNode ? player.getPosition() : 0;
+  }
+
   setInterval(() => {
     if (isSeeking) return;
-    let cur = 0;
-    let dur = 0;
-
-    if (!window.XMAudio.isNativeStream && player.currentPlayingNode && !player.currentPlayingNode.paused) {
-      cur = player.getPosition();
-      dur = player.duration();
-    } else if (window.XMAudio.isNativeStream && !audioEl.paused && audioEl.duration) {
-      cur = audioEl.currentTime;
-      dur = audioEl.duration;
-    }
+    const dur = getTrackDuration();
+    const cur = getTrackCurrentTime();
 
     if (dur > 0) {
       progressBar.value = (cur / dur) * 100;
@@ -189,14 +191,31 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.XMLibrary) window.XMLibrary.notifyPlaying(null);
   });
 
-  progressBar.addEventListener('input', () => { isSeeking = true; });
+  function applySeek(targetSec) {
+    if (window.XMAudio.isNativeStream) {
+      if (audioEl.duration && !isNaN(audioEl.duration)) audioEl.currentTime = targetSec;
+    } else {
+      player.seek(targetSec);
+    }
+    timeCurrent.textContent = formatTime(targetSec);
+    lastReportedSec = Math.floor(targetSec);
+  }
+
+  progressBar.addEventListener('input', () => {
+    isSeeking = true;
+    const dur = getTrackDuration();
+    if (dur > 0) {
+      const targetSec = (progressBar.value / 100) * dur;
+      timeCurrent.textContent = formatTime(targetSec);
+      if (window.XMAudio.isNativeStream && audioEl.paused) audioEl.currentTime = targetSec;
+    }
+  });
+
   progressBar.addEventListener('change', () => {
-    const target = progressBar.value / 100;
-    if (window.XMAudio.isNativeStream && audioEl.duration) {
-      audioEl.currentTime = target * audioEl.duration;
-    } else if (!window.XMAudio.isNativeStream) {
-      const dur = player.duration();
-      if (dur > 0) player.seek(target * dur);
+    const dur = getTrackDuration();
+    if (dur > 0) {
+      const targetSec = (progressBar.value / 100) * dur;
+      applySeek(targetSec);
     }
     isSeeking = false;
   });
@@ -256,7 +275,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const ext = window.XMAudio.getCurrentExtension ? window.XMAudio.getCurrentExtension() : 'xm';
     const safeName = `${info.artist} - ${info.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
 
-    // Direct Tracker File (Raw) Download Target
     if (activeFormat === 'raw') {
       let blob = window.XMAudio.currentAudioBlob;
       if (!blob && window.XMAudio.currentRawBuffer) {
@@ -278,7 +296,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // MP3 or WAV Master Compiler
     const raw = window.XMAudio.currentRawBuffer;
     if (!raw) return;
     setStatus('compiling');
