@@ -1,5 +1,5 @@
 /**
- * js/data/library.js - Multi-line track list, playlist per-item export, and shuffle playback.
+ * js/data/library.js - Multi-line track list, numerical numbering, favorites highlight, and catalog management.
  */
 (function(window) {
   const DEFAULT_REPO_URL = 'https://farhan-real.github.io/XM-Music/';
@@ -85,14 +85,29 @@
       const isFav = window.XMPlaylist.isFavorited(track.id);
       const isPlaying = currentlyPlayingId === track.id;
       const fmtClass = getFormatBadgeClass(track.ext);
-      card.className = `track-card ${isPlaying ? 'active-playing' : ''}`;
+      card.className = `track-card ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}`;
       card.setAttribute('data-track-id', track.id);
       card.innerHTML = `
-        <div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div>
-        <div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions">
-          <button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite"><svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? 'var(--col-gold)' : 'none'}" stroke="${isFav ? 'var(--col-gold)' : 'currentColor'}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button>
-          <button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-        </div></div>`;
+        <span class="track-card-num">${idx + 1}</span>
+        <div class="track-card-content">
+          <div class="track-card-row1">
+            <span class="track-card-title">${track.title}</span>
+            <span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span>
+          </div>
+          <div class="track-card-row2">
+            <span class="track-card-artist">${track.artist}</span>
+            <div class="track-card-actions">
+              <button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite">
+                <svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? 'var(--col-gold)' : 'none'}" stroke="${isFav ? 'var(--col-gold)' : 'currentColor'}">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+              </button>
+              <button class="km-btn-icon" data-action="add-pl" title="Add to playlist">
+                <svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </button>
+            </div>
+          </div>
+        </div>`;
       card.addEventListener('click', (e) => { if (e.target.closest('.km-btn-icon')) return; playTrack(track, tracks, idx); });
       card.querySelector('[data-action="fav"]').addEventListener('click', (e) => { e.stopPropagation(); window.XMPlaylist.toggleFavorite(track); });
       card.querySelector('[data-action="add-pl"]').addEventListener('click', (e) => { e.stopPropagation(); window.XMPlaylist.openPlaylistPicker(track); });
@@ -173,14 +188,24 @@
     const frag = document.createDocumentFragment();
     pl.tracks.forEach((track, idx) => {
       const card = document.createElement('div');
+      const isFav = window.XMPlaylist.isFavorited(track.id);
       const fmtClass = getFormatBadgeClass(track.ext);
-      card.className = `track-card ${currentlyPlayingId === track.id ? 'active-playing' : ''}`;
+      card.className = `track-card ${currentlyPlayingId === track.id ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}`;
       card.setAttribute('data-track-id', track.id);
       card.innerHTML = `
-        <div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div>
-        <div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions">
-          <button class="km-btn-icon" data-action="remove-added" title="Remove track"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
-        </div></div>`;
+        <span class="track-card-num">${idx + 1}</span>
+        <div class="track-card-content">
+          <div class="track-card-row1">
+            <span class="track-card-title">${track.title}</span>
+            <span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span>
+          </div>
+          <div class="track-card-row2">
+            <span class="track-card-artist">${track.artist}</span>
+            <div class="track-card-actions">
+              <button class="km-btn-icon" data-action="remove-added" title="Remove track"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+            </div>
+          </div>
+        </div>`;
       card.addEventListener('click', (e) => { if (e.target.closest('.km-btn-icon')) return; playTrack(track, pl.tracks, idx); });
       card.querySelector('[data-action="remove-added"]').addEventListener('click', (e) => {
         e.stopPropagation();

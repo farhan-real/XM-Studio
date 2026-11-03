@@ -11,17 +11,16 @@
   flex-direction: column;
 }
 
-/* Multi-line clickable track item (Zero single-line truncation, fully clickable anywhere) */
+/* Multi-line clickable track item with numerical track index */
 .track-card {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 9px 12px;
+  align-items: center;
+  padding: 8px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   background: transparent;
   cursor: pointer;
   transition: background 0.1s ease, border-color 0.1s ease;
-  gap: 4px;
+  gap: 10px;
 }
 
 .track-card:nth-child(even) {
@@ -37,6 +36,25 @@
   border-left: 3px solid var(--accent);
 }
 
+/* Track numerical index */
+.track-card-num {
+  font-family: var(--font-mono);
+  font-size: 0.70rem;
+  color: var(--text-tertiary);
+  min-width: 26px;
+  text-align: right;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.track-card-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
 /* Line 1: Track Title and Format Tag */
 .track-card-row1 {
   display: flex;
@@ -47,15 +65,39 @@
 
 .track-card-title {
   font-size: 0.84rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary);
   line-height: 1.3;
   word-break: break-word;
   flex: 1;
+  transition: color 0.1s ease;
 }
 
+/* Favorites: Bold weight in different distinctive warm gold color */
+.track-card.is-favorite .track-card-title {
+  color: var(--col-gold);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  text-shadow: 0 0 10px rgba(234, 179, 8, 0.2);
+}
+
+.track-card.is-favorite .track-card-num {
+  color: rgba(234, 179, 8, 0.8);
+  font-weight: 700;
+}
+
+/* Active playing states */
 .track-card.active-playing .track-card-title {
   color: var(--accent-light);
+}
+
+.track-card.active-playing.is-favorite .track-card-title {
+  color: #fde047;
+}
+
+.track-card.active-playing .track-card-num {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 /* Line 2: Artist, Category/Folder, and Action Icons */
@@ -106,7 +148,6 @@
   border: 1px solid rgba(168, 85, 247, 0.25);
 }
 
-/* Impulse Tracker: Vibrant Teal (not red) */
 .fmt-it {
   color: #2dd4bf;
   background: rgba(45, 212, 191, 0.12);
