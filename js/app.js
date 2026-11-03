@@ -14,9 +14,20 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeTitle = "No Module Loaded";
   let activeArtist = "";
   let isNativeStream = false;
+  let nativeAudioSource = null;
 
   // Native streaming extensions that bypass OpenMPT
   const NATIVE_STREAM_EXTS = ['.mp3', '.ogg', '.wav'];
+
+  // Route native <audio> through WebAudio for visualizer & volume
+  function routeNativeAudioToWebAudio() {
+    if (!nativeAudioSource && player.context) {
+      try {
+        nativeAudioSource = player.context.createMediaElementSource(audioEl);
+        nativeAudioSource.connect(player.gainNode);
+      } catch (e) {}
+    }
+  }
 
   // UI Elements
   const btnPlayPause = document.getElementById('btnPlayPause');
@@ -95,7 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return match ? match[0] : '';
   }
 
-  // Normalize artist collaborations (&, and, ft., feat., vs.)
   function normalizeArtist(str) {
     if (!str) return '';
     let s = str.trim();
@@ -107,7 +117,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return s;
   }
 
-  // Capitalize words if string is strictly lowercase
   function smartCapitalize(str) {
     if (!str) return '';
     if (str !== str.toLowerCase()) return str;
@@ -123,7 +132,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }).join(' ');
   }
 
-  // Parses "artist - name" filenames and handles &, "and", "ft.", etc.
   function parseTrackInfo(filename, internalMeta) {
     internalMeta = internalMeta || {};
     let base = filename.replace(/\.[a-z0-9]+$/i, '').trim();
@@ -240,7 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 100);
 
-  // UNLOAD MODULE: Resets player to empty/idle state with ENGINE set to NONE
+  // UNLOAD MODULE: Resets player to empty/idle state
   function unloadModule() {
     player.cancelCompilation();
     player.stop();
@@ -280,7 +288,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // LOAD & PLAY IMMEDIATELY
+  // LOAD & PLAY IMMEDIATELY WITH AUTOMATIC HARDWARE HANDOFF
   function loadModule(fileOrUrl, fallbackName) {
     const ext = getFileExtension(fallbackName);
     player.stop();
@@ -323,6 +331,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
+      routeNativeAudioToWebAudio();
       audioEl.play().catch(() => {});
       setPlayingState(true);
       return;
@@ -349,19 +358,15 @@ document.addEventListener('DOMContentLoaded', () => {
       qualityBadge.textContent = activeFormat === 'mp3' ? "320 KBPS" : "16-BIT PCM";
       rateBadge.textContent = "48 KHZ";
 
-      // Show inline progress bar
       readoutProgressTrack.classList.remove('hide');
       readoutProgressBar.style.width = '0%';
-
-      // Set status to COMPILING
       setStatus('compiling');
 
-      // PLAY IMMEDIATELY
+      // PLAY INSTANTLY VIA 8K BUFFER REAL-TIME PREVIEW
       player.play(buf);
       setPlayingState(true);
       progressBar.disabled = false;
 
-      // Update Native Lock Screen Metadata
       if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
           title: info.title,
@@ -370,7 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // ASYNCHRONOUS BACKGROUND COMPILATION
+      // BACKGROUND COMPILATION + SEAMLESS HARDWARE HANDOFF
       player.compileAudio(
         buf,
         activeFormat,
@@ -388,6 +393,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
           setStatus('ready');
           btnDownload.disabled = false;
+
+          // SEAMLESS HANDOFF: Switch from CPU emulator to native hardware decoding
+          if (player.currentPlayingNode) {
+            const currentPos = player.getPosition();
+            const wasPlaying = !player.currentPlayingNode.paused;
+
+            // Stop the CPU-heavy emulator
+            player.stop();
+
+            // Hand off to native hardware decoder
+            routeNativeAudioToWebAudio();
+            audioEl.src = currentAudioUrl;
+            audioEl.currentTime = currentPos;
+            isNativeStream = true;
+
+            if (wasPlaying) {
+              audioEl.play().catch(() => {});
+              setPlayingState(true);
+            }
+          }
         },
         (err) => {
           readoutProgressTrack.classList.add('hide');
@@ -405,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnFmtMp3.classList.add('active');
     btnFmtWav.classList.remove('active');
     qualityBadge.textContent = "320 KBPS";
-    if (currentRawBuffer && !isNativeStream) {
+    if (currentRawBuffer) {
       loadModule(currentRawBuffer, `${activeArtist ? activeArtist + ' - ' : ''}${activeTitle}`);
     }
   });
@@ -416,7 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnFmtWav.classList.add('active');
     btnFmtMp3.classList.remove('active');
     qualityBadge.textContent = "16-BIT PCM";
-    if (currentRawBuffer && !isNativeStream) {
+    if (currentRawBuffer) {
       loadModule(currentRawBuffer, `${activeArtist ? activeArtist + ' - ' : ''}${activeTitle}`);
     }
   });
@@ -512,6 +537,14 @@ document.addEventListener('DOMContentLoaded', () => {
   dropZone.addEventListener('drop', (e) => {
     if (e.dataTransfer.files.length > 0) {
       loadModule(e.dataTransfer.files[0], e.dataTransfer.files[0].name);
+    }
+  });
+
+  audioEl.addEventListener('ended', () => {
+    if (!audioEl.loop) {
+      setPlayingState(false);
+      progressBar.value = 0;
+      timeCurrent.textContent = "00:00";
     }
   });
 

@@ -1,5 +1,5 @@
 /**
- * chiptune2.js - Studio Master engine with instant real-time audio output & background compilation
+ * chiptune2.js - Studio Master engine with mobile-optimized real-time preview & hardware handoff
  */
 (function(window) {
   var ChiptuneAudioContext = window.AudioContext || window.webkitAudioContext;
@@ -15,7 +15,7 @@
     this.analyser.connect(this.context.destination);
 
     this.currentPlayingNode = null;
-    this.repeatCount = -1; // Loop forever by default
+    this.repeatCount = -1;
     this.isCompiling = false;
     this.handlers = {};
   }
@@ -55,7 +55,6 @@
     }
   };
 
-  // Inspect metadata instantly before playback begins
   ChiptuneJsPlayer.prototype.readMetadata = function(buffer) {
     if (typeof libopenmpt === 'undefined' || !libopenmpt._openmpt_module_create_from_memory) return null;
     var byteArray = new Uint8Array(buffer);
@@ -77,14 +76,15 @@
     return meta;
   };
 
-  // INSTANT REAL-TIME PLAYBACK: Starts immediately without waiting for compilation
+  // INSTANT REAL-TIME PREVIEW: 8192-sample buffer prevents mobile underruns
   ChiptuneJsPlayer.prototype.play = function(buffer) {
     this.stop();
     this.unlock();
 
     var sampleRate = 48000;
     var maxFramesPerChunk = 4096;
-    var processNode = this.context.createScriptProcessor(4096, 0, 2);
+    // 8192 buffer = 170.6ms of cushion against mobile CPU jitter
+    var processNode = this.context.createScriptProcessor(8192, 0, 2);
     processNode.player = this;
 
     var byteArray = new Uint8Array(buffer);
@@ -100,8 +100,8 @@
     }
     processNode.modulePtr = mod;
 
-    // SINC-8 resampler + Level 5 volume ramping + 100% stereo
-    libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [mod, 3, 8]);
+    // Fast 4-tap sinc interpolation for real-time preview (low CPU), level 5 ramping, 100% stereo
+    libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [mod, 3, 4]);
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [mod, 4, 5]);
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [mod, 2, 100]);
     libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [mod, this.repeatCount]);
@@ -149,7 +149,6 @@
         for (var i = 0; i < actual; i++) {
           var sL = rawL[i];
           var sR = rawR[i];
-          // Soft-knee limiter
           if (sL > 1.0) sL = 1.0 - Math.exp(-sL);
           else if (sL < -1.0) sL = -1.0 + Math.exp(sL);
           if (sR > 1.0) sR = 1.0 - Math.exp(-sR);
@@ -239,7 +238,6 @@
     }
   };
 
-  // Build RIFF/WAV Container for 16-bit PCM Stereo
   function createWavBlob(pcmChunks, totalPcmBytes, sampleRate) {
     var buffer = new ArrayBuffer(44);
     var view = new DataView(buffer);
@@ -263,7 +261,7 @@
     return new Blob([buffer].concat(pcmChunks), { type: 'audio/wav' });
   }
 
-  // ASYNCHRONOUS BACKGROUND COMPILATION (Runs while music is already playing)
+  // MASTER BACKGROUND COMPILER: SINC-8 48kHz, gently throttled to never stall audio
   ChiptuneJsPlayer.prototype.compileAudio = function(buffer, format, onProgress, onComplete, onError) {
     this.cancelCompilation();
     var player = this;
@@ -282,6 +280,7 @@
         return;
       }
 
+      // 8-Tap Windowed Sinc for master recording
       libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 8]);
       libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
       libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 2, 100]);
@@ -303,7 +302,8 @@
       var interleavedPcm = (format === 'wav') ? new Int16Array(chunkSize * 2) : null;
 
       var framesRendered = 0;
-      var chunksPerTick = 4;
+      // 1 chunk per tick with 25ms pauses prevents thread starvation on mobile
+      var chunksPerTick = 1;
 
       function cleanup() {
         player.isCompiling = false;
@@ -383,7 +383,7 @@
           if (onProgress) onProgress(progress);
 
           if (framesRendered < totalFrames) {
-            setTimeout(step, 8); // Throttled to keep UI and real-time audio thread completely free
+            setTimeout(step, 25);
           } else {
             var finalBlob = null;
             if (format === 'mp3') {
@@ -402,7 +402,7 @@
         }
       }
 
-      setTimeout(step, 8);
+      setTimeout(step, 25);
     } catch (e) {
       player.isCompiling = false;
       if (onError) onError(e);
