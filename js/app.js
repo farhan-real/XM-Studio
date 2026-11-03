@@ -240,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 100);
 
-  // UNLOAD MODULE: Resets player to empty/idle state
+  // UNLOAD MODULE: Resets player to empty/idle state (Unload button stays visible)
   function unloadModule() {
     player.cancelCompilation();
     player.stop();
@@ -265,7 +265,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     readoutProgressTrack.classList.add('hide');
     readoutProgressBar.style.width = '0%';
-    btnUnload.classList.add('hide');
 
     progressBar.value = 0;
     progressBar.disabled = true;
@@ -314,7 +313,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       progressBar.disabled = false;
       btnDownload.disabled = false;
-      btnUnload.classList.remove('hide');
       setStatus('ready');
 
       if ('mediaSession' in navigator) {
@@ -351,8 +349,7 @@ document.addEventListener('DOMContentLoaded', () => {
       qualityBadge.textContent = activeFormat === 'mp3' ? "320 KBPS" : "16-BIT PCM";
       rateBadge.textContent = "48 KHZ";
 
-      // Show top-right unload button and inline progress bar
-      btnUnload.classList.remove('hide');
+      // Show inline progress bar
       readoutProgressTrack.classList.remove('hide');
       readoutProgressBar.style.width = '0%';
 
