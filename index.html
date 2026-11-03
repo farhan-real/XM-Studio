@@ -135,7 +135,7 @@
         </svg>
       </button>
 
-      <!-- Volume Fader Cluster with Percentage Readout Next to Slider -->
+      <!-- Volume Fader Cluster with Percentage Readout -->
       <div class="fader-cluster">
         <button class="fader-btn" id="btnMute" aria-label="Mute Audio">
           <svg id="svgVol" viewBox="0 0 24 24" class="t-icon-sm">
@@ -150,7 +150,7 @@
       </div>
     </div>
 
-    <!-- Ingest Deck / Multi-Format Selector -->
+    <!-- Ingest Deck / Open Track, Library, and Sample Audio -->
     <div class="ingest-deck">
       <input type="file" id="fileInput" accept=".xm,.mod,.it,.s3m,.mtm,.fc13,.fc14,.amd,.rad,.bp,.mo3,.hsc,.d00,.mp3,.ogg,.wav,.v2m,.sc68,.mid,.ahx,.sid,.sap,.ym,.nsf,.spc" />
       <button class="action-btn" id="btnBrowse">
@@ -158,6 +158,13 @@
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
         </svg>
         <span>OPEN TRACK</span>
+      </button>
+      <button class="action-btn" id="btnLibrary">
+        <svg viewBox="0 0 24 24" class="action-icon">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+        </svg>
+        <span>LIBRARY</span>
       </button>
       <button class="action-btn action-btn-secondary" id="btnDemo">
         <svg viewBox="0 0 24 24" class="action-icon">
@@ -167,6 +174,36 @@
         </svg>
         <span>SAMPLE AUDIO</span>
       </button>
+    </div>
+
+    <!-- Slide-Up Library Browser Modal -->
+    <div class="library-drawer hide" id="libraryDrawer">
+      <div class="library-header">
+        <div class="library-title-group">
+          <span class="brand-title">XM-MUSIC LIBRARY</span>
+          <span class="badge" id="libraryCount">0 TRACKS</span>
+        </div>
+        <button class="btn-unload" id="btnCloseLibrary" title="Close Library" aria-label="Close Library">
+          <svg viewBox="0 0 24 24" class="t-icon-xs">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Search Input -->
+      <div class="library-search-box">
+        <svg viewBox="0 0 24 24" class="search-icon">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input type="text" id="librarySearch" placeholder="Search title, artist, or subfolder..." autocomplete="off" />
+      </div>
+
+      <!-- High-Speed Virtual Track List -->
+      <div class="library-list" id="libraryList">
+        <div class="library-empty-msg">Connect your XM-Music repository to browse tracks.</div>
+      </div>
     </div>
   </main>
 

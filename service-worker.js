@@ -1,4 +1,4 @@
-const CACHE_NAME = 'xm-studio-v26';
+const CACHE_NAME = 'xm-studio-v27';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

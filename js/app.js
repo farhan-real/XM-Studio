@@ -3,6 +3,20 @@ document.addEventListener('DOMContentLoaded', () => {
     navigator.serviceWorker.register('./service-worker.js').catch(() => {});
   }
 
+  // Auto-detect XM-Music repository URL on GitHub Pages
+  function getDefaultLibraryBaseUrl() {
+    const loc = window.location;
+    if (loc.hostname.endsWith('github.io')) {
+      const parts = loc.pathname.split('/').filter(Boolean);
+      const user = loc.hostname.split('.')[0];
+      return `https://${user}.github.io/XM-Music/`;
+    }
+    // Local development fallback
+    return '../XM-Music/';
+  }
+
+  const MUSIC_BASE_URL = getDefaultLibraryBaseUrl();
+
   const player = new ChiptuneJsPlayer();
   const audioEl = document.getElementById('nativeAudio');
   
@@ -17,7 +31,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let nativeAudioSource = null;
   let prevVolume = 0.85;
 
-  // Route native <audio> through WebAudio for visualizer & volume
+  // Cloud Library State
+  let fullLibraryTracks = [];
+  let filteredLibraryTracks = [];
+  let isLibraryLoaded = false;
+  const BATCH_SIZE = 50;
+  let renderedCount = 0;
+
   function routeNativeAudioToWebAudio() {
     if (!nativeAudioSource && player.context) {
       try {
@@ -36,6 +56,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDownload = document.getElementById('btnDownload');
   const btnBrowse = document.getElementById('btnBrowse');
   const btnDemo = document.getElementById('btnDemo');
+  const btnLibrary = document.getElementById('btnLibrary');
+  const btnCloseLibrary = document.getElementById('btnCloseLibrary');
+  const libraryDrawer = document.getElementById('libraryDrawer');
+  const librarySearch = document.getElementById('librarySearch');
+  const libraryList = document.getElementById('libraryList');
+  const libraryCount = document.getElementById('libraryCount');
+
   const fileInput = document.getElementById('fileInput');
   const dropZone = document.getElementById('dropZone');
   const progressBar = document.getElementById('progressBar');
@@ -53,7 +80,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnFmtMp3 = document.getElementById('btnFmtMp3');
   const btnFmtWav = document.getElementById('btnFmtWav');
 
-  // Top Status & Unload Controls
   const statusBadge = document.getElementById('statusBadge');
   const btnUnload = document.getElementById('btnUnload');
   const readoutProgressTrack = document.getElementById('readoutProgressTrack');
@@ -86,7 +112,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Set Status Badge State: idle, compiling, ready
   function setStatus(state) {
     statusBadge.className = 'badge status-badge';
     if (state === 'idle') {
@@ -101,7 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Update Volume Display
   function updateVolumeDisplay(val) {
     const pct = Math.round(val * 100);
     volPercent.textContent = `${pct}%`;
@@ -236,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   renderVisualizer();
 
-  // Unified Real-Time Scrubber & Timeline Loop
+  // Scrubber & Timeline Loop
   setInterval(() => {
     if (isSeeking) return;
 
@@ -255,7 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 100);
 
-  // UNLOAD MODULE: Resets player to empty/idle state
+  // UNLOAD MODULE
   function unloadModule() {
     player.cancelCompilation();
     player.stop();
@@ -295,7 +319,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // LOAD & PLAY IMMEDIATELY WITH AUTOMATIC HARDWARE HANDOFF
+  // LOAD & PLAY WITH AUTOMATIC HARDWARE HANDOFF
   function loadModule(fileOrUrl, fallbackName) {
     const ext = getFileExtension(fallbackName);
     player.stop();
@@ -369,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
       readoutProgressBar.style.width = '0%';
       setStatus('compiling');
 
-      // PLAY INSTANTLY VIA 8K BUFFER REAL-TIME PREVIEW
+      // Instant 8k buffer real-time playback
       player.play(buf);
       setPlayingState(true);
       progressBar.disabled = false;
@@ -382,7 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // BACKGROUND COMPILATION + SEAMLESS HARDWARE HANDOFF
+      // Background compilation + hardware handoff
       player.compileAudio(
         buf,
         activeFormat,
@@ -401,15 +425,12 @@ document.addEventListener('DOMContentLoaded', () => {
           setStatus('ready');
           btnDownload.disabled = false;
 
-          // SEAMLESS HANDOFF: Switch from CPU emulator to native hardware decoding
+          // Seamless hardware handoff
           if (player.currentPlayingNode) {
             const currentPos = player.getPosition();
             const wasPlaying = !player.currentPlayingNode.paused;
 
-            // Stop the CPU-heavy emulator
             player.stop();
-
-            // Hand off to native hardware decoder
             routeNativeAudioToWebAudio();
             audioEl.src = currentAudioUrl;
             audioEl.currentTime = currentPos;
@@ -429,6 +450,97 @@ document.addEventListener('DOMContentLoaded', () => {
       );
     });
   }
+
+  // Cloud Library Fetcher & Virtual Renderer
+  async function openLibrary() {
+    libraryDrawer.classList.remove('hide');
+
+    if (!isLibraryLoaded) {
+      libraryList.innerHTML = '<div class="library-empty-msg">Connecting to XM-Music repository...</div>';
+      try {
+        const res = await fetch(`${MUSIC_BASE_URL}tracks.json`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        fullLibraryTracks = await res.json();
+        filteredLibraryTracks = fullLibraryTracks;
+        isLibraryLoaded = true;
+
+        libraryCount.textContent = `${fullLibraryTracks.length} TRACKS`;
+        renderLibraryList(true);
+      } catch (err) {
+        libraryList.innerHTML = `
+          <div class="library-empty-msg">
+            Could not reach XM-Music index.<br>
+            <span style="font-size:0.72rem;color:var(--text-muted);">Ensure XM-Music is deployed to GitHub Pages and tracks.json exists.</span>
+          </div>
+        `;
+      }
+    }
+  }
+
+  function renderLibraryList(reset) {
+    if (reset) {
+      libraryList.innerHTML = '';
+      renderedCount = 0;
+    }
+
+    const nextBatch = filteredLibraryTracks.slice(renderedCount, renderedCount + BATCH_SIZE);
+    if (nextBatch.length === 0 && renderedCount === 0) {
+      libraryList.innerHTML = '<div class="library-empty-msg">No matching tracks found.</div>';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    nextBatch.forEach((item) => {
+      const el = document.createElement('div');
+      el.className = 'library-item';
+      el.innerHTML = `
+        <div class="lib-item-info">
+          <span class="lib-item-title">${item.title}</span>
+          <span class="lib-item-sub">${item.artist} • ${item.folder}</span>
+        </div>
+        <div class="lib-item-meta">
+          <span class="badge">${item.ext}</span>
+        </div>
+      `;
+      el.addEventListener('click', () => {
+        libraryDrawer.classList.add('hide');
+        const songUrl = `${MUSIC_BASE_URL}${item.path}`;
+        loadModule(songUrl, `${item.artist} - ${item.title}.${item.ext.toLowerCase()}`);
+      });
+      frag.appendChild(el);
+    });
+
+    libraryList.appendChild(frag);
+    renderedCount += nextBatch.length;
+  }
+
+  // Infinite scroll loader for smooth mobile performance
+  libraryList.addEventListener('scroll', () => {
+    if (libraryList.scrollTop + libraryList.clientHeight >= libraryList.scrollHeight - 50) {
+      if (renderedCount < filteredLibraryTracks.length) {
+        renderLibraryList(false);
+      }
+    }
+  });
+
+  // Instant Search Filter
+  librarySearch.addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    if (!q) {
+      filteredLibraryTracks = fullLibraryTracks;
+    } else {
+      filteredLibraryTracks = fullLibraryTracks.filter(t => 
+        t.title.toLowerCase().includes(q) ||
+        t.artist.toLowerCase().includes(q) ||
+        t.folder.toLowerCase().includes(q)
+      );
+    }
+    renderLibraryList(true);
+  });
+
+  // Library Controls
+  btnLibrary.addEventListener('click', openLibrary);
+  btnCloseLibrary.addEventListener('click', () => libraryDrawer.classList.add('hide'));
 
   // Format Switchers
   btnFmtMp3.addEventListener('click', () => {
@@ -505,7 +617,6 @@ document.addEventListener('DOMContentLoaded', () => {
     isSeeking = false;
   });
 
-  // Volume Slider & Readout Updates
   volSlider.addEventListener('input', (e) => {
     const v = parseFloat(e.target.value);
     audioEl.volume = v;
