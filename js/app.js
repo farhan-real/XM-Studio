@@ -99,25 +99,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function normalizeArtist(str) {
     if (!str) return '';
     let s = str.trim();
-
-    // Standardize "and" -> "&"
     s = s.replace(/\s+and\s+/gi, ' & ');
-
-    // Standardize "featuring", "feat.", "feat", "ft" -> "ft."
     s = s.replace(/\s+(?:featuring|feat\.?|ft\.?)\s+/gi, ' ft. ');
-
-    // Standardize "vs.", "vs", "versus" -> "vs."
     s = s.replace(/\s+(?:versus|vs\.?)\s+/gi, ' vs. ');
-
-    // Ensure single spaces around "&"
     s = s.replace(/([^\s&])&/g, '$1 &').replace(/&([^\s&])/g, '& $1');
-
-    // Clean multiple spaces
     s = s.replace(/\s+/g, ' ').trim();
     return s;
   }
 
-  // Capitalize words if string is strictly lowercase, preserving custom casing like "4mat" or "DRAX"
+  // Capitalize words if string is strictly lowercase
   function smartCapitalize(str) {
     if (!str) return '';
     if (str !== str.toLowerCase()) return str;
@@ -136,11 +126,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Parses "artist - name" filenames and handles &, "and", "ft.", etc.
   function parseTrackInfo(filename, internalMeta) {
     internalMeta = internalMeta || {};
-
-    // Remove file extension
     let base = filename.replace(/\.[a-z0-9]+$/i, '').trim();
 
-    // Handle underscores used in scene filenames (e.g., artist_-_title or artist_name_-_title)
     if (base.includes('_-_')) {
       base = base.replace(/_-_/g, ' - ').replace(/_/g, ' ');
     } else if (!base.includes(' ') && base.includes('_')) {
@@ -150,14 +137,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let rawArtist = (internalMeta.artist || '').trim();
     let rawTitle = (internalMeta.title || '').trim();
 
-    // Look for "artist - name" separator pattern (hyphen, en-dash, em-dash)
     const match = base.match(/^(.+?)\s+[-–—]\s+(.+)$/);
 
     if (match) {
       let fileArtist = match[1].trim();
       let fileTitle = match[2].trim();
 
-      // Check if featured artist is embedded in the title part (e.g. "Song (ft. Someone)" or "Song feat. Someone")
       const featInTitle = fileTitle.match(/\s*[\(\[\{]?(?:ft\.?|feat\.?|featuring)\s+([^\)\]\}]+)[\)\]\}]?/i);
       if (featInTitle) {
         const featured = featInTitle[1].trim();
@@ -165,7 +150,6 @@ document.addEventListener('DOMContentLoaded', () => {
         fileArtist = `${fileArtist} ft. ${featured}`;
       }
 
-      // FastTracker 2 module titles have a 20-character limit, so filename title is often more complete
       if (!rawTitle || fileTitle.toLowerCase().startsWith(rawTitle.toLowerCase())) {
         rawTitle = fileTitle;
       } else {
@@ -176,7 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
         rawArtist = fileArtist;
       }
     } else {
-      // No " - " in filename, check for standalone "Song (feat. Artist)"
       const featMatch = base.match(/^(.+?)\s+[\(\[\{]?(?:ft\.?|feat\.?|featuring)\s+([^\)\]\}]+)[\)\]\}]?/i);
       if (featMatch) {
         rawTitle = featMatch[1].trim();
@@ -187,11 +170,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Normalize connectors (&, and, ft., feat., vs.)
     let artist = normalizeArtist(rawArtist);
     let title = rawTitle.trim();
 
-    // Capitalize if string is strictly lowercase
     artist = smartCapitalize(artist);
     title = smartCapitalize(title);
 

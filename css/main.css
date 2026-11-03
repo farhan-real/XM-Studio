@@ -75,7 +75,7 @@ body {
   gap: 10px;
 }
 
-/* Top Row: Brand on left, X on top right */
+/* Top Row: Heading on left, X on top right */
 .header-top {
   display: flex;
   justify-content: space-between;
@@ -143,8 +143,16 @@ body {
   stroke-linejoin: round;
 }
 
-/* Badges Row: Directly Below Heading */
+/* Badges Row: Left Badges Group + Only Status Badge at Right */
 .header-badges {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badges-group {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -162,6 +170,11 @@ body {
   display: inline-flex;
   align-items: center;
   line-height: 1.2;
+}
+
+/* Only Status Badge at Right */
+#statusBadge {
+  margin-left: auto;
 }
 
 /* Status Badge States */
@@ -203,6 +216,25 @@ body {
   box-shadow: 0 0 8px rgba(34, 197, 94, 0.12);
 }
 
+/* Engine & Channels Badges */
+.badge-engine {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.badge-channels {
+  color: var(--accent);
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+}
+
+.spec-key {
+  color: var(--text-muted);
+  font-weight: 700;
+  margin-right: 3px;
+}
+
 .deck-container {
   width: 100%;
   height: 96px;
@@ -234,21 +266,16 @@ body {
   pointer-events: none;
 }
 
-/* Readout Panel */
+/* Readout Panel (Clean Title & Artist Readout) */
 .readout-panel {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 12px 14px;
-  gap: 12px;
 }
 
 .readout-main {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
 }
 
 .song-title {
@@ -286,53 +313,6 @@ body {
   background: var(--accent);
   border-radius: 2px;
   transition: width 0.1s linear;
-}
-
-/* Spec Badges in Readout Panel */
-.readout-specs {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  align-items: flex-end;
-  padding-left: 12px;
-  border-left: 1px solid var(--border-subtle);
-  flex-shrink: 0;
-}
-
-.spec-badge {
-  font-family: var(--font-mono);
-  font-size: 0.58rem;
-  padding: 2.5px 6px;
-  border-radius: 3px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  line-height: 1.2;
-}
-
-.spec-key {
-  color: var(--text-muted);
-  font-weight: 700;
-}
-
-.badge-engine {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.badge-channels {
-  color: var(--accent);
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.28);
-}
-
-.badge-clock {
-  color: var(--led-green);
-  background: rgba(34, 197, 94, 0.08);
-  border: 1px solid rgba(34, 197, 94, 0.28);
 }
 
 .segment-strip {
@@ -601,23 +581,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   .chassis {
     padding: 16px;
     gap: 14px;
-  }
-  .readout-panel {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-  .readout-specs {
-    width: 100%;
-    border-left: none;
-    border-top: 1px solid var(--border-subtle);
-    padding-left: 0;
-    padding-top: 8px;
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-    justify-content: flex-start;
   }
   .vol-slider-wrap {
     width: 54px;

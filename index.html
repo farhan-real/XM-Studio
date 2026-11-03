@@ -29,9 +29,8 @@
 </head>
 <body>
   <main class="chassis" id="dropZone">
-    <!-- Header with XM-Studio and Offline DSP on side -->
+    <!-- Header: Heading and Top Right X -->
     <header class="header">
-      <!-- Top Row: Heading on left, X on top right -->
       <div class="header-top">
         <div class="brand-cluster">
           <span class="status-pip" id="statusPip"></span>
@@ -46,11 +45,15 @@
         </button>
       </div>
 
-      <!-- Badges Row: Directly below heading -->
+      <!-- Badges Row: Engine placed to the right of Channels -->
       <div class="header-badges">
+        <div class="badges-group">
+          <span class="badge" id="qualityBadge">320 KBPS</span>
+          <span class="badge" id="rateBadge">48 KHZ</span>
+          <span class="badge badge-channels"><span class="spec-key">CHANNELS:</span> <span id="channels">--</span></span>
+          <span class="badge badge-engine"><span class="spec-key">ENGINE:</span> <span id="modType">FT2</span></span>
+        </div>
         <span class="badge status-badge status-idle" id="statusBadge">STATUS: IDLE</span>
-        <span class="badge" id="qualityBadge">320 KBPS</span>
-        <span class="badge" id="rateBadge">48 KHZ</span>
       </div>
     </header>
 
@@ -62,7 +65,7 @@
       <div class="screen-grid"></div>
     </div>
 
-    <!-- Metadata Readout Panel with Badged Specs -->
+    <!-- Metadata Readout Panel -->
     <section class="readout-panel">
       <div class="readout-main">
         <h2 class="song-title" id="songTitle">NO MODULE LOADED</h2>
@@ -70,12 +73,6 @@
         <div class="readout-progress-track hide" id="readoutProgressTrack">
           <div class="readout-progress-bar" id="readoutProgressBar"></div>
         </div>
-      </div>
-      <!-- Engine, Channels, and Clock Badges -->
-      <div class="readout-specs">
-        <span class="badge spec-badge badge-engine"><span class="spec-key">ENGINE:</span> <span id="modType">FT2</span></span>
-        <span class="badge spec-badge badge-channels"><span class="spec-key">CHANNELS:</span> <span id="channels">--</span></span>
-        <span class="badge spec-badge badge-clock"><span class="spec-key">CLOCK:</span> <span id="clockVal">48 KHZ</span></span>
       </div>
     </section>
 
