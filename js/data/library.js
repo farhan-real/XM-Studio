@@ -80,19 +80,11 @@
       card.innerHTML = `
         <span class="track-card-num">${idx + 1}</span>
         <div class="track-card-content">
-          <div class="track-card-row1">
-            <span class="track-card-title">${track.title}</span>
-            <span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span>
-          </div>
-          <div class="track-card-row2">
-            <span class="track-card-artist">${track.artist}</span>
-            <div class="track-card-actions">
-              <button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite">
-                <svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? 'var(--col-gold)' : 'none'}" stroke="${isFav ? 'var(--col-gold)' : 'currentColor'}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
-              </button>
-              <button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-            </div>
-          </div>
+          <div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div>
+          <div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions">
+            <button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite"><svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? 'var(--col-gold)' : 'none'}" stroke="${isFav ? 'var(--col-gold)' : 'currentColor'}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button>
+            <button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+          </div></div>
         </div>`;
       frag.appendChild(card);
     }
@@ -106,7 +98,6 @@
     const trackId = card.getAttribute('data-track-id');
     const track = activeRenderQueue.find(t => t.id === trackId);
     if (!track) return;
-
     const actionBtn = e.target.closest('.km-btn-icon');
     if (actionBtn) {
       e.stopPropagation();
@@ -135,9 +126,7 @@
   }
 
   paneTable.addEventListener('scroll', () => {
-    if (paneTable.scrollTop + paneTable.clientHeight >= paneTable.scrollHeight - 350) {
-      appendTrackChunk();
-    }
+    if (paneTable.scrollTop + paneTable.clientHeight >= paneTable.scrollHeight - 350) appendTrackChunk();
   }, { passive: true });
 
   async function playTrack(track, queue, idx) {
@@ -170,27 +159,14 @@
       playlistItemsWrap.innerHTML = '<div class="library-empty-msg">No playlists created yet. Enter a name above to create one.</div>';
       return;
     }
-
     playlists.forEach(pl => {
       const card = document.createElement('div');
       card.className = 'playlist-card';
-      card.innerHTML = `
-        <div class="pl-card-info"><span class="pl-card-title">${pl.name}</span><span class="pl-card-meta">${pl.tracks.length} tracks</span></div>
-        <div class="pl-card-actions">
-          <button class="km-btn-icon" data-action="export" title="Export Playlist (.json)"><svg viewBox="0 0 24 24" class="t-icon-xs"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>
-          <button class="km-btn-icon" data-action="modify" title="Rename Playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button>
-          <button class="km-btn-icon" data-action="delete" title="Delete Playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-        </div>`;
+      card.innerHTML = `<div class="pl-card-info"><span class="pl-card-title">${pl.name}</span><span class="pl-card-meta">${pl.tracks.length} tracks</span></div><div class="pl-card-actions"><button class="km-btn-icon" data-action="export" title="Export (.json)"><svg viewBox="0 0 24 24" class="t-icon-xs"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button><button class="km-btn-icon" data-action="modify" title="Rename"><svg viewBox="0 0 24 24" class="t-icon-xs"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button><button class="km-btn-icon" data-action="delete" title="Delete"><svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div>`;
       card.querySelector('.pl-card-info').addEventListener('click', () => viewPlaylist(pl.id));
       card.querySelector('[data-action="export"]').addEventListener('click', (e) => { e.stopPropagation(); window.XMPlaylist.exportPlaylist(pl.id); });
-      card.querySelector('[data-action="modify"]').addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.XMPlaylist.showPrompt("MODIFY PLAYLIST NAME", pl.name, "Enter new name...", (nn) => { pl.name = nn; window.XMPlaylist.savePlaylists(playlists); renderPlaylists(); });
-      });
-      card.querySelector('[data-action="delete"]').addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.XMPlaylist.showConfirm("DELETE PLAYLIST", `Permanently delete "${pl.name}"?`, () => { window.XMPlaylist.savePlaylists(playlists.filter(p => p.id !== pl.id)); renderPlaylists(); });
-      });
+      card.querySelector('[data-action="modify"]').addEventListener('click', (e) => { e.stopPropagation(); window.XMPlaylist.showPrompt("RENAME PLAYLIST", pl.name, "New name...", (nn) => { pl.name = nn; window.XMPlaylist.savePlaylists(playlists); renderPlaylists(); }); });
+      card.querySelector('[data-action="delete"]').addEventListener('click', (e) => { e.stopPropagation(); window.XMPlaylist.showConfirm("DELETE PLAYLIST", `Delete "${pl.name}"?`, () => { window.XMPlaylist.savePlaylists(playlists.filter(p => p.id !== pl.id)); renderPlaylists(); }); });
       playlistItemsWrap.appendChild(card);
     });
   }
@@ -211,18 +187,10 @@
     pl.tracks.forEach((track, idx) => {
       const card = document.createElement('div');
       const isFav = window.XMPlaylist.isFavorited(track.id);
-      const fmtClass = getFormatBadgeClass(track.ext);
       card.className = `track-card ${currentlyPlayingId === track.id ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}`;
       card.setAttribute('data-track-id', track.id);
-      card.innerHTML = `
-        <span class="track-card-num">${idx + 1}</span>
-        <div class="track-card-content">
-          <div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div>
-          <div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions">
-            <button class="km-btn-icon" data-action="remove-added" title="Remove track"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
-          </div></div>
-        </div>`;
-      card.addEventListener('click', (e) => { if (e.target.closest('.km-btn-icon')) return; playTrack(track, pl.tracks, idx); });
+      card.innerHTML = `<span class="track-card-num">${idx + 1}</span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${getFormatBadgeClass(track.ext)}">${track.ext || 'XM'}</span></div><div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions"><button class="km-btn-icon" data-action="remove-added" title="Remove"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div></div></div>`;
+      card.addEventListener('click', (e) => { if (!e.target.closest('.km-btn-icon')) playTrack(track, pl.tracks, idx); });
       card.querySelector('[data-action="remove-added"]').addEventListener('click', (e) => {
         e.stopPropagation();
         const pls = window.XMPlaylist.getPlaylists();
@@ -240,7 +208,7 @@
     if (!pl) return;
     const modalBackdrop = document.getElementById('studioModalBackdrop');
     document.getElementById('studioModalTitle').textContent = `ADD TO ${pl.name.toUpperCase()}`;
-    document.getElementById('studioModalBody').innerHTML = `<input type="text" class="modal-input" id="modalColSearch" placeholder="Filter collection by artist or title..." /><div class="modal-collection-list" id="modalColList"></div>`;
+    document.getElementById('studioModalBody').innerHTML = `<input type="text" class="modal-input" id="modalColSearch" placeholder="Filter collection..." /><div class="modal-collection-list" id="modalColList"></div>`;
     document.getElementById('studioModalFooter').innerHTML = '<button class="action-btn action-btn-secondary" id="btnModalCloseOnly"><span>Done</span></button>';
     document.getElementById('btnModalCloseOnly').addEventListener('click', window.XMPlaylist.closeModal);
     modalBackdrop.classList.remove('hide');
@@ -396,11 +364,13 @@
   loadAllCatalogs();
 
   window.XMLibrary = {
-    notifyPlaying: function(trackId) { currentlyPlayingId = trackId; updateActiveCards(); },
-    renderCurrentTab: function() { switchTab(activeTab); },
-    refreshArchive: async function() {
+    notifyPlaying: (trackId) => { currentlyPlayingId = trackId; updateActiveCards(); },
+    renderCurrentTab: () => switchTab(activeTab),
+    refreshArchive: async () => {
       remoteCatalog = window.XMSources ? await window.XMSources.fetchRemoteCatalogs() : [];
       await syncFullCatalog();
-    }
+    },
+    getDisplayCatalog: () => (activeRenderQueue && activeRenderQueue.length > 0) ? activeRenderQueue : displayCatalog,
+    playTrackDirect: playTrack
   };
 })(window);

@@ -20,6 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnStop = document.getElementById('btnStop');
   const btnLoop = document.getElementById('btnLoop');
   const btnShuffle = document.getElementById('btnShuffle');
+  const btnPrev = document.getElementById('btnPrev');
+  const btnNext = document.getElementById('btnNext');
+  const btnPlayRandom = document.getElementById('btnPlayRandom');
   const btnDownload = document.getElementById('btnDownload');
   const btnBrowse = document.getElementById('btnBrowse');
   const btnDemo = document.getElementById('btnDemo');
@@ -87,19 +90,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function setStatus(state) {
     statusBadge.className = 'badge status-badge';
-    if (state === 'idle') {
-      statusBadge.classList.add('status-idle');
-      statusBadge.textContent = 'STATUS: IDLE';
-    } else if (state === 'compiling') {
-      statusBadge.classList.add('status-compiling');
-      statusBadge.textContent = 'STATUS: COMPILING';
-    } else if (state === 'ready') {
-      statusBadge.classList.add('status-ready');
-      statusBadge.textContent = 'STATUS: READY';
-    } else if (state === 'error') {
-      statusBadge.classList.add('status-error');
-      statusBadge.textContent = 'STATUS: ERROR';
-    }
+    if (state === 'idle') { statusBadge.classList.add('status-idle'); statusBadge.textContent = 'STATUS: IDLE'; }
+    else if (state === 'compiling') { statusBadge.classList.add('status-compiling'); statusBadge.textContent = 'STATUS: COMPILING'; }
+    else if (state === 'ready') { statusBadge.classList.add('status-ready'); statusBadge.textContent = 'STATUS: READY'; }
+    else if (state === 'error') { statusBadge.classList.add('status-error'); statusBadge.textContent = 'STATUS: ERROR'; }
   }
 
   function getTrackDuration() {
@@ -116,7 +110,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isSeeking) return;
     const dur = getTrackDuration();
     const cur = getTrackCurrentTime();
-
     if (dur > 0) {
       progressBar.value = (cur / dur) * 100;
       const currentSec = Math.floor(cur);
@@ -146,27 +139,19 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   btnStop.addEventListener('click', () => {
-    if (window.XMAudio.isNativeStream) {
-      audioEl.pause();
-      audioEl.currentTime = 0;
-    } else {
-      player.stop();
-    }
+    if (window.XMAudio.isNativeStream) { audioEl.pause(); audioEl.currentTime = 0; }
+    else player.stop();
     progressBar.value = 0;
     timeCurrent.textContent = "00:00";
     lastReportedSec = -1;
     setPlayingState(false);
   });
 
-  btnLoop.addEventListener('click', () => {
-    const isLoop = window.XMAudio.toggleLoop();
-    btnLoop.classList.toggle('active', isLoop);
-  });
-
-  btnShuffle.addEventListener('click', () => {
-    const isShuff = window.XMAudio.toggleShuffle();
-    btnShuffle.classList.toggle('active', isShuff);
-  });
+  btnLoop.addEventListener('click', () => btnLoop.classList.toggle('active', window.XMAudio.toggleLoop()));
+  btnShuffle.addEventListener('click', () => btnShuffle.classList.toggle('active', window.XMAudio.toggleShuffle()));
+  if (btnPrev) btnPrev.addEventListener('click', () => window.XMAudio.playPrevTrack());
+  if (btnNext) btnNext.addEventListener('click', () => window.XMAudio.playNextTrack(true));
+  if (btnPlayRandom) btnPlayRandom.addEventListener('click', () => window.XMAudio.playRandomTrack());
 
   btnUnload.addEventListener('click', () => {
     player.stop();
@@ -175,10 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
     songTitle.textContent = "No Module Loaded";
     songArtist.textContent = "Ready for FastTracker II / Audio input";
     modType.textContent = "NONE";
-    if (badgeEngine) {
-      badgeEngine.classList.add('engine-none');
-      badgeEngine.classList.remove('engine-error');
-    }
+    if (badgeEngine) { badgeEngine.classList.add('engine-none'); badgeEngine.classList.remove('engine-error'); }
     channels.textContent = "--";
     progressBar.value = 0;
     progressBar.disabled = true;
@@ -194,9 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function applySeek(targetSec) {
     if (window.XMAudio.isNativeStream) {
       if (audioEl.duration && !isNaN(audioEl.duration)) audioEl.currentTime = targetSec;
-    } else {
-      player.seek(targetSec);
-    }
+    } else player.seek(targetSec);
     timeCurrent.textContent = formatTime(targetSec);
     lastReportedSec = Math.floor(targetSec);
   }
@@ -213,10 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   progressBar.addEventListener('change', () => {
     const dur = getTrackDuration();
-    if (dur > 0) {
-      const targetSec = (progressBar.value / 100) * dur;
-      applySeek(targetSec);
-    }
+    if (dur > 0) applySeek((progressBar.value / 100) * dur);
     isSeeking = false;
   });
 
@@ -229,46 +206,22 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   btnMute.addEventListener('click', () => {
-    if (parseFloat(volSlider.value) > 0) {
-      prevVolume = parseFloat(volSlider.value) || 0.85;
-      audioEl.volume = 0;
-      player.setVolume(0);
-      volSlider.value = 0;
-      volPercent.textContent = '0%';
-    } else {
-      const r = prevVolume || 0.85;
-      audioEl.volume = r;
-      player.setVolume(r);
-      volSlider.value = r;
-      volPercent.textContent = `${Math.round(r * 100)}%`;
-    }
+    const curV = parseFloat(volSlider.value);
+    const target = curV > 0 ? 0 : (prevVolume || 0.85);
+    if (curV > 0) prevVolume = curV;
+    audioEl.volume = target;
+    player.setVolume(target);
+    volSlider.value = target;
+    volPercent.textContent = `${Math.round(target * 100)}%`;
   });
 
   function updateFmtButtons(activeId) {
-    [btnFmtMp3, btnFmtWav, btnFmtRaw].forEach(b => {
-      if (b) b.classList.toggle('active', b.id === activeId);
-    });
+    [btnFmtMp3, btnFmtWav, btnFmtRaw].forEach(b => { if (b) b.classList.toggle('active', b.id === activeId); });
   }
 
-  btnFmtMp3.addEventListener('click', () => {
-    activeFormat = 'mp3';
-    updateFmtButtons('btnFmtMp3');
-    qualityBadge.textContent = "320 KBPS";
-  });
-
-  btnFmtWav.addEventListener('click', () => {
-    activeFormat = 'wav';
-    updateFmtButtons('btnFmtWav');
-    qualityBadge.textContent = "16-BIT PCM";
-  });
-
-  if (btnFmtRaw) {
-    btnFmtRaw.addEventListener('click', () => {
-      activeFormat = 'raw';
-      updateFmtButtons('btnFmtRaw');
-      qualityBadge.textContent = "TRACKER";
-    });
-  }
+  btnFmtMp3.addEventListener('click', () => { activeFormat = 'mp3'; updateFmtButtons('btnFmtMp3'); qualityBadge.textContent = "320 KBPS"; });
+  btnFmtWav.addEventListener('click', () => { activeFormat = 'wav'; updateFmtButtons('btnFmtWav'); qualityBadge.textContent = "16-BIT PCM"; });
+  if (btnFmtRaw) btnFmtRaw.addEventListener('click', () => { activeFormat = 'raw'; updateFmtButtons('btnFmtRaw'); qualityBadge.textContent = "TRACKER"; });
 
   btnDownload.addEventListener('click', async () => {
     const info = window.XMAudio.getCurrentInfo();
@@ -277,14 +230,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (activeFormat === 'raw') {
       let blob = window.XMAudio.currentAudioBlob;
-      if (!blob && window.XMAudio.currentRawBuffer) {
-        blob = new Blob([window.XMAudio.currentRawBuffer], { type: 'application/octet-stream' });
-      }
+      if (!blob && window.XMAudio.currentRawBuffer) blob = new Blob([window.XMAudio.currentRawBuffer], { type: 'application/octet-stream' });
       if (!blob && window.XMAudio.currentAudioSrc) {
-        try {
-          const res = await fetch(window.XMAudio.currentAudioSrc);
-          blob = await res.blob();
-        } catch (e) {}
+        try { const res = await fetch(window.XMAudio.currentAudioSrc); blob = await res.blob(); } catch (e) {}
       }
       if (blob) {
         const a = document.createElement('a');
@@ -302,49 +250,29 @@ document.addEventListener('DOMContentLoaded', () => {
     readoutProgressTrack.classList.remove('hide');
     readoutProgressBar.style.width = '0%';
 
-    window.AudioCompiler.compile(
-      raw,
-      activeFormat,
-      (p) => { readoutProgressBar.style.width = `${Math.round(p * 100)}%`; },
-      (blob) => {
-        readoutProgressTrack.classList.add('hide');
-        setStatus('ready');
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `${info.artist} - ${info.title}.${activeFormat}`.replace(/[/\\?%*:|"<>]/g, '_');
-        a.click();
-        URL.revokeObjectURL(a.href);
-      },
-      () => {
-        readoutProgressTrack.classList.add('hide');
-        setStatus('error');
-      }
-    );
+    window.AudioCompiler.compile(raw, activeFormat, (p) => { readoutProgressBar.style.width = `${Math.round(p * 100)}%`; }, (blob) => {
+      readoutProgressTrack.classList.add('hide');
+      setStatus('ready');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${info.artist} - ${info.title}.${activeFormat}`.replace(/[/\\?%*:|"<>]/g, '_');
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }, () => { readoutProgressTrack.classList.add('hide'); setStatus('error'); });
   });
 
   btnBrowse.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', (e) => {
-    if (e.target.files.length > 0) {
-      window.XMAudio.loadTrack(e.target.files[0], e.target.files[0].name);
-    }
+    if (e.target.files.length > 0) window.XMAudio.loadTrack(e.target.files[0], e.target.files[0].name);
   });
-
   btnDemo.addEventListener('click', () => {
     window.XMAudio.loadTrack('https://deskjet.github.io/chiptune2.js/tunes/chipsounds.mod', 'Dubmood - Chipsounds.mod');
   });
 
-  ['dragenter', 'dragover'].forEach(n => dropZone.addEventListener(n, (e) => {
-    e.preventDefault();
-    dropZone.classList.add('drag-over');
-  }));
-  ['dragleave', 'drop'].forEach(n => dropZone.addEventListener(n, (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('drag-over');
-  }));
+  ['dragenter', 'dragover'].forEach(n => dropZone.addEventListener(n, (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); }));
+  ['dragleave', 'drop'].forEach(n => dropZone.addEventListener(n, (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); }));
   dropZone.addEventListener('drop', (e) => {
-    if (e.dataTransfer.files.length > 0) {
-      window.XMAudio.loadTrack(e.dataTransfer.files[0], e.dataTransfer.files[0].name);
-    }
+    if (e.dataTransfer.files.length > 0) window.XMAudio.loadTrack(e.dataTransfer.files[0], e.dataTransfer.files[0].name);
   });
 
   window.XMApp = {
@@ -353,15 +281,9 @@ document.addEventListener('DOMContentLoaded', () => {
       songTitle.textContent = title;
       songArtist.textContent = artist;
       modType.textContent = engine;
-
-      if (badgeEngine) {
-        badgeEngine.classList.remove('engine-none');
-        badgeEngine.classList.toggle('engine-error', isError);
-      }
+      if (badgeEngine) { badgeEngine.classList.remove('engine-none'); badgeEngine.classList.toggle('engine-error', isError); }
       channels.textContent = channelCount;
-      qualityBadge.textContent = isNative
-        ? engine
-        : (activeFormat === 'raw' ? 'TRACKER' : (activeFormat === 'mp3' ? '320 KBPS' : '16-BIT PCM'));
+      qualityBadge.textContent = isNative ? engine : (activeFormat === 'raw' ? 'TRACKER' : (activeFormat === 'mp3' ? '320 KBPS' : '16-BIT PCM'));
       rateBadge.textContent = isError ? "--" : "48 KHZ";
       progressBar.disabled = isError;
       btnDownload.disabled = isError;
