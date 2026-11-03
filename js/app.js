@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentAudioUrl = null;
   let activeFormat = 'mp3';
   let isSeeking = false;
-  let activeTitle = "NO MODULE LOADED";
+  let activeTitle = "No Module Loaded";
   let activeArtist = "";
   let isNativeStream = false;
 
@@ -178,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     return {
       artist: artist || "Unknown Artist",
-      title: title || "UNTITLED TRACK"
+      title: title || "Untitled Track"
     };
   }
 
@@ -255,10 +255,10 @@ document.addEventListener('DOMContentLoaded', () => {
     currentAudioBlob = null;
     isNativeStream = false;
 
-    activeTitle = "NO MODULE LOADED";
+    activeTitle = "No Module Loaded";
     activeArtist = "";
 
-    songTitle.textContent = "NO MODULE LOADED";
+    songTitle.textContent = "No Module Loaded";
     songArtist.textContent = "Ready for FastTracker II / Audio input";
     modType.textContent = "FT2";
     channels.textContent = "--";
