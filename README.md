@@ -32,6 +32,7 @@ Powered by `libopenmpt` compiled to WebAssembly, XM-Studio provides sample-accur
 ## Features
 
 ### Audio Engine & Real-Time DSP
+- **Offline Audio Compilation & Saving**: Compiles and exports tracker modules into standalone audio files (MP3/WAV), avoiding perpetual real-time DSP re-synthesis and eliminating the playback lag and audio stutter common in other tracker player websites.
 - **Tracker DSP Engine**: Full module playback via `libopenmpt` running at 48 kHz.
 - **Lossless FLAC Support**: Direct hardware-accelerated playback for `.flac` and native audio streams routed through WebAudio.
 - **Phosphor Spectrum Visualizer**: 28-band real-time audio analyzer rendered to HTML5 Canvas with device-pixel-ratio display scaling.
