@@ -88,7 +88,6 @@
     return { artist, title, ext };
   }
 
-  // DOM Elements
   const inputCustomFiles = document.getElementById('inputCustomFiles');
   const btnAddCustomFile = document.getElementById('btnAddCustomFile');
   const btnClearAllCustom = document.getElementById('btnClearAllCustom');
@@ -174,6 +173,7 @@
   renderCustomManagerList();
 
   window.XMCustom = {
+    saveTrack: saveTrack,
     getTracks: getTracks,
     getTrackBlob: getTrackBlob,
     deleteTrack: deleteTrack,

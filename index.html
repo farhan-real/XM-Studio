@@ -16,7 +16,6 @@
   <link rel="stylesheet" href="css/tracks.css" />
   <link rel="stylesheet" href="css/library.css" />
 
-  <!-- libopenmpt Engine & Memory Locator -->
   <script>
     window.libopenmpt = window.libopenmpt || {};
     window.libopenmpt.locateFile = function(filename) {
@@ -40,44 +39,26 @@
     <aside class="panel-left" id="panelLeft">
       <div class="panel-nav-bar">
         <button class="panel-nav-btn active" id="tabArchive">
-          <svg viewBox="0 0 24 24" class="t-icon-xs">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-          </svg>
+          <svg viewBox="0 0 24 24" class="t-icon-xs"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
           <span>Archive</span>
         </button>
         <button class="panel-nav-btn" id="tabPlaylists">
-          <svg viewBox="0 0 24 24" class="t-icon-xs">
-            <line x1="8" y1="6" x2="21" y2="6"></line>
-            <line x1="8" y1="12" x2="21" y2="12"></line>
-            <line x1="8" y1="18" x2="21" y2="18"></line>
-            <line x1="3" y1="6" x2="3.01" y2="6"></line>
-            <line x1="3" y1="12" x2="3.01" y2="12"></line>
-            <line x1="3" y1="18" x2="3.01" y2="18"></line>
-          </svg>
+          <svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
           <span>Playlists</span>
         </button>
         <button class="panel-nav-btn" id="tabFavorites">
-          <svg viewBox="0 0 24 24" class="t-icon-xs">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-          </svg>
+          <svg viewBox="0 0 24 24" class="t-icon-xs"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
           <span>Favorites</span>
         </button>
         <button class="panel-nav-btn" id="tabSource">
-          <svg viewBox="0 0 24 24" class="t-icon-xs">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-          </svg>
+          <svg viewBox="0 0 24 24" class="t-icon-xs"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           <span>Source</span>
         </button>
       </div>
 
       <div class="panel-search-bar" id="searchBarWrap">
         <div class="search-input-box">
-          <svg viewBox="0 0 24 24" class="t-icon-xs">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
+          <svg viewBox="0 0 24 24" class="t-icon-xs"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           <input type="text" id="leftSearchInput" placeholder="Filter artist (A-Z), title, or folder..." />
           <span class="badge" id="leftCountBadge">0 TRACKS</span>
         </div>
@@ -91,10 +72,7 @@
         <div class="playlist-create-row" id="playlistCreateRow">
           <input type="text" id="inputNewPlaylist" placeholder="Enter playlist name..." maxlength="30" />
           <button class="action-btn" id="btnCreatePlaylist">
-            <svg viewBox="0 0 24 24" class="action-icon">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
+            <svg viewBox="0 0 24 24" class="action-icon"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             <span>CREATE</span>
           </button>
         </div>
@@ -121,22 +99,40 @@
         <div class="playlist-items-wrap" id="playlistItemsWrap"></div>
       </div>
 
-      <!-- VIEW 3: Source Configuration & Custom Music Management -->
+      <!-- VIEW 3: Source & Workstation Backup/Restore -->
       <div class="panel-content source-view hide" id="paneSource">
-        <!-- Section A: Custom Music Management -->
+        <!-- Section A: Workstation Backup & Restore -->
+        <div class="source-config-card">
+          <div class="source-card-header">
+            <span class="spec-key">WORKSTATION BACKUP &amp; RESTORE</span>
+            <span class="badge" id="backupStatusBadge">READY</span>
+          </div>
+          <p class="source-subtext">Export a complete backup file (.json) to your PC with all your custom music, playlists, and favorites, or restore data from a previous backup file.</p>
+          <div class="source-actions">
+            <button class="action-btn" id="btnExportData">
+              <svg viewBox="0 0 24 24" class="action-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <span>EXPORT BACKUP</span>
+            </button>
+            <input type="file" id="inputImportBackup" accept=".json" class="hide" />
+            <button class="action-btn action-btn-secondary" id="btnImportData">
+              <svg viewBox="0 0 24 24" class="action-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+              <span>IMPORT BACKUP</span>
+            </button>
+          </div>
+          <div class="source-status-msg" id="backupStatusMsg"></div>
+        </div>
+
+        <!-- Section B: Custom Music Management -->
         <div class="source-config-card">
           <div class="source-card-header">
             <span class="spec-key">CUSTOM MUSIC ARCHIVE</span>
             <span class="badge" id="customCountBadge">0 ADDED</span>
           </div>
-          <p class="source-subtext">Add custom tracker or audio files (.xm, .mod, .it, .s3m, .mp3, .wav). They are stored locally and added to the Archive tab.</p>
+          <p class="source-subtext">Add tracker or audio files (.xm, .mod, .it, .s3m, .mp3, .wav). Stored permanently in your browser's IndexedDB and blended into Archive.</p>
           <div class="source-actions">
             <input type="file" id="inputCustomFiles" multiple accept=".xm,.mod,.it,.s3m,.mtm,.mp3,.ogg,.wav,.v2m,.mid,.ahx,.sid" class="hide" />
             <button class="action-btn" id="btnAddCustomFile">
-              <svg viewBox="0 0 24 24" class="action-icon">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
+              <svg viewBox="0 0 24 24" class="action-icon"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
               <span>ADD TRACKS</span>
             </button>
             <button class="action-btn action-btn-secondary" id="btnClearAllCustom">
@@ -146,7 +142,7 @@
           <div class="custom-tracks-list" id="customTracksList"></div>
         </div>
 
-        <!-- Section B: Repository Configuration -->
+        <!-- Section C: Repository Configuration -->
         <div class="source-config-card">
           <span class="spec-key">DEFAULT REPOSITORY</span>
           <div class="source-url-text">https://farhan-real.github.io/XM-Music/</div>
@@ -223,39 +219,24 @@
 
       <div class="transport-grid">
         <button class="t-btn" id="btnShuffle" title="Toggle Shuffle Mode" aria-label="Shuffle">
-          <svg viewBox="0 0 24 24" class="t-icon">
-            <polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line>
-            <polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line>
-            <line x1="4" y1="4" x2="9" y2="9"></line>
-          </svg>
+          <svg viewBox="0 0 24 24" class="t-icon"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
         </button>
         <button class="t-btn active" id="btnLoop" title="Toggle Loop Mode" aria-label="Loop">
-          <svg viewBox="0 0 24 24" class="t-icon">
-            <polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
-            <polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
-          </svg>
+          <svg viewBox="0 0 24 24" class="t-icon"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
         </button>
         <button class="t-btn" id="btnStop" title="Stop Playback" aria-label="Stop">
           <svg viewBox="0 0 24 24" class="t-icon" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg>
         </button>
         <button class="t-btn t-btn-main" id="btnPlayPause" title="Play or Pause" aria-label="Play">
           <svg id="svgPlay" viewBox="0 0 24 24" class="t-icon-main" fill="currentColor"><polygon points="7 4 19 12 7 20 7 4"></polygon></svg>
-          <svg id="svgPause" viewBox="0 0 24 24" class="t-icon-main hide" fill="currentColor">
-            <rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect>
-          </svg>
+          <svg id="svgPause" viewBox="0 0 24 24" class="t-icon-main hide" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg>
         </button>
         <button class="t-btn" id="btnDownload" title="Export Audio" aria-label="Download File" disabled>
-          <svg viewBox="0 0 24 24" class="t-icon">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
+          <svg viewBox="0 0 24 24" class="t-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
         </button>
         <div class="fader-cluster">
           <button class="fader-btn" id="btnMute" aria-label="Mute Audio">
-            <svg id="svgVol" viewBox="0 0 24 24" class="t-icon-sm">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon>
-              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-            </svg>
+            <svg id="svgVol" viewBox="0 0 24 24" class="t-icon-sm"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
           </button>
           <div class="slider-wrap vol-slider-wrap">
             <input type="range" id="volSlider" min="0" max="1" step="0.02" value="0.85" aria-label="Master Volume" />
@@ -296,6 +277,7 @@
   <script src="js/audio.js"></script>
   <script src="js/playlist.js"></script>
   <script src="js/custom.js"></script>
+  <script src="js/backup.js"></script>
   <script src="js/library.js"></script>
   <script src="js/app.js"></script>
 </body>
