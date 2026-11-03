@@ -1,5 +1,5 @@
 /**
- * js/engine/audio.js - Master playback coordinator with exact track metadata fidelity.
+ * js/engine/audio.js - Master playback coordinator with exact track fidelity and instant UI sync.
  */
 (function(window) {
   const player = new ChiptuneJsPlayer();
@@ -60,13 +60,11 @@
   function resolveTrackUrl(item) {
     if (item.url) return item.url;
     if (!item.path) return null;
-    if (item.path.startsWith('http://') || item.path.startsWith('https://')) {
-      return item.path;
-    }
+    if (item.path.startsWith('http://') || item.path.startsWith('https://')) return item.path;
     const baseUrl = window.XMLibrary ? window.XMLibrary.getBaseUrl() : 'https://farhan-real.github.io/XM-Music/';
-    const cleanBase = baseUrl.replace(/\/+$/, '');
+    const cleanBase = baseUrl.replace(/\/+$/, '') + '/';
     const cleanPath = item.path.replace(/^\/+/, '');
-    return `${cleanBase}/${cleanPath}`;
+    return cleanBase + encodeURI(cleanPath);
   }
 
   async function playTrackAt(idx) {
@@ -112,6 +110,7 @@
 
     player.stop();
     audioEl.pause();
+    currentRawBuffer = null;
     currentQueue = queue || null;
     currentQueueIdx = (queueIdx !== undefined) ? queueIdx : -1;
 
@@ -124,18 +123,34 @@
       targetArtist = targetArtist || parsed.artist;
     }
 
+    activeTitle = targetTitle;
+    activeArtist = targetArtist;
+
+    if (window.XMApp) {
+      window.XMApp.updateTrackUI(targetTitle, targetArtist, ext.replace('.', '').toUpperCase() || 'AUDIO', '--', false);
+    }
+    if (window.XMLibrary && trackItemRef) {
+      window.XMLibrary.notifyPlaying(trackItemRef.id);
+    }
+
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: targetTitle,
+          artist: targetArtist,
+          album: "XM-Studio"
+        });
+      } catch (e) {}
+    }
+
     if (NATIVE_STREAM_EXTS.includes(ext)) {
       isNativeStream = true;
-      currentRawBuffer = null;
 
       if (fileOrUrl instanceof File || fileOrUrl instanceof Blob) {
         audioEl.src = URL.createObjectURL(fileOrUrl);
       } else {
         audioEl.src = fileOrUrl;
       }
-
-      activeTitle = targetTitle;
-      activeArtist = targetArtist;
 
       routeNativeAudioToWebAudio();
       audioEl.loop = isLooping;
@@ -144,37 +159,34 @@
       if (window.XMApp) {
         window.XMApp.updateTrackUI(targetTitle, targetArtist, ext.replace('.', '').toUpperCase(), '2 CH', true);
       }
-      if (window.XMLibrary && trackItemRef) {
-        window.XMLibrary.notifyPlaying(trackItemRef.id);
-      }
       return;
     }
 
     isNativeStream = false;
-    player.load(fileOrUrl, (buf) => {
-      if (loadId !== currentLoadId) return;
-      currentRawBuffer = buf;
+    player.load(
+      fileOrUrl,
+      (buf) => {
+        if (loadId !== currentLoadId) return;
+        currentRawBuffer = buf;
 
-      const meta = player.readMetadata(buf) || {};
-      if (!targetTitle) {
-        const parsed = parseTrackInfo(fallbackName, meta);
-        targetTitle = parsed.title;
-        targetArtist = targetArtist || parsed.artist;
+        const meta = player.readMetadata(buf) || {};
+        const engineName = (meta.type_long || ext.replace('.', '') || "FT2").toUpperCase();
+        const channelCount = `${meta.channels || 8} CH`;
+
+        player.setRepeat(isLooping);
+        player.play(buf);
+
+        if (window.XMApp) {
+          window.XMApp.updateTrackUI(targetTitle, targetArtist, engineName, channelCount, false);
+        }
+      },
+      (err) => {
+        if (loadId !== currentLoadId) return;
+        if (window.XMApp) {
+          window.XMApp.updateTrackUI(targetTitle + " (Load Failed)", targetArtist, "ERROR", "--", false);
+        }
       }
-
-      activeTitle = targetTitle;
-      activeArtist = targetArtist;
-
-      player.setRepeat(isLooping);
-      player.play(buf);
-
-      if (window.XMApp) {
-        window.XMApp.updateTrackUI(targetTitle, targetArtist, (meta.type_long || "FT2").toUpperCase(), `${meta.channels || 8} CH`, false);
-      }
-      if (window.XMLibrary && trackItemRef) {
-        window.XMLibrary.notifyPlaying(trackItemRef.id);
-      }
-    });
+    );
   }
 
   audioEl.addEventListener('ended', playNextTrack);

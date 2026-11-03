@@ -39,9 +39,9 @@
     if (item.url) return item.url;
     if (!item.path) return null;
     if (item.path.startsWith('http://') || item.path.startsWith('https://')) return item.path;
-    const cleanBase = getBaseUrl().replace(/\/+$/, '');
+    const cleanBase = getBaseUrl().replace(/\/+$/, '') + '/';
     const cleanPath = item.path.replace(/^\/+/, '');
-    return `${cleanBase}/${cleanPath}`;
+    return cleanBase + encodeURI(cleanPath);
   }
 
   const tableBody = document.getElementById('kmTableBody');

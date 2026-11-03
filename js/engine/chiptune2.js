@@ -1,5 +1,5 @@
 /**
- * js/engine/chiptune2.js - Real-time Chiptune2 DSP player engine.
+ * js/engine/chiptune2.js - Real-time Chiptune2 DSP player engine with error callback.
  */
 (function(window) {
   var ChiptuneAudioContext = window.AudioContext || window.webkitAudioContext;
@@ -35,11 +35,15 @@
     }
   };
 
-  ChiptuneJsPlayer.prototype.load = function(input, callback) {
+  ChiptuneJsPlayer.prototype.load = function(input, callback, errback) {
     var player = this;
     if (input instanceof File || input instanceof Blob) {
       var reader = new FileReader();
       reader.onload = function() { callback(reader.result); };
+      reader.onerror = function(err) {
+        if (errback) errback(err);
+        player.fireEvent('onError', err);
+      };
       reader.readAsArrayBuffer(input);
     } else if (typeof input === 'string') {
       fetch(input)
@@ -48,7 +52,10 @@
           return res.arrayBuffer();
         })
         .then(function(buf) { callback(buf); })
-        .catch(function(err) { player.fireEvent('onError', err); });
+        .catch(function(err) {
+          if (errback) errback(err);
+          player.fireEvent('onError', err);
+        });
     } else if (input instanceof ArrayBuffer) {
       callback(input);
     }
