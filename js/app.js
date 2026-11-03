@@ -240,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 100);
 
-  // UNLOAD MODULE: Resets player to empty/idle state (Unload button stays visible)
+  // UNLOAD MODULE: Resets player to empty/idle state with ENGINE set to NONE
   function unloadModule() {
     player.cancelCompilation();
     player.stop();
@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     songTitle.textContent = "No Module Loaded";
     songArtist.textContent = "Ready for FastTracker II / Audio input";
-    modType.textContent = "FT2";
+    modType.textContent = "NONE";
     channels.textContent = "--";
 
     readoutProgressTrack.classList.add('hide');
