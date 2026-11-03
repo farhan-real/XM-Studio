@@ -108,24 +108,33 @@ body {
   gap: 6px;
 }
 
+/* Base Badge Style */
 .badge {
   font-family: var(--font-mono);
   font-size: 0.62rem;
-  padding: 3px 6px;
-  border-radius: 3px;
-  font-weight: 600;
-  background: var(--surface-card);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-secondary);
+  padding: 3px 7px;
+  border-radius: 4px;
+  font-weight: 700;
   letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.2;
 }
 
-/* Vivid Emerald Green Status Indicator */
-.status-badge {
-  border-color: rgba(34, 197, 94, 0.45);
-  background: rgba(34, 197, 94, 0.12);
+/* Quality Badge: Studio Warm Amber */
+#qualityBadge {
+  color: var(--accent);
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.12);
+}
+
+/* Sample Rate / Clock Badge: Phosphor Green */
+#rateBadge {
   color: var(--led-green);
-  font-weight: 700;
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.12);
 }
 
 .deck-container {
