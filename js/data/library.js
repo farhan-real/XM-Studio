@@ -1,5 +1,5 @@
 /**
- * js/data/library.js - High-performance chunked track rendering and lag-free tab caching.
+ * js/data/library.js - High-performance chunked rendering, debounced search, and event delegation.
  */
 (function(window) {
   const DEFAULT_REPO_URL = 'https://farhan-real.github.io/XM-Music/';
@@ -12,10 +12,10 @@
   let currentPlaylistId = null;
   let currentlyPlayingId = null;
 
-  // Progressive rendering state (prevents main thread lockup & audio underruns)
   const CHUNK_SIZE = 60;
   let activeRenderQueue = [];
   let currentRenderedIndex = 0;
+  let searchDebounceTimer = null;
 
   function getBaseUrl() {
     const saved = localStorage.getItem('xm_custom_library_url');
@@ -109,26 +109,32 @@
             </div>
           </div>
         </div>`;
-
-      card.addEventListener('click', (e) => {
-        if (e.target.closest('.km-btn-icon')) return;
-        playTrack(track, activeRenderQueue, idx);
-      });
-      card.querySelector('[data-action="fav"]').addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.XMPlaylist.toggleFavorite(track);
-      });
-      card.querySelector('[data-action="add-pl"]').addEventListener('click', (e) => {
-        e.stopPropagation();
-        window.XMPlaylist.openPlaylistPicker(track);
-      });
-
       frag.appendChild(card);
     }
 
     tableBody.appendChild(frag);
     currentRenderedIndex = end;
   }
+
+  // Event Delegation: One master listener replaces thousands of per-card event closures
+  tableBody.addEventListener('click', (e) => {
+    const card = e.target.closest('.track-card');
+    if (!card) return;
+    const trackId = card.getAttribute('data-track-id');
+    const track = activeRenderQueue.find(t => t.id === trackId);
+    if (!track) return;
+
+    const actionBtn = e.target.closest('.km-btn-icon');
+    if (actionBtn) {
+      e.stopPropagation();
+      const action = actionBtn.getAttribute('data-action');
+      if (action === 'fav') window.XMPlaylist.toggleFavorite(track);
+      else if (action === 'add-pl') window.XMPlaylist.openPlaylistPicker(track);
+    } else {
+      const idx = activeRenderQueue.indexOf(track);
+      playTrack(track, activeRenderQueue, idx >= 0 ? idx : 0);
+    }
+  });
 
   function renderTrackList(tracks, forceReset = false) {
     if (!forceReset && activeRenderQueue === tracks && tableBody.children.length > 0) {
@@ -147,7 +153,6 @@
     appendTrackChunk();
   }
 
-  // Infinite scroll trigger: loads next chunk without blocking audio
   paneTable.addEventListener('scroll', () => {
     if (paneTable.scrollTop + paneTable.clientHeight >= paneTable.scrollHeight - 350) {
       appendTrackChunk();
@@ -233,16 +238,10 @@
       card.innerHTML = `
         <span class="track-card-num">${idx + 1}</span>
         <div class="track-card-content">
-          <div class="track-card-row1">
-            <span class="track-card-title">${track.title}</span>
-            <span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span>
-          </div>
-          <div class="track-card-row2">
-            <span class="track-card-artist">${track.artist}</span>
-            <div class="track-card-actions">
-              <button class="km-btn-icon" data-action="remove-added" title="Remove track"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
-            </div>
-          </div>
+          <div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div>
+          <div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions">
+            <button class="km-btn-icon" data-action="remove-added" title="Remove track"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+          </div></div>
         </div>`;
       card.addEventListener('click', (e) => { if (e.target.closest('.km-btn-icon')) return; playTrack(track, pl.tracks, idx); });
       card.querySelector('[data-action="remove-added"]').addEventListener('click', (e) => {
@@ -411,16 +410,20 @@
   tabPlaylists.addEventListener('click', () => switchTab('playlists'));
   tabSource.addEventListener('click', () => switchTab('source'));
 
+  // Debounced search input (keeps mobile soft-keyboard typing butter smooth)
   searchInput.addEventListener('input', (e) => {
-    const q = e.target.value.toLowerCase().trim();
-    if (activeTab === 'archive') {
-      displayCatalog = q ? fullCatalog.filter(t => (t.artist && t.artist.toLowerCase().includes(q)) || (t.title && t.title.toLowerCase().includes(q)) || (t.folder && t.folder.toLowerCase().includes(q))) : fullCatalog;
-      renderTrackList(displayCatalog, true);
-    } else if (activeTab === 'favorites') {
-      const favs = window.XMPlaylist.getFavorites();
-      const filtered = q ? favs.filter(t => (t.artist && t.artist.toLowerCase().includes(q)) || (t.title && t.title.toLowerCase().includes(q))) : favs;
-      renderTrackList(filtered, true);
-    }
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      const q = e.target.value.toLowerCase().trim();
+      if (activeTab === 'archive') {
+        displayCatalog = q ? fullCatalog.filter(t => (t.artist && t.artist.toLowerCase().includes(q)) || (t.title && t.title.toLowerCase().includes(q)) || (t.folder && t.folder.toLowerCase().includes(q))) : fullCatalog;
+        renderTrackList(displayCatalog, true);
+      } else if (activeTab === 'favorites') {
+        const favs = window.XMPlaylist.getFavorites();
+        const filtered = q ? favs.filter(t => (t.artist && t.artist.toLowerCase().includes(q)) || (t.title && t.title.toLowerCase().includes(q))) : favs;
+        renderTrackList(filtered, true);
+      }
+    }, 80);
   });
 
   async function syncFullCatalog() {

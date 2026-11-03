@@ -1,5 +1,5 @@
 /**
- * js/app.js - Main workstation controller, drag-drop ingestion, format target, and transport.
+ * js/app.js - Main workstation controller, drag-drop ingestion, and throttled UI updates.
  */
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeFormat = 'mp3';
   let isSeeking = false;
   let prevVolume = 0.85;
+  let lastReportedSec = -1;
 
   const btnPlayPause = document.getElementById('btnPlayPause');
   const svgPlay = document.getElementById('svgPlay');
@@ -76,6 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isPlaying) {
       svgPlay.classList.add('hide');
       svgPause.classList.remove('hide');
+      if (window.XMVisualizer) window.XMVisualizer.wake(player, audioEl);
     } else {
       svgPlay.classList.remove('hide');
       svgPause.classList.add('hide');
@@ -99,20 +101,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Throttled Scrubber Loop: Only touches DOM when the integer second changes
   setInterval(() => {
     if (isSeeking) return;
+    let cur = 0;
+    let dur = 0;
+
     if (!window.XMAudio.isNativeStream && player.currentPlayingNode && !player.currentPlayingNode.paused) {
-      const cur = player.getPosition();
-      const dur = player.duration();
-      if (dur > 0) {
-        progressBar.value = (cur / dur) * 100;
+      cur = player.getPosition();
+      dur = player.duration();
+    } else if (window.XMAudio.isNativeStream && !audioEl.paused && audioEl.duration) {
+      cur = audioEl.currentTime;
+      dur = audioEl.duration;
+    }
+
+    if (dur > 0) {
+      progressBar.value = (cur / dur) * 100;
+      const currentSec = Math.floor(cur);
+      if (currentSec !== lastReportedSec) {
+        lastReportedSec = currentSec;
         timeCurrent.textContent = formatTime(cur);
         timeTotal.textContent = formatTime(dur);
       }
-    } else if (window.XMAudio.isNativeStream && !audioEl.paused && audioEl.duration) {
-      progressBar.value = (audioEl.currentTime / audioEl.duration) * 100;
-      timeCurrent.textContent = formatTime(audioEl.currentTime);
-      timeTotal.textContent = formatTime(audioEl.duration);
     }
   }, 100);
 
@@ -142,6 +152,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     progressBar.value = 0;
     timeCurrent.textContent = "00:00";
+    lastReportedSec = -1;
     setPlayingState(false);
   });
 
@@ -171,6 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
     progressBar.disabled = true;
     timeCurrent.textContent = "00:00";
     timeTotal.textContent = "00:00";
+    lastReportedSec = -1;
     btnDownload.disabled = true;
     setStatus('idle');
     setPlayingState(false);
@@ -302,6 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setPlayingState(false);
       progressBar.value = 0;
       timeCurrent.textContent = "00:00";
+      lastReportedSec = -1;
     }
   };
 });

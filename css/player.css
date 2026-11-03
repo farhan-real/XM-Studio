@@ -112,7 +112,6 @@
   border: 1px solid rgba(168, 85, 247, 0.35);
 }
 
-/* Engine Badge: Indigo for normal playback, Slate for none, Red for error only */
 .badge-engine {
   color: #818cf8;
   background: rgba(129, 140, 248, 0.12);
@@ -164,7 +163,6 @@
   border: 1px solid rgba(34, 197, 94, 0.35);
 }
 
-/* Error badge: exclusively red */
 .status-error {
   color: var(--col-red);
   background: rgba(239, 68, 68, 0.15);
@@ -186,6 +184,8 @@
   border: 1px solid var(--border-subtle);
   position: relative;
   overflow: hidden;
+  transform: translateZ(0);
+  contain: paint;
 }
 
 .canvas-wrap {

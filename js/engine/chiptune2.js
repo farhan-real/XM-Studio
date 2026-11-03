@@ -1,5 +1,5 @@
 /**
- * js/engine/chiptune2.js - Real-time Chiptune2 DSP player engine with 16k buffer cushion.
+ * js/engine/chiptune2.js - Real-time Chiptune2 DSP player engine with optimized fast soft-clipping.
  */
 (function(window) {
   var ChiptuneAudioContext = window.AudioContext || window.webkitAudioContext;
@@ -82,7 +82,6 @@
     return meta;
   };
 
-  // 16,384-sample buffer provides ~341ms of cushion, preventing audio stutter during tab switching
   ChiptuneJsPlayer.prototype.play = function(buffer) {
     this.stop();
     this.unlock();
@@ -150,13 +149,15 @@
         var rawL = libopenmpt.HEAPF32.subarray(this.leftBufferPtr / 4, this.leftBufferPtr / 4 + actual);
         var rawR = libopenmpt.HEAPF32.subarray(this.rightBufferPtr / 4, this.rightBufferPtr / 4 + actual);
 
+        // Highly optimized branch-free polynomial soft-clipper (avoids 32k Math.exp() calls)
         for (var i = 0; i < actual; i++) {
           var sL = rawL[i];
           var sR = rawR[i];
-          if (sL > 1.0) sL = 1.0 - Math.exp(-sL);
-          else if (sL < -1.0) sL = -1.0 + Math.exp(sL);
-          if (sR > 1.0) sR = 1.0 - Math.exp(-sR);
-          else if (sR < -1.0) sR = -1.0 + Math.exp(sR);
+          if (sL > 1.0) sL = 1.0 - 0.25 / (sL + 0.5);
+          else if (sL < -1.0) sL = -1.0 + 0.25 / (-sL + 0.5);
+
+          if (sR > 1.0) sR = 1.0 - 0.25 / (sR + 0.5);
+          else if (sR < -1.0) sR = -1.0 + 0.25 / (-sR + 0.5);
 
           outL[framesRendered + i] = sL;
           outR[framesRendered + i] = sR;
