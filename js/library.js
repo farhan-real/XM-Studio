@@ -1,8 +1,10 @@
 /**
- * js/library.js - Multi-line track list, full collection modal picker, and instant search.
+ * js/library.js - Multi-line track list, archive blending with custom music, and instant search.
  */
 (function(window) {
   const DEFAULT_REPO_URL = 'https://farhan-real.github.io/XM-Music/';
+  let remoteCatalog = [];
+  let customCatalog = [];
   let fullCatalog = [];
   let displayCatalog = [];
   let activeTab = 'archive';
@@ -118,9 +120,17 @@
     tableBody.appendChild(frag);
   }
 
-  function playTrack(track, queue, idx) {
+  async function playTrack(track, queue, idx) {
     currentlyPlayingId = track.id;
     updateActiveCards();
+    if (track.isCustom) {
+      let blob = track.blob;
+      if (!blob && window.XMCustom) blob = await window.XMCustom.getTrackBlob(track.id);
+      if (blob) {
+        window.XMAudio.loadTrack(blob, `${track.artist} - ${track.title}.${(track.ext || 'xm').toLowerCase()}`, track, queue, idx);
+        return;
+      }
+    }
     const fullUrl = track.path ? `${getBaseUrl()}${track.path}` : (track.url || null);
     window.XMAudio.loadTrack(fullUrl, `${track.artist} - ${track.title}.${(track.ext || 'xm').toLowerCase()}`, track, queue, idx);
   }
@@ -135,7 +145,6 @@
     });
   }
 
-  // Playlists Panel
   function renderPlaylists() {
     playlistCreateRow.classList.remove('hide');
     playlistDetailToolbar.classList.add('hide');
@@ -254,7 +263,6 @@
     playlistItemsWrap.appendChild(frag);
   }
 
-  // Show full collection modal (zero 80-item truncation)
   function openAddFromCollectionModal() {
     if (!currentPlaylistId) return;
     const pl = window.XMPlaylist.getPlaylists().find(p => p.id === currentPlaylistId);
@@ -408,6 +416,17 @@
     }
   });
 
+  async function syncFullCatalog() {
+    if (window.XMCustom) {
+      customCatalog = await window.XMCustom.getTracks();
+    } else {
+      customCatalog = [];
+    }
+    fullCatalog = sortAlphabetical([...customCatalog, ...remoteCatalog]);
+    displayCatalog = fullCatalog;
+    if (activeTab === 'archive') renderTrackList(displayCatalog);
+  }
+
   async function loadCatalog() {
     const baseUrl = getBaseUrl();
     tableBody.innerHTML = `<div class="library-empty-msg">Loading XM-Music repository catalog...</div>`;
@@ -416,12 +435,12 @@
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       data.forEach(t => { if (!t.id) t.id = `cloud_${t.path}`; });
-      fullCatalog = sortAlphabetical(data);
-      displayCatalog = fullCatalog;
-      switchTab('archive');
+      remoteCatalog = data;
     } catch (e) {
-      tableBody.innerHTML = `<div class="library-empty-msg">Could not load repository.<br>Check internet connection or custom repository URL.</div>`;
+      remoteCatalog = [];
     }
+    await syncFullCatalog();
+    switchTab('archive');
   }
 
   loadCatalog();
@@ -434,6 +453,9 @@
     },
     renderCurrentTab: function() {
       switchTab(activeTab);
+    },
+    refreshArchive: async function() {
+      await syncFullCatalog();
     }
   };
 })(window);

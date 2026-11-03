@@ -57,16 +57,24 @@
     };
   }
 
-  function playTrackAt(idx) {
+  async function playTrackAt(idx) {
     if (!currentQueue || idx < 0 || idx >= currentQueue.length) return;
     const item = currentQueue[idx];
+    if (item.isCustom) {
+      let blob = item.blob;
+      if (!blob && window.XMCustom) blob = await window.XMCustom.getTrackBlob(item.id);
+      if (blob) {
+        loadTrack(blob, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, currentQueue, idx);
+        return;
+      }
+    }
     const baseUrl = window.XMLibrary ? window.XMLibrary.getBaseUrl() : 'https://farhan-real.github.io/XM-Music/';
     const fullUrl = item.path ? `${baseUrl}${item.path}` : (item.url || null);
     loadTrack(fullUrl, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, currentQueue, idx);
   }
 
   function playNextTrack() {
-    if (isLooping) return; // Keep looping current track when loop is enabled
+    if (isLooping) return;
 
     if (currentQueue && currentQueue.length > 0) {
       if (isShuffle) {

@@ -191,20 +191,29 @@
   flex-shrink: 0;
 }
 
-/* Source View */
+/* Source View & Custom Music */
 .source-view {
-  padding: 16px;
+  padding: 14px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .source-config-card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  padding: 14px;
+  padding: 12px;
+}
+
+.source-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .source-url-text {
@@ -241,10 +250,45 @@
   gap: 8px;
 }
 
-.source-status-msg {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  color: var(--col-gold);
+.custom-tracks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.custom-track-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: #090b0e;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  gap: 6px;
+}
+
+.custom-track-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.custom-track-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.custom-track-artist {
+  font-size: 0.70rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .library-empty-msg {
