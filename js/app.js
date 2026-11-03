@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeFormat = 'mp3';
   let isSeeking = false;
   let activeTitle = "NO MODULE LOADED";
+  let activeArtist = "";
   let isNativeStream = false;
 
   // Native streaming extensions that bypass OpenMPT
@@ -94,6 +95,112 @@ document.addEventListener('DOMContentLoaded', () => {
     return match ? match[0] : '';
   }
 
+  // Normalize artist collaborations (&, and, ft., feat., vs.)
+  function normalizeArtist(str) {
+    if (!str) return '';
+    let s = str.trim();
+
+    // Standardize "and" -> "&"
+    s = s.replace(/\s+and\s+/gi, ' & ');
+
+    // Standardize "featuring", "feat.", "feat", "ft" -> "ft."
+    s = s.replace(/\s+(?:featuring|feat\.?|ft\.?)\s+/gi, ' ft. ');
+
+    // Standardize "vs.", "vs", "versus" -> "vs."
+    s = s.replace(/\s+(?:versus|vs\.?)\s+/gi, ' vs. ');
+
+    // Ensure single spaces around "&"
+    s = s.replace(/([^\s&])&/g, '$1 &').replace(/&([^\s&])/g, '& $1');
+
+    // Clean multiple spaces
+    s = s.replace(/\s+/g, ' ').trim();
+    return s;
+  }
+
+  // Capitalize words if string is strictly lowercase, preserving custom casing like "4mat" or "DRAX"
+  function smartCapitalize(str) {
+    if (!str) return '';
+    if (str !== str.toLowerCase()) return str;
+
+    const minorWords = ['and', 'or', 'the', 'of', 'in', 'on', 'at', 'to', 'for', 'a', 'an', 'ft.', 'vs.', '&'];
+    return str.split(' ').map((word, index) => {
+      if (!word) return '';
+      const lower = word.toLowerCase();
+      if (index > 0 && minorWords.includes(lower)) {
+        return lower;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    }).join(' ');
+  }
+
+  // Parses "artist - name" filenames and handles &, "and", "ft.", etc.
+  function parseTrackInfo(filename, internalMeta) {
+    internalMeta = internalMeta || {};
+
+    // Remove file extension
+    let base = filename.replace(/\.[a-z0-9]+$/i, '').trim();
+
+    // Handle underscores used in scene filenames (e.g., artist_-_title or artist_name_-_title)
+    if (base.includes('_-_')) {
+      base = base.replace(/_-_/g, ' - ').replace(/_/g, ' ');
+    } else if (!base.includes(' ') && base.includes('_')) {
+      base = base.replace(/_/g, ' ');
+    }
+
+    let rawArtist = (internalMeta.artist || '').trim();
+    let rawTitle = (internalMeta.title || '').trim();
+
+    // Look for "artist - name" separator pattern (hyphen, en-dash, em-dash)
+    const match = base.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+
+    if (match) {
+      let fileArtist = match[1].trim();
+      let fileTitle = match[2].trim();
+
+      // Check if featured artist is embedded in the title part (e.g. "Song (ft. Someone)" or "Song feat. Someone")
+      const featInTitle = fileTitle.match(/\s*[\(\[\{]?(?:ft\.?|feat\.?|featuring)\s+([^\)\]\}]+)[\)\]\}]?/i);
+      if (featInTitle) {
+        const featured = featInTitle[1].trim();
+        fileTitle = fileTitle.replace(featInTitle[0], '').trim();
+        fileArtist = `${fileArtist} ft. ${featured}`;
+      }
+
+      // FastTracker 2 module titles have a 20-character limit, so filename title is often more complete
+      if (!rawTitle || fileTitle.toLowerCase().startsWith(rawTitle.toLowerCase())) {
+        rawTitle = fileTitle;
+      } else {
+        rawTitle = fileTitle || rawTitle;
+      }
+
+      if (!rawArtist) {
+        rawArtist = fileArtist;
+      }
+    } else {
+      // No " - " in filename, check for standalone "Song (feat. Artist)"
+      const featMatch = base.match(/^(.+?)\s+[\(\[\{]?(?:ft\.?|feat\.?|featuring)\s+([^\)\]\}]+)[\)\]\}]?/i);
+      if (featMatch) {
+        rawTitle = featMatch[1].trim();
+        if (!rawArtist) rawArtist = featMatch[2].trim();
+      } else {
+        if (!rawTitle) rawTitle = base;
+        if (!rawArtist) rawArtist = internalMeta.type_long || "FastTracker II";
+      }
+    }
+
+    // Normalize connectors (&, and, ft., feat., vs.)
+    let artist = normalizeArtist(rawArtist);
+    let title = rawTitle.trim();
+
+    // Capitalize if string is strictly lowercase
+    artist = smartCapitalize(artist);
+    title = smartCapitalize(title);
+
+    return {
+      artist: artist || "Unknown Artist",
+      title: title || "UNTITLED TRACK"
+    };
+  }
+
   // Visualizer Loop
   const dataArray = new Uint8Array(32);
   function renderVisualizer() {
@@ -167,6 +274,9 @@ document.addEventListener('DOMContentLoaded', () => {
     currentAudioBlob = null;
     isNativeStream = false;
 
+    activeTitle = "NO MODULE LOADED";
+    activeArtist = "";
+
     songTitle.textContent = "NO MODULE LOADED";
     songArtist.textContent = "Ready for FastTracker II / Audio input";
     modType.textContent = "FT2";
@@ -210,9 +320,12 @@ document.addEventListener('DOMContentLoaded', () => {
         audioEl.src = fileOrUrl;
       }
 
-      activeTitle = fallbackName.replace(/\.[^/.]+$/, "");
-      songTitle.textContent = activeTitle;
-      songArtist.textContent = "Direct Hardware Stream";
+      const info = parseTrackInfo(fallbackName, {});
+      activeTitle = info.title;
+      activeArtist = info.artist;
+
+      songTitle.textContent = info.title;
+      songArtist.textContent = info.artist;
       modType.textContent = ext.replace('.', '').toUpperCase();
       channels.textContent = "2 CH";
       qualityBadge.textContent = ext.replace('.', '').toUpperCase();
@@ -222,6 +335,14 @@ document.addEventListener('DOMContentLoaded', () => {
       btnDownload.disabled = false;
       btnUnload.classList.remove('hide');
       setStatus('ready');
+
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: info.title,
+          artist: info.artist,
+          album: "XM-Studio"
+        });
+      }
 
       audioEl.play().catch(() => {});
       setPlayingState(true);
@@ -236,11 +357,13 @@ document.addEventListener('DOMContentLoaded', () => {
       currentRawBuffer = buf;
 
       const meta = player.readMetadata(buf) || {};
-      activeTitle = meta.title || fallbackName || "UNTITLED TRACK";
-      const artist = meta.artist || "FastTracker II Module";
+      const info = parseTrackInfo(fallbackName, meta);
+
+      activeTitle = info.title;
+      activeArtist = info.artist;
       
-      songTitle.textContent = activeTitle;
-      songArtist.textContent = artist;
+      songTitle.textContent = info.title;
+      songArtist.textContent = info.artist;
       modType.textContent = (meta.type_long || "FT2").toUpperCase();
       channels.textContent = `${meta.channels || 8} CH`;
 
@@ -260,10 +383,11 @@ document.addEventListener('DOMContentLoaded', () => {
       setPlayingState(true);
       progressBar.disabled = false;
 
+      // Update Native Lock Screen Metadata
       if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: activeTitle,
-          artist: artist,
+          title: info.title,
+          artist: info.artist,
           album: "XM-Studio"
         });
       }
@@ -304,7 +428,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnFmtWav.classList.remove('active');
     qualityBadge.textContent = "320 KBPS";
     if (currentRawBuffer && !isNativeStream) {
-      loadModule(currentRawBuffer, activeTitle);
+      loadModule(currentRawBuffer, `${activeArtist ? activeArtist + ' - ' : ''}${activeTitle}`);
     }
   });
 
@@ -315,7 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnFmtMp3.classList.remove('active');
     qualityBadge.textContent = "16-BIT PCM";
     if (currentRawBuffer && !isNativeStream) {
-      loadModule(currentRawBuffer, activeTitle);
+      loadModule(currentRawBuffer, `${activeArtist ? activeArtist + ' - ' : ''}${activeTitle}`);
     }
   });
 
@@ -380,7 +504,8 @@ document.addEventListener('DOMContentLoaded', () => {
   btnDownload.addEventListener('click', () => {
     if (!currentAudioBlob) return;
     const ext = isNativeStream ? getFileExtension(activeTitle) : `.${activeFormat}`;
-    const filename = activeTitle.endsWith(ext) ? activeTitle : `${activeTitle}${ext}`;
+    const baseName = activeArtist ? `${activeArtist} - ${activeTitle}` : activeTitle;
+    const filename = baseName.endsWith(ext) ? baseName : `${baseName}${ext}`;
     const a = document.createElement('a');
     a.href = currentAudioUrl;
     a.download = filename.replace(/[/\\?%*:|"<>]/g, '_');
@@ -395,7 +520,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   btnDemo.addEventListener('click', () => {
-    loadModule('https://deskjet.github.io/chiptune2.js/tunes/chipsounds.mod', 'chipsounds.mod');
+    loadModule('https://deskjet.github.io/chiptune2.js/tunes/chipsounds.mod', 'Dubmood - Chipsounds.mod');
   });
 
   ['dragenter', 'dragover'].forEach(n => dropZone.addEventListener(n, (e) => {
