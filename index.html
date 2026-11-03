@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#080b09" />
+  <title>XM Precision Studio</title>
+  
+  <link rel="icon" type="image/svg+xml" href="icon.svg" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="css/main.css" />
+
+  <!-- libopenmpt Engine & Memory Locator -->
+  <script>
+    window.libopenmpt = window.libopenmpt || {};
+    window.libopenmpt.locateFile = function(filename) {
+      return window.USE_CDN 
+        ? "https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/" + filename
+        : "js/" + filename;
+    };
+  </script>
+  <script src="js/libopenmpt.js" onerror="window.USE_CDN=true; this.src='https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js';"></script>
+  
+  <!-- lamejs MP3 Encoder -->
+  <script src="js/lame.min.js" onerror="this.src='https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js';"></script>
+  
+  <!-- Chiptune2 DSP Engine -->
+  <script src="js/chiptune2.js"></script>
+</head>
+<body>
+  <main class="chassis" id="dropZone">
+    <!-- Header -->
+    <header class="header">
+      <div class="brand-cluster">
+        <span class="status-pip" id="statusPip"></span>
+        <span class="brand-title">XM-PRECISION</span>
+        <span class="model-sub">STUDIO DSP</span>
+      </div>
+      <div class="header-badges">
+        <span class="badge" id="qualityBadge">320 KBPS</span>
+        <span class="badge" id="rateBadge">48 KHZ</span>
+      </div>
+    </header>
+
+    <!-- Spectrum Display Deck -->
+    <div class="deck-container">
+      <div class="canvas-wrap">
+        <canvas id="visualizer"></canvas>
+      </div>
+      <div class="screen-grid"></div>
+
+      <!-- Pre-render Compiler Overlay -->
+      <div class="compiler-overlay" id="compilerOverlay">
+        <div class="compiler-info">
+          <span class="compiler-spinner"></span>
+          <span class="compiler-text" id="compilerStatus">DSP RENDERING 48 KHZ</span>
+        </div>
+        <div class="compiler-bar-track">
+          <div class="compiler-bar" id="compilerProgressBar"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metadata Readout -->
+    <section class="readout-panel">
+      <div class="readout-main">
+        <h2 class="song-title" id="songTitle">NO MODULE LOADED</h2>
+        <p class="song-artist" id="songArtist">Ready for FastTracker II / Audio input</p>
+      </div>
+      <div class="readout-specs">
+        <div class="spec-block">
+          <span class="spec-key">ENGINE</span>
+          <span class="spec-val" id="modType">FT2</span>
+        </div>
+        <div class="spec-block">
+          <span class="spec-key">CHANNELS</span>
+          <span class="spec-val" id="channels">--</span>
+        </div>
+        <div class="spec-block">
+          <span class="spec-key">CLOCK</span>
+          <span class="spec-val">48 KHZ</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Target Format Selector -->
+    <div class="segment-strip">
+      <span class="segment-label">DSP EXPORT TARGET</span>
+      <div class="segmented-control" role="group" aria-label="Audio Quality Format">
+        <button class="seg-btn active" id="btnFmtMp3" data-format="mp3">MP3 320k CBR</button>
+        <button class="seg-btn" id="btnFmtWav" data-format="wav">WAV 16-BIT PCM</button>
+      </div>
+    </div>
+
+    <!-- Timeline & Scrubber -->
+    <div class="timeline-row">
+      <span class="time-readout" id="timeCurrent">00:00</span>
+      <div class="slider-wrap">
+        <input type="range" id="progressBar" min="0" max="100" value="0" step="0.1" disabled aria-label="Playback Progress" />
+      </div>
+      <span class="time-readout time-dim" id="timeTotal">00:00</span>
+    </div>
+
+    <!-- Master Transport Panel -->
+    <div class="transport-grid">
+      <!-- Loop Button -->
+      <button class="t-btn active" id="btnLoop" title="Toggle Loop Mode" aria-label="Loop">
+        <svg viewBox="0 0 24 24" class="t-icon">
+          <polyline points="17 1 21 5 17 9"></polyline>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+          <polyline points="7 23 3 19 7 15"></polyline>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+        </svg>
+      </button>
+
+      <!-- Stop Button -->
+      <button class="t-btn" id="btnStop" title="Stop Playback" aria-label="Stop">
+        <svg viewBox="0 0 24 24" class="t-icon" fill="currentColor">
+          <rect x="6" y="6" width="12" height="12" rx="1.5"></rect>
+        </svg>
+      </button>
+
+      <!-- Play / Pause Master -->
+      <button class="t-btn t-btn-main" id="btnPlayPause" title="Play or Pause" aria-label="Play">
+        <svg id="svgPlay" viewBox="0 0 24 24" class="t-icon-main" fill="currentColor">
+          <polygon points="7 4 19 12 7 20 7 4"></polygon>
+        </svg>
+        <svg id="svgPause" viewBox="0 0 24 24" class="t-icon-main hide" fill="currentColor">
+          <rect x="6" y="5" width="4" height="14" rx="1"></rect>
+          <rect x="14" y="5" width="4" height="14" rx="1"></rect>
+        </svg>
+      </button>
+
+      <!-- Download File -->
+      <button class="t-btn" id="btnDownload" title="Export Rendered Audio" aria-label="Download File" disabled>
+        <svg viewBox="0 0 24 24" class="t-icon">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+      </button>
+
+      <!-- Volume Fader Cluster -->
+      <div class="fader-cluster">
+        <button class="fader-btn" id="btnMute" aria-label="Mute Audio">
+          <svg id="svgVol" viewBox="0 0 24 24" class="t-icon-sm">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+        </button>
+        <div class="slider-wrap vol-slider-wrap">
+          <input type="range" id="volSlider" min="0" max="1" step="0.02" value="0.85" aria-label="Master Volume" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Ingest Deck / Multi-Format Selector -->
+    <div class="ingest-deck">
+      <input type="file" id="fileInput" accept=".xm,.mod,.it,.s3m,.mtm,.fc13,.fc14,.amd,.rad,.bp,.mo3,.hsc,.d00,.mp3,.ogg,.wav,.v2m,.sc68,.mid,.ahx,.sid,.sap,.ym,.nsf,.spc" />
+      <button class="action-btn" id="btnBrowse">
+        <svg viewBox="0 0 24 24" class="action-icon">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span>OPEN TRACK</span>
+      </button>
+      <button class="action-btn action-btn-secondary" id="btnDemo">
+        <svg viewBox="0 0 24 24" class="action-icon">
+          <path d="M9 18V5l12-2v13"></path>
+          <circle cx="6" cy="18" r="3"></circle>
+          <circle cx="18" cy="16" r="3"></circle>
+        </svg>
+        <span>SAMPLE BENCHMARK</span>
+      </button>
+    </div>
+  </main>
+
+  <audio id="nativeAudio" preload="auto"></audio>
+  <script src="js/app.js"></script>
+</body>
+</html>
