@@ -1,0 +1,180 @@
+/* css/controls.css - Dual-row playback controls, buttons, volume fader, and ingest deck */
+.transport-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.transport-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.transport-row-main {
+  justify-content: space-between;
+}
+
+.transport-main-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.transport-row-sub {
+  justify-content: space-between;
+}
+
+.t-btn {
+  width: 40px;
+  height: 40px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.12s ease;
+}
+
+.t-btn:hover:not([disabled]) {
+  background: var(--surface-elevated);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.t-btn.active {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.t-btn[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.t-btn-main {
+  width: 48px;
+  height: 48px;
+  background: var(--surface-elevated);
+  border-color: var(--border-strong);
+  color: var(--accent);
+}
+
+.t-icon {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.t-icon-main {
+  width: 22px;
+  height: 22px;
+}
+
+.t-icon-sm {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+
+.t-icon-xs {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.2;
+}
+
+.fader-cluster {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0 8px 0 6px;
+  height: 40px;
+  flex: 1;
+  max-width: 170px;
+}
+
+.vol-slider-wrap {
+  flex: 1;
+  min-width: 45px;
+}
+
+.vol-readout {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--col-gold);
+  min-width: 26px;
+  text-align: right;
+}
+
+.fader-btn {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: 4px;
+}
+
+.fader-btn:hover {
+  color: var(--text-primary);
+}
+
+.ingest-deck {
+  display: flex;
+  gap: 10px;
+}
+
+#fileInput {
+  display: none;
+}
+
+.action-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.70rem;
+  font-weight: 600;
+  transition: all 0.12s ease;
+}
+
+.action-btn:hover {
+  background: var(--surface-elevated);
+  border-color: var(--border-strong);
+}
+
+.action-btn-secondary {
+  color: var(--text-secondary);
+  background: transparent;
+}
+
+.action-icon {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
