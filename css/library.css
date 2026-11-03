@@ -1,0 +1,473 @@
+/* ==========================================================================
+   XM-Studio Left Panel: Keygenmusic Table & Complete Playlist CRUD
+   ========================================================================== */
+
+/* Left Panel Navigation Bar */
+.panel-nav-bar {
+  display: flex;
+  gap: 4px;
+  padding: 12px 14px;
+  background: #12151b;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.panel-nav-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 6px;
+  background: #090a0d;
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.panel-nav-btn:hover {
+  color: var(--text-secondary);
+}
+
+.panel-nav-btn.active {
+  background: var(--surface-elevated);
+  border-color: var(--border-strong);
+  color: var(--accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* Search Bar */
+.panel-search-bar {
+  padding: 10px 14px;
+  background: #0d0f13;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.search-input-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #090a0d;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.search-input-box:focus-within {
+  border-color: var(--accent);
+}
+
+#leftSearchInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.80rem;
+  outline: none;
+}
+
+#leftSearchInput::placeholder {
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Keygenmusic-Style High-Density Table (Alphabetical by Artist)
+   ========================================================================== */
+.km-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.km-table-wrap::-webkit-scrollbar {
+  width: 4px;
+}
+.km-table-wrap::-webkit-scrollbar-thumb {
+  background: var(--surface-elevated);
+  border-radius: 2px;
+}
+
+.km-header-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  background: #090b0e;
+  border-bottom: 1px solid var(--border-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.km-row {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+  font-family: var(--font-sans);
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: background 0.08s ease;
+  gap: 8px;
+}
+
+.km-row:nth-child(even) {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.km-row:hover {
+  background: var(--surface-elevated);
+}
+
+.km-row.active-playing {
+  background: rgba(245, 158, 11, 0.08);
+  border-left: 2px solid var(--accent);
+}
+
+.km-col-play {
+  width: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--text-tertiary);
+}
+
+.km-col-artist {
+  width: 36%;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.km-col-title {
+  flex: 1;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.km-col-fmt {
+  width: 38px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.km-col-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.km-btn-icon {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  border-radius: 3px;
+  transition: all 0.1s ease;
+}
+
+.km-btn-icon:hover {
+  color: var(--text-primary);
+}
+
+.km-btn-icon.active {
+  color: var(--accent);
+}
+
+/* ==========================================================================
+   Playlists Management Panel (Create, Modify, Delete, Add From Collection)
+   ========================================================================== */
+.playlists-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.playlist-create-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #090a0d;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+#inputNewPlaylist {
+  flex: 1;
+  background: #13161c;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 6px 10px;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  outline: none;
+}
+
+#inputNewPlaylist:focus {
+  border-color: var(--accent);
+}
+
+/* Playlist Detail Action Toolbar */
+.playlist-detail-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #141820;
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.pl-toolbar-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.pl-toolbar-bottom {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-danger-text {
+  color: var(--led-red) !important;
+}
+
+.playlist-items-wrap {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.playlist-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.playlist-card:hover {
+  background: var(--surface-card);
+}
+
+.pl-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.pl-card-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pl-card-meta {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--text-tertiary);
+}
+
+.pl-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Source Panel */
+.source-view {
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.source-config-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.source-url-text {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--led-green);
+  word-break: break-all;
+}
+
+.source-subtext {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+  line-height: 1.35;
+}
+
+.source-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#inputCustomSource {
+  background: #090a0d;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  outline: none;
+}
+
+#inputCustomSource:focus {
+  border-color: var(--accent);
+}
+
+.source-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.source-status-msg {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--accent);
+}
+
+.library-empty-msg {
+  text-align: center;
+  padding: 30px 14px;
+  color: var(--text-tertiary);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+/* ==========================================================================
+   Bespoke In-App Studio Modals (Collection Picker & Dialogs)
+   ========================================================================== */
+.studio-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(6px);
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  opacity: 1;
+  transition: opacity 0.15s ease;
+}
+
+.studio-modal-backdrop.hide {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.studio-modal-card {
+  width: 100%;
+  max-width: 480px;
+  background: #12151b;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.9);
+  max-height: 80vh;
+}
+
+.modal-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modal-input {
+  width: 100%;
+  background: #090a0d;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.modal-input:focus {
+  border-color: var(--accent);
+}
+
+.modal-msg {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.modal-collection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.modal-collection-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 5px;
+  gap: 8px;
+}
+
+.modal-collection-item:hover {
+  background: var(--surface-elevated);
+}

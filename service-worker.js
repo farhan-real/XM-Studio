@@ -1,11 +1,13 @@
-const CACHE_NAME = 'xm-studio-v28';
+const CACHE_NAME = 'xm-studio-v32';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
   './icon.svg',
   './css/main.css',
+  './css/library.css',
   './js/app.js',
+  './js/library.js',
   './js/chiptune2.js',
   './js/lame.min.js',
   './js/libopenmpt.js',

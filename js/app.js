@@ -1,15 +1,11 @@
+/**
+ * js/app.js - Dedicated Player Engine, Hardware Stream Routing & Visualizer
+ */
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
-  }
-
-  // DEFAULT LIBRARY SOURCE: farhan-real/XM-Music
-  const DEFAULT_MUSIC_BASE_URL = 'https://farhan-real.github.io/XM-Music/';
-
-  function getActiveLibraryBaseUrl() {
-    const saved = localStorage.getItem('xm_custom_library_url');
-    if (saved && saved.trim()) return saved.trim();
-    return DEFAULT_MUSIC_BASE_URL;
+    navigator.serviceWorker.register('./service-worker.js').then((reg) => {
+      reg.update();
+    }).catch(() => {});
   }
 
   const player = new ChiptuneJsPlayer();
@@ -26,112 +22,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let nativeAudioSource = null;
   let prevVolume = 0.85;
 
-  // Track queue & active playing item state
-  let currentActiveTrackItem = null;
-  let activePlaylistQueue = null;
-  let activeQueueIndex = -1;
+  let currentQueue = null;
+  let currentQueueIdx = -1;
 
-  // Cloud Library & Local State
-  let fullLibraryTracks = [];
-  let filteredLibraryTracks = [];
-  let isLibraryLoaded = false;
-  const BATCH_SIZE = 50;
-  let renderedCount = 0;
-  let activeTab = 'cloud';
-  let viewingPlaylistId = null;
-  let pendingTrackToAddToPlaylist = null;
-
-  // IndexedDB Storage for Uploaded Tracks (Persistent Offline Playlists)
-  const IDB_NAME = 'XMStudioDB';
-  const IDB_STORE = 'uploaded_tracks';
-
-  function openIDB() {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open(IDB_NAME, 1);
-      req.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        if (!db.objectStoreNames.contains(IDB_STORE)) {
-          db.createObjectStore(IDB_STORE, { keyPath: 'id' });
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  }
-
-  async function saveTrackToIDB(id, buffer, meta) {
-    try {
-      const db = await openIDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(IDB_STORE, 'readwrite');
-        tx.objectStore(IDB_STORE).put({ id, buffer, meta });
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-    } catch (e) {
-      console.warn('IDB save failed:', e);
-    }
-  }
-
-  async function getTrackFromIDB(id) {
-    try {
-      const db = await openIDB();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(IDB_STORE, 'readonly');
-        const req = tx.objectStore(IDB_STORE).get(id);
-        req.onsuccess = () => resolve(req.result ? req.result.buffer : null);
-        req.onerror = () => reject(req.error);
-      });
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // Favorites & Playlist Store
-  function getFavorites() {
-    try {
-      return JSON.parse(localStorage.getItem('xm_favorites')) || [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function saveFavorites(favs) {
-    localStorage.setItem('xm_favorites', JSON.stringify(favs));
-  }
-
-  function isTrackFavorited(id) {
-    return getFavorites().some(f => f.id === id);
-  }
-
-  function toggleFavoriteTrack(trackItem) {
-    let favs = getFavorites();
-    const idx = favs.findIndex(f => f.id === trackItem.id);
-    if (idx >= 0) {
-      favs.splice(idx, 1);
-    } else {
-      favs.push(trackItem);
-    }
-    saveFavorites(favs);
-    updateFavCurrentButton();
-    if (activeTab === 'favs') renderLibraryList(true);
-  }
-
-  function getPlaylists() {
-    try {
-      return JSON.parse(localStorage.getItem('xm_playlists')) || [
-        { id: 'pl_favorites_sync', name: 'Favorites Mix', tracks: [] }
-      ];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function savePlaylists(pls) {
-    localStorage.setItem('xm_playlists', JSON.stringify(pls));
-  }
-
-  // Native streaming extensions that bypass OpenMPT
   const NATIVE_STREAM_EXTS = ['.mp3', '.ogg', '.wav'];
 
   function routeNativeAudioToWebAudio() {
@@ -152,38 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDownload = document.getElementById('btnDownload');
   const btnBrowse = document.getElementById('btnBrowse');
   const btnDemo = document.getElementById('btnDemo');
-  const btnLibrary = document.getElementById('btnLibrary');
-  const btnCloseLibrary = document.getElementById('btnCloseLibrary');
-  const libraryDrawer = document.getElementById('libraryDrawer');
-  const librarySearch = document.getElementById('librarySearch');
-  const libraryList = document.getElementById('libraryList');
-  const libraryCount = document.getElementById('libraryCount');
-
-  // Tabs & Panes
-  const tabCloud = document.getElementById('tabCloud');
-  const tabFavs = document.getElementById('tabFavs');
-  const tabPlaylists = document.getElementById('tabPlaylists');
-  const tabSource = document.getElementById('tabSource');
-  const paneTracks = document.getElementById('paneTracks');
-  const panePlaylists = document.getElementById('panePlaylists');
-  const paneSource = document.getElementById('paneSource');
-
-  const playlistNewName = document.getElementById('playlistNewName');
-  const btnCreatePlaylist = document.getElementById('btnCreatePlaylist');
-  const playlistContainer = document.getElementById('playlistContainer');
-  const playlistViewHeader = document.getElementById('playlistViewHeader');
-  const playlistActiveTitle = document.getElementById('playlistActiveTitle');
-  const btnBackPlaylists = document.getElementById('btnBackPlaylists');
-  const btnPlayAllPlaylist = document.getElementById('btnPlayAllPlaylist');
-
-  const inputCustomSource = document.getElementById('inputCustomSource');
-  const btnSaveSource = document.getElementById('btnSaveSource');
-  const btnResetSource = document.getElementById('btnResetSource');
-  const sourceStatusMsg = document.getElementById('sourceStatusMsg');
-
-  const playlistModal = document.getElementById('playlistModal');
-  const playlistModalList = document.getElementById('playlistModalList');
-  const btnCloseModal = document.getElementById('btnCloseModal');
 
   const fileInput = document.getElementById('fileInput');
   const dropZone = document.getElementById('dropZone');
@@ -195,9 +56,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnMute = document.getElementById('btnMute');
   const songTitle = document.getElementById('songTitle');
   const songArtist = document.getElementById('songArtist');
-  const btnFavCurrent = document.getElementById('btnFavCurrent');
-  const svgFavCurrent = document.getElementById('svgFavCurrent');
-
   const modType = document.getElementById('modType');
   const channels = document.getElementById('channels');
   const qualityBadge = document.getElementById('qualityBadge');
@@ -209,6 +67,27 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnUnload = document.getElementById('btnUnload');
   const readoutProgressTrack = document.getElementById('readoutProgressTrack');
   const readoutProgressBar = document.getElementById('readoutProgressBar');
+
+  // Mobile View Switcher
+  const btnToggleLeft = document.getElementById('btnToggleLeft');
+  const btnToggleRight = document.getElementById('btnToggleRight');
+  const panelLeft = document.getElementById('panelLeft');
+
+  if (btnToggleLeft && btnToggleRight) {
+    btnToggleLeft.addEventListener('click', () => {
+      btnToggleLeft.classList.add('active');
+      btnToggleRight.classList.remove('active');
+      panelLeft.classList.remove('mobile-hide');
+      dropZone.classList.add('mobile-hide');
+    });
+
+    btnToggleRight.addEventListener('click', () => {
+      btnToggleRight.classList.add('active');
+      btnToggleLeft.classList.remove('active');
+      dropZone.classList.remove('mobile-hide');
+      panelLeft.classList.add('mobile-hide');
+    });
+  }
 
   // Canvas Studio Meter
   const canvas = document.getElementById('visualizer');
@@ -255,24 +134,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const pct = Math.round(val * 100);
     volPercent.textContent = `${pct}%`;
     volSlider.value = val;
-  }
-
-  function updateFavCurrentButton() {
-    if (!currentActiveTrackItem) {
-      btnFavCurrent.classList.add('hide');
-      return;
-    }
-    btnFavCurrent.classList.remove('hide');
-    const isFav = isTrackFavorited(currentActiveTrackItem.id);
-    if (isFav) {
-      btnFavCurrent.classList.add('active');
-      svgFavCurrent.setAttribute('fill', '#f59e0b');
-      svgFavCurrent.setAttribute('stroke', '#f59e0b');
-    } else {
-      btnFavCurrent.classList.remove('active');
-      svgFavCurrent.setAttribute('fill', 'none');
-      svgFavCurrent.setAttribute('stroke', 'currentColor');
-    }
   }
 
   function getFileExtension(filename) {
@@ -338,9 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rawTitle = fileTitle || rawTitle;
       }
 
-      if (!rawArtist) {
-        rawArtist = fileArtist;
-      }
+      if (!rawArtist) rawArtist = fileArtist;
     } else {
       const featMatch = base.match(/^(.+?)\s+[\(\[\{]?(?:ft\.?|feat\.?|featuring)\s+([^\)\]\}]+)[\)\]\}]?/i);
       if (featMatch) {
@@ -352,11 +211,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    let artist = normalizeArtist(rawArtist);
-    let title = rawTitle.trim();
-
-    artist = smartCapitalize(artist);
-    title = smartCapitalize(title);
+    let artist = smartCapitalize(normalizeArtist(rawArtist));
+    let title = smartCapitalize(rawTitle.trim());
 
     return {
       artist: artist || "Unknown Artist",
@@ -403,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   renderVisualizer();
 
-  // Unified Real-Time Scrubber & Timeline Loop
+  // Timeline Scrubber Loop
   setInterval(() => {
     if (isSeeking) return;
 
@@ -422,7 +278,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 100);
 
-  // UNLOAD MODULE
   function unloadModule() {
     player.cancelCompilation();
     player.stop();
@@ -436,7 +291,6 @@ document.addEventListener('DOMContentLoaded', () => {
     currentRawBuffer = null;
     currentAudioBlob = null;
     isNativeStream = false;
-    currentActiveTrackItem = null;
 
     activeTitle = "No Module Loaded";
     activeArtist = "";
@@ -455,21 +309,20 @@ document.addEventListener('DOMContentLoaded', () => {
     timeTotal.textContent = "00:00";
     btnDownload.disabled = true;
 
-    updateFavCurrentButton();
     setStatus('idle');
     setPlayingState(false);
 
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = null;
-    }
+    if (window.XMLibrary) window.XMLibrary.notifyPlaying(null);
+    if ('mediaSession' in navigator) navigator.mediaSession.metadata = null;
   }
 
-  // Play next in active playlist queue when track finishes
-  function playNextInQueue() {
-    if (!audioEl.loop && activePlaylistQueue && activeQueueIndex >= 0) {
-      const nextIdx = activeQueueIndex + 1;
-      if (nextIdx < activePlaylistQueue.length) {
-        playTrackItem(activePlaylistQueue[nextIdx], activePlaylistQueue, nextIdx);
+  function playNextTrackInQueue() {
+    if (!audioEl.loop && currentQueue && currentQueueIdx >= 0) {
+      const nextIdx = currentQueueIdx + 1;
+      if (nextIdx < currentQueue.length) {
+        const item = currentQueue[nextIdx];
+        const url = item.path ? `https://farhan-real.github.io/XM-Music/${item.path}` : (item.url || null);
+        loadModule(url, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, currentQueue, nextIdx);
         return;
       }
     }
@@ -478,13 +331,15 @@ document.addEventListener('DOMContentLoaded', () => {
     timeCurrent.textContent = "00:00";
   }
 
-  // LOAD & PLAY WITH AUTOMATIC HARDWARE HANDOFF
-  function loadModule(fileOrUrl, fallbackName, trackItemRef) {
+  function loadModule(fileOrUrl, fallbackName, trackItemRef, queue, queueIdx) {
     const ext = getFileExtension(fallbackName);
     player.stop();
     audioEl.pause();
 
-    // 1. NATIVE HARDWARE STREAM (.mp3, .ogg, .wav)
+    currentQueue = queue || null;
+    currentQueueIdx = (queueIdx !== undefined) ? queueIdx : -1;
+
+    // 1. Native Stream (.mp3, .ogg, .wav)
     if (NATIVE_STREAM_EXTS.includes(ext)) {
       isNativeStream = true;
       readoutProgressTrack.classList.add('hide');
@@ -502,14 +357,6 @@ document.addEventListener('DOMContentLoaded', () => {
       activeTitle = info.title;
       activeArtist = info.artist;
 
-      currentActiveTrackItem = trackItemRef || {
-        id: `stream_${fallbackName}`,
-        title: info.title,
-        artist: info.artist,
-        ext: ext.replace('.', '').toUpperCase(),
-        url: typeof fileOrUrl === 'string' ? fileOrUrl : null
-      };
-
       songTitle.textContent = info.title;
       songArtist.textContent = info.artist;
       modType.textContent = ext.replace('.', '').toUpperCase();
@@ -519,8 +366,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
       progressBar.disabled = false;
       btnDownload.disabled = false;
-      updateFavCurrentButton();
       setStatus('ready');
+
+      if (window.XMLibrary && trackItemRef) {
+        window.XMLibrary.notifyPlaying(trackItemRef.id);
+      }
 
       if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
@@ -536,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // 2. TRACKER MODULE
+    // 2. Tracker Module
     isNativeStream = false;
     btnDownload.disabled = true;
 
@@ -548,14 +398,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       activeTitle = info.title;
       activeArtist = info.artist;
-
-      currentActiveTrackItem = trackItemRef || {
-        id: `track_${fallbackName}`,
-        title: info.title,
-        artist: info.artist,
-        ext: (meta.type_long || "FT2").toUpperCase(),
-        url: typeof fileOrUrl === 'string' ? fileOrUrl : null
-      };
       
       songTitle.textContent = info.title;
       songArtist.textContent = info.artist;
@@ -567,19 +409,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       readoutProgressTrack.classList.remove('hide');
       readoutProgressBar.style.width = '0%';
-      updateFavCurrentButton();
       setStatus('compiling');
 
-      // Cache locally uploaded buffer in IndexedDB for persistent custom playlists
-      if (fileOrUrl instanceof File || fileOrUrl instanceof Blob) {
-        saveTrackToIDB(currentActiveTrackItem.id, buf, {
-          title: info.title,
-          artist: info.artist,
-          filename: fallbackName
-        });
+      if (window.XMLibrary && trackItemRef) {
+        window.XMLibrary.notifyPlaying(trackItemRef.id);
       }
 
-      // Instant 8k buffer real-time playback
       player.play(buf);
       setPlayingState(true);
       progressBar.disabled = false;
@@ -631,398 +466,11 @@ document.addEventListener('DOMContentLoaded', () => {
         (err) => {
           readoutProgressTrack.classList.add('hide');
           setStatus('idle');
-          console.error("Background compilation error:", err);
+          console.error("Compilation error:", err);
         }
       );
     });
   }
-
-  // Play any unified track item (Cloud or Local IDB)
-  async function playTrackItem(item, queue, index) {
-    if (queue) {
-      activePlaylistQueue = queue;
-      activeQueueIndex = index;
-    }
-
-    if (item.path) {
-      const url = `${getActiveLibraryBaseUrl()}${item.path}`;
-      loadModule(url, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item);
-    } else if (item.url) {
-      loadModule(item.url, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item);
-    } else if (item.id) {
-      const buffer = await getTrackFromIDB(item.id);
-      if (buffer) {
-        loadModule(buffer, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item);
-      } else {
-        alert("Local file buffer not found. Re-import file.");
-      }
-    }
-  }
-
-  // Cloud Library Fetcher
-  async function fetchCloudLibrary() {
-    const baseUrl = getActiveLibraryBaseUrl();
-    libraryList.innerHTML = `<div class="library-empty-msg">Connecting to default XM-Music repository...<br><span style="font-size:0.72rem;color:var(--text-muted);">${baseUrl}</span></div>`;
-    
-    try {
-      const res = await fetch(`${baseUrl}tracks.json`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      fullLibraryTracks = await res.json();
-      
-      // Ensure all tracks have consistent ID
-      fullLibraryTracks.forEach((t) => {
-        if (!t.id) t.id = `cloud_${t.path}`;
-      });
-
-      filteredLibraryTracks = fullLibraryTracks;
-      isLibraryLoaded = true;
-      libraryCount.textContent = `${fullLibraryTracks.length} TRACKS`;
-      renderLibraryList(true);
-    } catch (err) {
-      libraryList.innerHTML = `
-        <div class="library-empty-msg">
-          Could not fetch tracks.json from ${baseUrl}<br>
-          <span style="font-size:0.72rem;color:var(--text-muted);">Ensure XM-Music is deployed to GitHub Pages with tracks.json, or configure your source in the Source tab.</span>
-        </div>
-      `;
-    }
-  }
-
-  // Render Track List with Action Buttons (Play, Star, Add to Playlist)
-  function renderLibraryList(reset) {
-    if (reset) {
-      libraryList.innerHTML = '';
-      renderedCount = 0;
-    }
-
-    let sourceList = filteredLibraryTracks;
-    if (activeTab === 'favs') {
-      const favs = getFavorites();
-      const q = librarySearch.value.toLowerCase().trim();
-      sourceList = q ? favs.filter(t => t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q)) : favs;
-      libraryCount.textContent = `${favs.length} FAVORITES`;
-    }
-
-    const nextBatch = sourceList.slice(renderedCount, renderedCount + BATCH_SIZE);
-    if (nextBatch.length === 0 && renderedCount === 0) {
-      libraryList.innerHTML = `<div class="library-empty-msg">${activeTab === 'favs' ? 'No favorited tracks yet. Tap ★ on any track to add.' : 'No matching tracks found.'}</div>`;
-      return;
-    }
-
-    const frag = document.createDocumentFragment();
-    nextBatch.forEach((item, idx) => {
-      const actualIdx = renderedCount + idx;
-      const el = document.createElement('div');
-      el.className = 'library-item';
-      const isFav = isTrackFavorited(item.id);
-
-      el.innerHTML = `
-        <div class="lib-item-info">
-          <span class="lib-item-title">${item.title}</span>
-          <span class="lib-item-sub">${item.artist} ${item.folder ? '• ' + item.folder : ''}</span>
-        </div>
-        <div class="lib-item-actions">
-          <button class="btn-item-action ${isFav ? 'active' : ''}" data-action="fav" title="Toggle Favorite">
-            <svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? '#f59e0b' : 'none'}" stroke="${isFav ? '#f59e0b' : 'currentColor'}">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-            </svg>
-          </button>
-          <button class="btn-item-action" data-action="add-pl" title="Add to Playlist">
-            <svg viewBox="0 0 24 24" class="t-icon-xs">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-          </button>
-          <span class="badge">${item.ext || 'XM'}</span>
-        </div>
-      `;
-
-      // Play on title click
-      el.querySelector('.lib-item-info').addEventListener('click', () => {
-        libraryDrawer.classList.add('hide');
-        playTrackItem(item, sourceList, actualIdx);
-      });
-
-      // Favorite toggle
-      el.querySelector('[data-action="fav"]').addEventListener('click', (e) => {
-        e.stopPropagation();
-        toggleFavoriteTrack(item);
-      });
-
-      // Add to playlist
-      el.querySelector('[data-action="add-pl"]').addEventListener('click', (e) => {
-        e.stopPropagation();
-        openAddToPlaylistModal(item);
-      });
-
-      frag.appendChild(el);
-    });
-
-    libraryList.appendChild(frag);
-    renderedCount += nextBatch.length;
-  }
-
-  // Playlists UI View
-  function renderPlaylistsList() {
-    playlistViewHeader.classList.add('hide');
-    playlistContainer.innerHTML = '';
-    const playlists = getPlaylists();
-    libraryCount.textContent = `${playlists.length} PLAYLISTS`;
-
-    if (playlists.length === 0) {
-      playlistContainer.innerHTML = '<div class="library-empty-msg">No custom playlists created.</div>';
-      return;
-    }
-
-    playlists.forEach(pl => {
-      const el = document.createElement('div');
-      el.className = 'library-item';
-      el.innerHTML = `
-        <div class="lib-item-info">
-          <span class="lib-item-title">${pl.name}</span>
-          <span class="lib-item-sub">${pl.tracks.length} tracks</span>
-        </div>
-        <div class="lib-item-actions">
-          <button class="btn-item-action" data-action="play-pl" title="Play Playlist">▶</button>
-          <button class="btn-item-action" data-action="del-pl" title="Delete Playlist">
-            <svg viewBox="0 0 24 24" class="t-icon-xs">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-      `;
-
-      el.querySelector('.lib-item-info').addEventListener('click', () => viewPlaylistDetails(pl.id));
-      el.querySelector('[data-action="play-pl"]').addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (pl.tracks.length > 0) {
-          libraryDrawer.classList.add('hide');
-          playTrackItem(pl.tracks[0], pl.tracks, 0);
-        }
-      });
-      el.querySelector('[data-action="del-pl"]').addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (confirm(`Delete playlist "${pl.name}"?`)) {
-          const updated = getPlaylists().filter(p => p.id !== pl.id);
-          savePlaylists(updated);
-          renderPlaylistsList();
-        }
-      });
-
-      playlistContainer.appendChild(el);
-    });
-  }
-
-  function viewPlaylistDetails(plId) {
-    viewingPlaylistId = plId;
-    const pl = getPlaylists().find(p => p.id === plId);
-    if (!pl) return;
-
-    playlistViewHeader.classList.remove('hide');
-    playlistActiveTitle.textContent = pl.name;
-    playlistContainer.innerHTML = '';
-
-    if (pl.tracks.length === 0) {
-      playlistContainer.innerHTML = '<div class="library-empty-msg">Playlist is empty. Add tracks from Library or Favorites.</div>';
-      return;
-    }
-
-    pl.tracks.forEach((track, idx) => {
-      const el = document.createElement('div');
-      el.className = 'library-item';
-      el.innerHTML = `
-        <div class="lib-item-info">
-          <span class="lib-item-title">${track.title}</span>
-          <span class="lib-item-sub">${track.artist}</span>
-        </div>
-        <div class="lib-item-actions">
-          <button class="btn-item-action" data-action="remove-item" title="Remove from playlist">
-            <svg viewBox="0 0 24 24" class="t-icon-xs">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-      `;
-
-      el.querySelector('.lib-item-info').addEventListener('click', () => {
-        libraryDrawer.classList.add('hide');
-        playTrackItem(track, pl.tracks, idx);
-      });
-
-      el.querySelector('[data-action="remove-item"]').addEventListener('click', (e) => {
-        e.stopPropagation();
-        const pls = getPlaylists();
-        const target = pls.find(p => p.id === plId);
-        if (target) {
-          target.tracks.splice(idx, 1);
-          savePlaylists(pls);
-          viewPlaylistDetails(plId);
-        }
-      });
-
-      playlistContainer.appendChild(el);
-    });
-  }
-
-  btnPlayAllPlaylist.addEventListener('click', () => {
-    if (!viewingPlaylistId) return;
-    const pl = getPlaylists().find(p => p.id === viewingPlaylistId);
-    if (pl && pl.tracks.length > 0) {
-      libraryDrawer.classList.add('hide');
-      playTrackItem(pl.tracks[0], pl.tracks, 0);
-    }
-  });
-
-  btnBackPlaylists.addEventListener('click', renderPlaylistsList);
-
-  btnCreatePlaylist.addEventListener('click', () => {
-    const name = playlistNewName.value.trim();
-    if (!name) return;
-    const pls = getPlaylists();
-    pls.push({ id: `pl_${Date.now()}`, name, tracks: [] });
-    savePlaylists(pls);
-    playlistNewName.value = '';
-    renderPlaylistsList();
-  });
-
-  // Add to Playlist Popover Modal
-  function openAddToPlaylistModal(track) {
-    pendingTrackToAddToPlaylist = track;
-    playlistModal.classList.remove('hide');
-    playlistModalList.innerHTML = '';
-    const pls = getPlaylists();
-
-    if (pls.length === 0) {
-      playlistModalList.innerHTML = '<div class="library-empty-msg">No playlists created yet.</div>';
-      return;
-    }
-
-    pls.forEach(pl => {
-      const btn = document.createElement('button');
-      btn.className = 'modal-pl-btn';
-      btn.textContent = `${pl.name} (${pl.tracks.length} tracks)`;
-      btn.addEventListener('click', () => {
-        const allPls = getPlaylists();
-        const target = allPls.find(p => p.id === pl.id);
-        if (target) {
-          if (!target.tracks.some(t => t.id === track.id)) {
-            target.tracks.push(track);
-            savePlaylists(allPls);
-          }
-        }
-        playlistModal.classList.add('hide');
-        if (activeTab === 'playlists' && viewingPlaylistId === pl.id) {
-          viewPlaylistDetails(pl.id);
-        }
-      });
-      playlistModalList.appendChild(btn);
-    });
-  }
-
-  btnCloseModal.addEventListener('click', () => playlistModal.classList.add('hide'));
-
-  // Drawer Tabs Switcher
-  function switchDrawerTab(tabId) {
-    activeTab = tabId;
-    [tabCloud, tabFavs, tabPlaylists, tabSource].forEach(t => t.classList.remove('active'));
-    [paneTracks, panePlaylists, paneSource].forEach(p => p.classList.add('hide'));
-
-    if (tabId === 'cloud') {
-      tabCloud.classList.add('active');
-      paneTracks.classList.remove('hide');
-      librarySearch.placeholder = "Search title, artist, or subfolder...";
-      if (!isLibraryLoaded) fetchCloudLibrary();
-      else renderLibraryList(true);
-    } else if (tabId === 'favs') {
-      tabFavs.classList.add('active');
-      paneTracks.classList.remove('hide');
-      librarySearch.placeholder = "Search favorites...";
-      renderLibraryList(true);
-    } else if (tabId === 'playlists') {
-      tabPlaylists.classList.add('active');
-      panePlaylists.classList.remove('hide');
-      renderPlaylistsList();
-    } else if (tabId === 'source') {
-      tabSource.classList.add('active');
-      paneSource.classList.remove('hide');
-      inputCustomSource.value = localStorage.getItem('xm_custom_library_url') || '';
-      libraryCount.textContent = "SOURCE CONFIG";
-    }
-  }
-
-  tabCloud.addEventListener('click', () => switchDrawerTab('cloud'));
-  tabFavs.addEventListener('click', () => switchDrawerTab('favs'));
-  tabPlaylists.addEventListener('click', () => switchDrawerTab('playlists'));
-  tabSource.addEventListener('click', () => switchDrawerTab('source'));
-
-  // Source Configuration Events
-  btnSaveSource.addEventListener('click', () => {
-    let url = inputCustomSource.value.trim();
-    if (url) {
-      if (!url.endsWith('/')) url += '/';
-      localStorage.setItem('xm_custom_library_url', url);
-      sourceStatusMsg.textContent = 'Custom source saved. Syncing...';
-    } else {
-      localStorage.removeItem('xm_custom_library_url');
-      sourceStatusMsg.textContent = 'Source reset to default XM-Music. Syncing...';
-    }
-    isLibraryLoaded = false;
-    setTimeout(() => {
-      sourceStatusMsg.textContent = '';
-      switchDrawerTab('cloud');
-    }, 800);
-  });
-
-  btnResetSource.addEventListener('click', () => {
-    localStorage.removeItem('xm_custom_library_url');
-    inputCustomSource.value = '';
-    sourceStatusMsg.textContent = 'Reset to default XM-Music repository.';
-    isLibraryLoaded = false;
-    setTimeout(() => {
-      sourceStatusMsg.textContent = '';
-      switchDrawerTab('cloud');
-    }, 600);
-  });
-
-  // Infinite Scroll Batching for 5,500 Tracks
-  libraryList.addEventListener('scroll', () => {
-    if (libraryList.scrollTop + libraryList.clientHeight >= libraryList.scrollHeight - 60) {
-      const sourceList = (activeTab === 'favs') ? getFavorites() : filteredLibraryTracks;
-      if (renderedCount < sourceList.length) {
-        renderLibraryList(false);
-      }
-    }
-  });
-
-  // Instant Search Filter
-  librarySearch.addEventListener('input', (e) => {
-    const q = e.target.value.toLowerCase().trim();
-    if (activeTab === 'favs') {
-      renderLibraryList(true);
-    } else {
-      if (!q) {
-        filteredLibraryTracks = fullLibraryTracks;
-      } else {
-        filteredLibraryTracks = fullLibraryTracks.filter(t => 
-          (t.title && t.title.toLowerCase().includes(q)) ||
-          (t.artist && t.artist.toLowerCase().includes(q)) ||
-          (t.folder && t.folder.toLowerCase().includes(q))
-        );
-      }
-      renderLibraryList(true);
-    }
-  });
-
-  btnLibrary.addEventListener('click', () => {
-    libraryDrawer.classList.remove('hide');
-    switchDrawerTab(activeTab);
-  });
-  btnCloseLibrary.addEventListener('click', () => libraryDrawer.classList.add('hide'));
-  btnFavCurrent.addEventListener('click', () => {
-    if (currentActiveTrackItem) toggleFavoriteTrack(currentActiveTrackItem);
-  });
 
   // Format Switchers
   btnFmtMp3.addEventListener('click', () => {
@@ -1047,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Master Transport Controls
+  // Transport Controls
   btnPlayPause.addEventListener('click', () => {
     player.unlock();
     if (isNativeStream) {
@@ -1157,6 +605,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  audioEl.addEventListener('ended', playNextInQueue);
-  player.on('onEnded', playNextInQueue);
+  audioEl.addEventListener('ended', playNextTrackInQueue);
+  player.on('onEnded', playNextTrackInQueue);
+
+  // Clean API for Left Panel Integration
+  window.XMStudio = {
+    loadTrackItem: (item, fullUrl, queue, idx) => {
+      loadModule(fullUrl, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, queue, idx);
+    },
+    getCurrentTrack: () => ({
+      title: activeTitle,
+      artist: activeArtist
+    })
+  };
 });

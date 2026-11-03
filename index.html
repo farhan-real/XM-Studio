@@ -9,6 +9,7 @@
   <link rel="icon" type="image/svg+xml" href="icon.svg" />
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="css/main.css" />
+  <link rel="stylesheet" href="css/library.css" />
 
   <!-- libopenmpt Engine & Memory Locator -->
   <script>
@@ -24,196 +25,32 @@
   <!-- lamejs MP3 Encoder -->
   <script src="js/lame.min.js" onerror="this.src='https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js';"></script>
   
-  <!-- Chiptune2 DSP Engine -->
+  <!-- Core Chiptune2 DSP Engine -->
   <script src="js/chiptune2.js"></script>
 </head>
 <body>
-  <main class="chassis" id="dropZone">
-    <!-- Header: Heading on left, Engine and X on top right -->
-    <header class="header">
-      <div class="header-top">
-        <div class="brand-cluster">
-          <span class="status-pip" id="statusPip"></span>
-          <span class="brand-title">XM-Studio</span>
-          <span class="model-sub">Offline DSP</span>
-        </div>
-        <div class="header-top-right">
-          <span class="badge badge-engine"><span class="spec-key">ENGINE:</span> <span id="modType">NONE</span></span>
-          <button class="btn-unload" id="btnUnload" title="Unload track" aria-label="Unload track">
-            <svg viewBox="0 0 24 24" class="t-icon-xs">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
-      </div>
+  <!-- Mobile Switcher (Only visible on small mobile screens to toggle Left Panel / Player) -->
+  <div class="mobile-view-toggle">
+    <button class="seg-btn active" id="btnToggleLeft">Archive &amp; Playlists</button>
+    <button class="seg-btn" id="btnToggleRight">Player Deck</button>
+  </div>
 
-      <!-- Badges Row: Quality, Clock, and Channels on Left; Status on Right -->
-      <div class="header-badges">
-        <div class="badges-group">
-          <span class="badge" id="qualityBadge">320 KBPS</span>
-          <span class="badge" id="rateBadge">48 KHZ</span>
-          <span class="badge badge-channels"><span class="spec-key">CHANNELS:</span> <span id="channels">--</span></span>
-        </div>
-        <span class="badge status-badge status-idle" id="statusBadge">STATUS: IDLE</span>
-      </div>
-    </header>
-
-    <!-- Spectrum Display Deck -->
-    <div class="deck-container">
-      <div class="canvas-wrap">
-        <canvas id="visualizer"></canvas>
-      </div>
-      <div class="screen-grid"></div>
-    </div>
-
-    <!-- Metadata Readout Panel -->
-    <section class="readout-panel">
-      <div class="readout-main">
-        <div class="readout-title-row">
-          <h2 class="song-title" id="songTitle">No Module Loaded</h2>
-          <button class="btn-track-action hide" id="btnFavCurrent" title="Favorite track" aria-label="Favorite track">
-            <svg viewBox="0 0 24 24" class="t-icon-sm" id="svgFavCurrent">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-            </svg>
-          </button>
-        </div>
-        <p class="song-artist" id="songArtist">Ready for FastTracker II / Audio input</p>
-        <div class="readout-progress-track hide" id="readoutProgressTrack">
-          <div class="readout-progress-bar" id="readoutProgressBar"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Target Format Selector -->
-    <div class="segment-strip">
-      <span class="segment-label">DSP EXPORT TARGET</span>
-      <div class="segmented-control" role="group" aria-label="Audio Quality Format">
-        <button class="seg-btn active" id="btnFmtMp3" data-format="mp3">MP3 320k CBR</button>
-        <button class="seg-btn" id="btnFmtWav" data-format="wav">WAV 16-BIT PCM</button>
-      </div>
-    </div>
-
-    <!-- Timeline & Scrubber -->
-    <div class="timeline-row">
-      <span class="time-readout" id="timeCurrent">00:00</span>
-      <div class="slider-wrap">
-        <input type="range" id="progressBar" min="0" max="100" value="0" step="0.1" disabled aria-label="Playback Progress" />
-      </div>
-      <span class="time-readout time-dim" id="timeTotal">00:00</span>
-    </div>
-
-    <!-- Master Transport Panel -->
-    <div class="transport-grid">
-      <!-- Loop Button -->
-      <button class="t-btn active" id="btnLoop" title="Toggle Loop Mode" aria-label="Loop">
-        <svg viewBox="0 0 24 24" class="t-icon">
-          <polyline points="17 1 21 5 17 9"></polyline>
-          <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
-          <polyline points="7 23 3 19 7 15"></polyline>
-          <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
-        </svg>
-      </button>
-
-      <!-- Stop Button -->
-      <button class="t-btn" id="btnStop" title="Stop Playback" aria-label="Stop">
-        <svg viewBox="0 0 24 24" class="t-icon" fill="currentColor">
-          <rect x="6" y="6" width="12" height="12" rx="1.5"></rect>
-        </svg>
-      </button>
-
-      <!-- Play / Pause Master -->
-      <button class="t-btn t-btn-main" id="btnPlayPause" title="Play or Pause" aria-label="Play">
-        <svg id="svgPlay" viewBox="0 0 24 24" class="t-icon-main" fill="currentColor">
-          <polygon points="7 4 19 12 7 20 7 4"></polygon>
-        </svg>
-        <svg id="svgPause" viewBox="0 0 24 24" class="t-icon-main hide" fill="currentColor">
-          <rect x="6" y="5" width="4" height="14" rx="1"></rect>
-          <rect x="14" y="5" width="4" height="14" rx="1"></rect>
-        </svg>
-      </button>
-
-      <!-- Download File -->
-      <button class="t-btn" id="btnDownload" title="Export Rendered Audio" aria-label="Download File" disabled>
-        <svg viewBox="0 0 24 24" class="t-icon">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="7 10 12 15 17 10"></polyline>
-          <line x1="12" y1="15" x2="12" y2="3"></line>
-        </svg>
-      </button>
-
-      <!-- Volume Fader Cluster with Percentage Readout -->
-      <div class="fader-cluster">
-        <button class="fader-btn" id="btnMute" aria-label="Mute Audio">
-          <svg id="svgVol" viewBox="0 0 24 24" class="t-icon-sm">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-          </svg>
-        </button>
-        <div class="slider-wrap vol-slider-wrap">
-          <input type="range" id="volSlider" min="0" max="1" step="0.02" value="0.85" aria-label="Master Volume" />
-        </div>
-        <span class="vol-readout" id="volPercent">85%</span>
-      </div>
-    </div>
-
-    <!-- Ingest Deck / Open Track, Library, and Sample Audio -->
-    <div class="ingest-deck">
-      <input type="file" id="fileInput" accept=".xm,.mod,.it,.s3m,.mtm,.fc13,.fc14,.amd,.rad,.bp,.mo3,.hsc,.d00,.mp3,.ogg,.wav,.v2m,.sc68,.mid,.ahx,.sid,.sap,.ym,.nsf,.spc" />
-      <button class="action-btn" id="btnBrowse">
-        <svg viewBox="0 0 24 24" class="action-icon">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-        </svg>
-        <span>OPEN TRACK</span>
-      </button>
-      <button class="action-btn" id="btnLibrary">
-        <svg viewBox="0 0 24 24" class="action-icon">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-        </svg>
-        <span>LIBRARY</span>
-      </button>
-      <button class="action-btn action-btn-secondary" id="btnDemo">
-        <svg viewBox="0 0 24 24" class="action-icon">
-          <path d="M9 18V5l12-2v13"></path>
-          <circle cx="6" cy="18" r="3"></circle>
-          <circle cx="18" cy="16" r="3"></circle>
-        </svg>
-        <span>SAMPLE AUDIO</span>
-      </button>
-    </div>
-
-    <!-- Complete Library & Playlists Drawer -->
-    <div class="library-drawer hide" id="libraryDrawer">
-      <div class="library-header">
-        <div class="library-title-group">
-          <span class="brand-title">MUSIC WORKSPACE</span>
-          <span class="badge" id="libraryCount">0 TRACKS</span>
-        </div>
-        <button class="btn-unload" id="btnCloseLibrary" title="Close Library" aria-label="Close Library">
+  <!-- Main Workstation Layout: Left Explorer (Archive/Playlists), Right Player -->
+  <div class="app-layout">
+    
+    <!-- LEFT PANEL: Keygenmusic Archive, Playlists (Create/Modify/Delete), Favorites, Source -->
+    <aside class="panel-left" id="panelLeft">
+      <!-- Left Panel Navigation Bar -->
+      <div class="panel-nav-bar">
+        <button class="panel-nav-btn active" id="tabArchive">
           <svg viewBox="0 0 24 24" class="t-icon-xs">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
           </svg>
+          <span>Archive</span>
         </button>
-      </div>
-
-      <!-- Navigation Tabs: Library, Favorites, Playlists, Source -->
-      <nav class="drawer-tabs">
-        <button class="drawer-tab active" id="tabCloud" data-tab="cloud">
-          <svg viewBox="0 0 24 24" class="tab-icon">
-            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
-          </svg>
-          <span>Cloud</span>
-        </button>
-        <button class="drawer-tab" id="tabFavs" data-tab="favs">
-          <svg viewBox="0 0 24 24" class="tab-icon">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-          </svg>
-          <span>Favorites</span>
-        </button>
-        <button class="drawer-tab" id="tabPlaylists" data-tab="playlists">
-          <svg viewBox="0 0 24 24" class="tab-icon">
+        <button class="panel-nav-btn" id="tabPlaylists">
+          <svg viewBox="0 0 24 24" class="t-icon-xs">
             <line x1="8" y1="6" x2="21" y2="6"></line>
             <line x1="8" y1="12" x2="21" y2="12"></line>
             <line x1="8" y1="18" x2="21" y2="18"></line>
@@ -223,88 +60,272 @@
           </svg>
           <span>Playlists</span>
         </button>
-        <button class="drawer-tab" id="tabSource" data-tab="source">
-          <svg viewBox="0 0 24 24" class="tab-icon">
+        <button class="panel-nav-btn" id="tabFavorites">
+          <svg viewBox="0 0 24 24" class="t-icon-xs">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+          <span>Favorites</span>
+        </button>
+        <button class="panel-nav-btn" id="tabSource">
+          <svg viewBox="0 0 24 24" class="t-icon-xs">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
           </svg>
           <span>Source</span>
         </button>
-      </nav>
+      </div>
 
-      <!-- Panel 1: Cloud & Favorites Search Container -->
-      <div class="tab-pane active" id="paneTracks">
-        <div class="library-search-box">
-          <svg viewBox="0 0 24 24" class="search-icon">
+      <!-- Search Input for Archive & Favorites -->
+      <div class="panel-search-bar" id="searchBarWrap">
+        <div class="search-input-box">
+          <svg viewBox="0 0 24 24" class="t-icon-xs">
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-          <input type="text" id="librarySearch" placeholder="Search title, artist, or subfolder..." autocomplete="off" />
-        </div>
-        <div class="library-list" id="libraryList">
-          <div class="library-empty-msg">Loading tracks...</div>
+          <input type="text" id="leftSearchInput" placeholder="Filter artist (A-Z), title, or folder..." />
+          <span class="badge" id="leftCountBadge">0 TRACKS</span>
         </div>
       </div>
 
-      <!-- Panel 2: Playlists Manager -->
-      <div class="tab-pane hide" id="panePlaylists">
-        <div class="playlist-create-bar">
-          <input type="text" id="playlistNewName" placeholder="New playlist name..." maxlength="30" />
+      <!-- VIEW 1: Keygenmusic Table (Alphabetical by Artist) -->
+      <div class="panel-content km-table-wrap" id="paneTable">
+        <div class="km-header-row">
+          <div class="km-col-play">#</div>
+          <div class="km-col-artist">ARTIST (A-Z)</div>
+          <div class="km-col-title">TRACK TITLE</div>
+          <div class="km-col-fmt">FMT</div>
+          <div class="km-col-actions">ACTION</div>
+        </div>
+        <div id="kmTableBody"></div>
+      </div>
+
+      <!-- VIEW 2: Playlists Manager (Create, Modify, Delete, Add From Collection, Delete Added) -->
+      <div class="panel-content playlists-view hide" id="panePlaylists">
+        <!-- Create Playlist Bar -->
+        <div class="playlist-create-row" id="playlistCreateRow">
+          <input type="text" id="inputNewPlaylist" placeholder="Enter playlist name..." maxlength="30" />
           <button class="action-btn" id="btnCreatePlaylist">
             <svg viewBox="0 0 24 24" class="action-icon">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            <span>ADD</span>
+            <span>CREATE</span>
           </button>
         </div>
-        <div class="playlist-view-header hide" id="playlistViewHeader">
-          <button class="seg-btn" id="btnBackPlaylists">← All Playlists</button>
-          <span class="brand-title" id="playlistActiveTitle">Playlist</span>
-          <button class="seg-btn" id="btnPlayAllPlaylist">▶ Play All</button>
+
+        <!-- Playlist Detail Action Toolbar -->
+        <div class="playlist-detail-toolbar hide" id="playlistDetailToolbar">
+          <div class="pl-toolbar-top">
+            <button class="seg-btn" id="btnBackPlaylists">
+              <svg viewBox="0 0 24 24" class="t-icon-xs">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+              </svg>
+              <span>Playlists</span>
+            </button>
+            <span class="brand-title" id="playlistDetailTitle">Playlist</span>
+            <button class="action-btn" id="btnAddFromCollection">
+              <svg viewBox="0 0 24 24" class="action-icon">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Add From Collection</span>
+            </button>
+          </div>
+          <div class="pl-toolbar-bottom">
+            <button class="seg-btn" id="btnPlayAllPlaylist">Play All</button>
+            <button class="seg-btn" id="btnModifyPlaylist">Rename</button>
+            <button class="seg-btn btn-danger-text" id="btnDeletePlaylist">Delete Playlist</button>
+          </div>
         </div>
-        <div class="library-list" id="playlistContainer"></div>
+
+        <!-- Playlists List / Detail Tracks List -->
+        <div class="playlist-items-wrap" id="playlistItemsWrap"></div>
       </div>
 
-      <!-- Panel 3: Source & Repository Configuration -->
-      <div class="tab-pane hide" id="paneSource">
+      <!-- VIEW 3: Source Configuration -->
+      <div class="panel-content source-view hide" id="paneSource">
         <div class="source-config-card">
-          <div class="source-info">
-            <span class="spec-key">DEFAULT REPOSITORY</span>
-            <span class="source-url-text">https://farhan-real.github.io/XM-Music/</span>
-            <p class="source-subtext">XM-Music is your default library. You can optionally connect a custom personal library or reset back to default at any time.</p>
-          </div>
+          <span class="spec-key">DEFAULT REPOSITORY</span>
+          <div class="source-url-text">https://farhan-real.github.io/XM-Music/</div>
+          <p class="source-subtext">XM-Studio streams directly from your default XM-Music repository. You can optionally connect a custom repository below or reset back to default.</p>
           <div class="source-input-group">
-            <label class="spec-key" for="inputCustomSource">CUSTOM LIBRARY URL</label>
+            <label class="spec-key" for="inputCustomSource">CUSTOM REPOSITORY URL</label>
             <input type="url" id="inputCustomSource" placeholder="https://username.github.io/my-music/" />
           </div>
           <div class="source-actions">
-            <button class="action-btn" id="btnSaveSource"><span>SAVE & SYNC</span></button>
+            <button class="action-btn" id="btnSaveSource"><span>SAVE &amp; SYNC</span></button>
             <button class="action-btn action-btn-secondary" id="btnResetSource"><span>USE DEFAULT</span></button>
           </div>
           <div class="source-status-msg" id="sourceStatusMsg"></div>
         </div>
       </div>
-    </div>
+    </aside>
 
-    <!-- Quick Add-to-Playlist Popover -->
-    <div class="playlist-modal hide" id="playlistModal">
-      <div class="playlist-modal-card">
-        <div class="modal-header">
-          <span class="brand-title">ADD TO PLAYLIST</span>
-          <button class="btn-unload" id="btnCloseModal">
-            <svg viewBox="0 0 24 24" class="t-icon-xs">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
+    <!-- RIGHT PANEL: Dedicated Player Chassis -->
+    <main class="chassis" id="dropZone">
+      <!-- Player Header: Brand, Engine, and Unload X -->
+      <header class="header">
+        <div class="header-top">
+          <div class="brand-cluster">
+            <span class="status-pip" id="statusPip"></span>
+            <span class="brand-title">XM-Studio</span>
+            <span class="model-sub">Offline DSP</span>
+          </div>
+          <div class="header-top-right">
+            <span class="badge badge-engine"><span class="spec-key">ENGINE:</span> <span id="modType">NONE</span></span>
+            <button class="btn-unload" id="btnUnload" title="Unload track" aria-label="Unload track">
+              <svg viewBox="0 0 24 24" class="t-icon-xs">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Badges Row: Quality, Clock, Channels, and Status -->
+        <div class="header-badges">
+          <div class="badges-group">
+            <span class="badge" id="qualityBadge">320 KBPS</span>
+            <span class="badge" id="rateBadge">48 KHZ</span>
+            <span class="badge badge-channels"><span class="spec-key">CHANNELS:</span> <span id="channels">--</span></span>
+          </div>
+          <span class="badge status-badge status-idle" id="statusBadge">STATUS: IDLE</span>
+        </div>
+      </header>
+
+      <!-- Spectrum Display Deck -->
+      <div class="deck-container">
+        <div class="canvas-wrap">
+          <canvas id="visualizer"></canvas>
+        </div>
+        <div class="screen-grid"></div>
+      </div>
+
+      <!-- Metadata Readout Panel -->
+      <section class="readout-panel">
+        <div class="readout-main">
+          <h2 class="song-title" id="songTitle">No Module Loaded</h2>
+          <p class="song-artist" id="songArtist">Ready for FastTracker II / Audio input</p>
+          <div class="readout-progress-track hide" id="readoutProgressTrack">
+            <div class="readout-progress-bar" id="readoutProgressBar"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Target Format Selector -->
+      <div class="segment-strip">
+        <span class="segment-label">DSP EXPORT TARGET</span>
+        <div class="segmented-control" role="group" aria-label="Audio Quality Format">
+          <button class="seg-btn active" id="btnFmtMp3" data-format="mp3">MP3 320k CBR</button>
+          <button class="seg-btn" id="btnFmtWav" data-format="wav">WAV 16-BIT PCM</button>
+        </div>
+      </div>
+
+      <!-- Timeline & Scrubber -->
+      <div class="timeline-row">
+        <span class="time-readout" id="timeCurrent">00:00</span>
+        <div class="slider-wrap">
+          <input type="range" id="progressBar" min="0" max="100" value="0" step="0.1" disabled aria-label="Playback Progress" />
+        </div>
+        <span class="time-readout time-dim" id="timeTotal">00:00</span>
+      </div>
+
+      <!-- Master Transport Panel -->
+      <div class="transport-grid">
+        <!-- Loop Button -->
+        <button class="t-btn active" id="btnLoop" title="Toggle Loop Mode" aria-label="Loop">
+          <svg viewBox="0 0 24 24" class="t-icon">
+            <polyline points="17 1 21 5 17 9"></polyline>
+            <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+            <polyline points="7 23 3 19 7 15"></polyline>
+            <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+          </svg>
+        </button>
+
+        <!-- Stop Button -->
+        <button class="t-btn" id="btnStop" title="Stop Playback" aria-label="Stop">
+          <svg viewBox="0 0 24 24" class="t-icon" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="1.5"></rect>
+          </svg>
+        </button>
+
+        <!-- Play / Pause Master -->
+        <button class="t-btn t-btn-main" id="btnPlayPause" title="Play or Pause" aria-label="Play">
+          <svg id="svgPlay" viewBox="0 0 24 24" class="t-icon-main" fill="currentColor">
+            <polygon points="7 4 19 12 7 20 7 4"></polygon>
+          </svg>
+          <svg id="svgPause" viewBox="0 0 24 24" class="t-icon-main hide" fill="currentColor">
+            <rect x="6" y="5" width="4" height="14" rx="1"></rect>
+            <rect x="14" y="5" width="4" height="14" rx="1"></rect>
+          </svg>
+        </button>
+
+        <!-- Download File -->
+        <button class="t-btn" id="btnDownload" title="Export Rendered Audio" aria-label="Download File" disabled>
+          <svg viewBox="0 0 24 24" class="t-icon">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </button>
+
+        <!-- Volume Fader Cluster with Percentage Readout -->
+        <div class="fader-cluster">
+          <button class="fader-btn" id="btnMute" aria-label="Mute Audio">
+            <svg id="svgVol" viewBox="0 0 24 24" class="t-icon-sm">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
             </svg>
           </button>
+          <div class="slider-wrap vol-slider-wrap">
+            <input type="range" id="volSlider" min="0" max="1" step="0.02" value="0.85" aria-label="Master Volume" />
+          </div>
+          <span class="vol-readout" id="volPercent">85%</span>
         </div>
-        <div class="modal-body" id="playlistModalList"></div>
       </div>
+
+      <!-- Ingest Deck / Open Track, Sample Audio -->
+      <div class="ingest-deck">
+        <input type="file" id="fileInput" accept=".xm,.mod,.it,.s3m,.mtm,.fc13,.fc14,.amd,.rad,.bp,.mo3,.hsc,.d00,.mp3,.ogg,.wav,.v2m,.sc68,.mid,.ahx,.sid,.sap,.ym,.nsf,.spc" />
+        <button class="action-btn" id="btnBrowse">
+          <svg viewBox="0 0 24 24" class="action-icon">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span>OPEN TRACK</span>
+        </button>
+        <button class="action-btn action-btn-secondary" id="btnDemo">
+          <svg viewBox="0 0 24 24" class="action-icon">
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+          <span>SAMPLE AUDIO</span>
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <!-- In-App Studio Modal (Collection Picker / Rename / Confirm Dialogs) -->
+  <div class="studio-modal-backdrop hide" id="studioModalBackdrop">
+    <div class="studio-modal-card">
+      <div class="modal-card-header">
+        <span class="brand-title" id="studioModalTitle">STUDIO ACTION</span>
+        <button class="btn-unload" id="btnStudioModalClose">
+          <svg viewBox="0 0 24 24" class="t-icon-xs">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-card-body" id="studioModalBody"></div>
+      <div class="modal-card-footer" id="studioModalFooter"></div>
     </div>
-  </main>
+  </div>
 
   <audio id="nativeAudio" preload="auto"></audio>
+  
   <script src="js/app.js"></script>
+  <script src="js/library.js"></script>
 </body>
 </html>
