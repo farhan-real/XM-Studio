@@ -1,6 +1,6 @@
 {
-  "name": "XM Precision Studio",
-  "short_name": "XMStudio",
+  "name": "XM-Studio",
+  "short_name": "XM-Studio",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#080b09",

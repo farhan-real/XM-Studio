@@ -264,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.mediaSession.metadata = new MediaMetadata({
           title: activeTitle,
           artist: artist,
-          album: "XM Precision Studio"
+          album: "XM-Studio"
         });
       }
 
