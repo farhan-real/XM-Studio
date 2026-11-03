@@ -46,7 +46,7 @@
         </button>
       </div>
 
-      <!-- Badges Row: Positioned directly below heading -->
+      <!-- Badges Row: Directly below heading -->
       <div class="header-badges">
         <span class="badge status-badge status-idle" id="statusBadge">STATUS: IDLE</span>
         <span class="badge" id="qualityBadge">320 KBPS</span>
@@ -62,7 +62,7 @@
       <div class="screen-grid"></div>
     </div>
 
-    <!-- Metadata Readout Panel -->
+    <!-- Metadata Readout Panel with Badged Specs -->
     <section class="readout-panel">
       <div class="readout-main">
         <h2 class="song-title" id="songTitle">NO MODULE LOADED</h2>
@@ -71,19 +71,11 @@
           <div class="readout-progress-bar" id="readoutProgressBar"></div>
         </div>
       </div>
+      <!-- Engine, Channels, and Clock Badges -->
       <div class="readout-specs">
-        <div class="spec-block">
-          <span class="spec-key">ENGINE</span>
-          <span class="spec-val" id="modType">FT2</span>
-        </div>
-        <div class="spec-block">
-          <span class="spec-key">CHANNELS</span>
-          <span class="spec-val" id="channels">--</span>
-        </div>
-        <div class="spec-block">
-          <span class="spec-key">CLOCK</span>
-          <span class="spec-val">48 KHZ</span>
-        </div>
+        <span class="badge spec-badge badge-engine"><span class="spec-key">ENGINE:</span> <span id="modType">FT2</span></span>
+        <span class="badge spec-badge badge-channels"><span class="spec-key">CHANNELS:</span> <span id="channels">--</span></span>
+        <span class="badge spec-badge badge-clock"><span class="spec-key">CLOCK:</span> <span id="clockVal">48 KHZ</span></span>
       </div>
     </section>
 

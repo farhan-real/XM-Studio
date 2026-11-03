@@ -287,31 +287,51 @@ body {
   transition: width 0.1s linear;
 }
 
+/* Spec Badges in Readout Panel */
 .readout-specs {
   display: flex;
-  gap: 14px;
+  flex-direction: column;
+  gap: 5px;
+  align-items: flex-end;
   padding-left: 12px;
   border-left: 1px solid var(--border-subtle);
+  flex-shrink: 0;
 }
 
-.spec-block {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+.spec-badge {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  padding: 2.5px 6px;
+  border-radius: 3px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  line-height: 1.2;
 }
 
 .spec-key {
-  font-family: var(--font-mono);
-  font-size: 0.58rem;
   color: var(--text-muted);
-  letter-spacing: 0.04em;
+  font-weight: 700;
 }
 
-.spec-val {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-secondary);
+.badge-engine {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.badge-channels {
+  color: var(--accent);
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+}
+
+.badge-clock {
+  color: var(--led-green);
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.28);
 }
 
 .segment-strip {
@@ -584,6 +604,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   .readout-panel {
     flex-direction: column;
     align-items: flex-start;
+    gap: 10px;
   }
   .readout-specs {
     width: 100%;
@@ -591,10 +612,11 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     border-top: 1px solid var(--border-subtle);
     padding-left: 0;
     padding-top: 8px;
-    justify-content: space-between;
-  }
-  .spec-block {
-    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    justify-content: flex-start;
   }
   .vol-slider-wrap {
     width: 54px;
