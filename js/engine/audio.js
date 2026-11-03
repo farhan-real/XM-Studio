@@ -1,11 +1,14 @@
 /**
- * js/engine/audio.js - Master playback coordinator with exact track fidelity and instant UI sync.
+ * js/engine/audio.js - Master playback coordinator with exact track fidelity and raw tracker download.
  */
 (function(window) {
   const player = new ChiptuneJsPlayer();
   const audioEl = document.getElementById('nativeAudio');
 
   let currentRawBuffer = null;
+  let currentAudioBlob = null;
+  let currentAudioSrc = '';
+  let currentExt = 'xm';
   let isNativeStream = false;
   let nativeAudioSource = null;
   let activeTitle = "No Module Loaded";
@@ -107,10 +110,13 @@
   function loadTrack(fileOrUrl, fallbackName, trackItemRef, queue, queueIdx) {
     const loadId = ++currentLoadId;
     const ext = getFileExtension(fallbackName);
+    currentExt = ext ? ext.replace('.', '').toLowerCase() : 'xm';
 
     player.stop();
     audioEl.pause();
     currentRawBuffer = null;
+    currentAudioBlob = null;
+    currentAudioSrc = (typeof fileOrUrl === 'string') ? fileOrUrl : '';
     currentQueue = queue || null;
     currentQueueIdx = (queueIdx !== undefined) ? queueIdx : -1;
 
@@ -127,7 +133,7 @@
     activeArtist = targetArtist;
 
     if (window.XMApp) {
-      window.XMApp.updateTrackUI(targetTitle, targetArtist, ext.replace('.', '').toUpperCase() || 'AUDIO', '--', false);
+      window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase() || 'AUDIO', '--', false);
     }
     if (window.XMLibrary && trackItemRef) {
       window.XMLibrary.notifyPlaying(trackItemRef.id);
@@ -147,6 +153,7 @@
       isNativeStream = true;
 
       if (fileOrUrl instanceof File || fileOrUrl instanceof Blob) {
+        currentAudioBlob = fileOrUrl;
         audioEl.src = URL.createObjectURL(fileOrUrl);
       } else {
         audioEl.src = fileOrUrl;
@@ -157,7 +164,7 @@
       audioEl.play().catch(() => {});
 
       if (window.XMApp) {
-        window.XMApp.updateTrackUI(targetTitle, targetArtist, ext.replace('.', '').toUpperCase(), '2 CH', true);
+        window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2 CH', true);
       }
       return;
     }
@@ -170,7 +177,7 @@
         currentRawBuffer = buf;
 
         const meta = player.readMetadata(buf) || {};
-        const engineName = (meta.type_long || ext.replace('.', '') || "FT2").toUpperCase();
+        const engineName = (meta.type_long || currentExt || "FT2").toUpperCase();
         const channelCount = `${meta.channels || 8} CH`;
 
         player.setRepeat(isLooping);
@@ -197,6 +204,9 @@
     audioEl: audioEl,
     get isNativeStream() { return isNativeStream; },
     get currentRawBuffer() { return currentRawBuffer; },
+    get currentAudioBlob() { return currentAudioBlob; },
+    get currentAudioSrc() { return currentAudioSrc; },
+    getCurrentExtension: function() { return currentExt; },
     isPlaying: function() {
       return isNativeStream ? (!audioEl.paused) : (player.currentPlayingNode && !player.currentPlayingNode.paused);
     },

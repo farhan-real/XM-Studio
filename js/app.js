@@ -1,5 +1,5 @@
 /**
- * js/app.js - Main workstation controller, drag-drop ingestion, and throttled UI updates.
+ * js/app.js - Main workstation controller, drag-drop ingestion, format target, and transport.
  */
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnFmtMp3 = document.getElementById('btnFmtMp3');
   const btnFmtWav = document.getElementById('btnFmtWav');
+  const btnFmtRaw = document.getElementById('btnFmtRaw');
   const readoutProgressTrack = document.getElementById('readoutProgressTrack');
   const readoutProgressBar = document.getElementById('readoutProgressBar');
 
@@ -101,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Throttled Scrubber Loop: Only touches DOM when the integer second changes
   setInterval(() => {
     if (isSeeking) return;
     let cur = 0;
@@ -225,21 +225,60 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  function updateFmtButtons(activeId) {
+    [btnFmtMp3, btnFmtWav, btnFmtRaw].forEach(b => {
+      if (b) b.classList.toggle('active', b.id === activeId);
+    });
+  }
+
   btnFmtMp3.addEventListener('click', () => {
     activeFormat = 'mp3';
-    btnFmtMp3.classList.add('active');
-    btnFmtWav.classList.remove('active');
+    updateFmtButtons('btnFmtMp3');
     qualityBadge.textContent = "320 KBPS";
   });
 
   btnFmtWav.addEventListener('click', () => {
     activeFormat = 'wav';
-    btnFmtWav.classList.add('active');
-    btnFmtMp3.classList.remove('active');
+    updateFmtButtons('btnFmtWav');
     qualityBadge.textContent = "16-BIT PCM";
   });
 
-  btnDownload.addEventListener('click', () => {
+  if (btnFmtRaw) {
+    btnFmtRaw.addEventListener('click', () => {
+      activeFormat = 'raw';
+      updateFmtButtons('btnFmtRaw');
+      qualityBadge.textContent = "TRACKER";
+    });
+  }
+
+  btnDownload.addEventListener('click', async () => {
+    const info = window.XMAudio.getCurrentInfo();
+    const ext = window.XMAudio.getCurrentExtension ? window.XMAudio.getCurrentExtension() : 'xm';
+    const safeName = `${info.artist} - ${info.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
+
+    // Direct Tracker File (Raw) Download Target
+    if (activeFormat === 'raw') {
+      let blob = window.XMAudio.currentAudioBlob;
+      if (!blob && window.XMAudio.currentRawBuffer) {
+        blob = new Blob([window.XMAudio.currentRawBuffer], { type: 'application/octet-stream' });
+      }
+      if (!blob && window.XMAudio.currentAudioSrc) {
+        try {
+          const res = await fetch(window.XMAudio.currentAudioSrc);
+          blob = await res.blob();
+        } catch (e) {}
+      }
+      if (blob) {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = safeName;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+      return;
+    }
+
+    // MP3 or WAV Master Compiler
     const raw = window.XMAudio.currentRawBuffer;
     if (!raw) return;
     setStatus('compiling');
@@ -253,11 +292,11 @@ document.addEventListener('DOMContentLoaded', () => {
       (blob) => {
         readoutProgressTrack.classList.add('hide');
         setStatus('ready');
-        const info = window.XMAudio.getCurrentInfo();
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = `${info.artist} - ${info.title}.${activeFormat}`.replace(/[/\\?%*:|"<>]/g, '_');
         a.click();
+        URL.revokeObjectURL(a.href);
       },
       () => {
         readoutProgressTrack.classList.add('hide');
@@ -303,10 +342,12 @@ document.addEventListener('DOMContentLoaded', () => {
         badgeEngine.classList.toggle('engine-error', isError);
       }
       channels.textContent = channelCount;
-      qualityBadge.textContent = isNative ? engine : (activeFormat === 'mp3' ? "320 KBPS" : "16-BIT PCM");
+      qualityBadge.textContent = isNative
+        ? engine
+        : (activeFormat === 'raw' ? 'TRACKER' : (activeFormat === 'mp3' ? '320 KBPS' : '16-BIT PCM'));
       rateBadge.textContent = isError ? "--" : "48 KHZ";
       progressBar.disabled = isError;
-      btnDownload.disabled = isNative || isError;
+      btnDownload.disabled = isError;
       setStatus(isError ? 'error' : 'ready');
       if (!isError) setPlayingState(true);
     },
