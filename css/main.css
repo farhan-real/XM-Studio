@@ -507,6 +507,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   stroke-linejoin: round;
 }
 
+/* Fader Cluster with Percentage Readout */
 .fader-cluster {
   display: flex;
   align-items: center;
@@ -514,7 +515,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  padding: 0 10px 0 6px;
+  padding: 0 8px 0 6px;
   height: 44px;
 }
 
@@ -533,7 +534,17 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 }
 
 .vol-slider-wrap {
-  width: 72px;
+  width: 60px;
+}
+
+.vol-readout {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  min-width: 26px;
+  text-align: right;
+  letter-spacing: 0.02em;
 }
 
 .ingest-deck {
@@ -590,4 +601,10 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 
 .hide {
   display: none !important;
+}
+
+@media (max-width: 480px) {
+  .vol-slider-wrap {
+    width: 48px;
+  }
 }

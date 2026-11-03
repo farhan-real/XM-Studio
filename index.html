@@ -29,7 +29,7 @@
 </head>
 <body>
   <main class="chassis" id="dropZone">
-    <!-- Header: Heading on left, Engine (default NONE) and X on top right -->
+    <!-- Header: Heading on left, Engine and X on top right -->
     <header class="header">
       <div class="header-top">
         <div class="brand-cluster">
@@ -135,7 +135,7 @@
         </svg>
       </button>
 
-      <!-- Volume Fader Cluster -->
+      <!-- Volume Fader Cluster with Percentage Readout Next to Slider -->
       <div class="fader-cluster">
         <button class="fader-btn" id="btnMute" aria-label="Mute Audio">
           <svg id="svgVol" viewBox="0 0 24 24" class="t-icon-sm">
@@ -146,6 +146,7 @@
         <div class="slider-wrap vol-slider-wrap">
           <input type="range" id="volSlider" min="0" max="1" step="0.02" value="0.85" aria-label="Master Volume" />
         </div>
+        <span class="vol-readout" id="volPercent">85%</span>
       </div>
     </div>
 

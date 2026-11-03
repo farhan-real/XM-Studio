@@ -15,9 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeArtist = "";
   let isNativeStream = false;
   let nativeAudioSource = null;
-
-  // Native streaming extensions that bypass OpenMPT
-  const NATIVE_STREAM_EXTS = ['.mp3', '.ogg', '.wav'];
+  let prevVolume = 0.85;
 
   // Route native <audio> through WebAudio for visualizer & volume
   function routeNativeAudioToWebAudio() {
@@ -44,6 +42,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const timeCurrent = document.getElementById('timeCurrent');
   const timeTotal = document.getElementById('timeTotal');
   const volSlider = document.getElementById('volSlider');
+  const volPercent = document.getElementById('volPercent');
+  const btnMute = document.getElementById('btnMute');
   const songTitle = document.getElementById('songTitle');
   const songArtist = document.getElementById('songArtist');
   const modType = document.getElementById('modType');
@@ -99,6 +99,13 @@ document.addEventListener('DOMContentLoaded', () => {
       statusBadge.classList.add('status-ready');
       statusBadge.textContent = 'STATUS: READY';
     }
+  }
+
+  // Update Volume Display
+  function updateVolumeDisplay(val) {
+    const pct = Math.round(val * 100);
+    volPercent.textContent = `${pct}%`;
+    volSlider.value = val;
   }
 
   function getFileExtension(filename) {
@@ -498,10 +505,27 @@ document.addEventListener('DOMContentLoaded', () => {
     isSeeking = false;
   });
 
+  // Volume Slider & Readout Updates
   volSlider.addEventListener('input', (e) => {
     const v = parseFloat(e.target.value);
     audioEl.volume = v;
     player.setVolume(v);
+    updateVolumeDisplay(v);
+    if (v > 0) prevVolume = v;
+  });
+
+  btnMute.addEventListener('click', () => {
+    if (parseFloat(volSlider.value) > 0) {
+      prevVolume = parseFloat(volSlider.value) || 0.85;
+      audioEl.volume = 0;
+      player.setVolume(0);
+      updateVolumeDisplay(0);
+    } else {
+      const restore = prevVolume || 0.85;
+      audioEl.volume = restore;
+      player.setVolume(restore);
+      updateVolumeDisplay(restore);
+    }
   });
 
   btnDownload.addEventListener('click', () => {
