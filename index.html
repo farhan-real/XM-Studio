@@ -76,6 +76,34 @@
           <div class="source-status-msg" id="backupStatusMsg"></div>
         </div>
         <div class="source-config-card">
+          <div class="source-card-header"><span class="spec-key">LOCAL FOLDER SOURCES</span><span class="badge" id="folderCountBadge">0 FOLDERS</span></div>
+          <p class="source-subtext">Mount local directories containing tracker modules or audio files. Folders and nested subdirectories are cataloged and stored in IndexedDB.</p>
+          <div class="source-actions">
+            <input type="file" id="inputLocalFolder" webkitdirectory directory multiple class="hide" />
+            <button class="action-btn" id="btnAddFolderSource"><svg viewBox="0 0 24 24" class="action-icon"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span>ADD LOCAL FOLDER</span></button>
+            <button class="action-btn action-btn-secondary" id="btnClearFolders"><span>CLEAR FOLDERS</span></button>
+          </div>
+          <div class="source-status-msg" id="folderStatusMsg"></div>
+          <div class="folder-sources-list" id="folderSourcesList"></div>
+        </div>
+        <div class="source-config-card">
+          <div class="source-card-header"><span class="spec-key">ONLINE REPOSITORIES (MULTIPLE)</span><span class="badge" id="reposCountBadge">1 ACTIVE</span></div>
+          <p class="source-subtext">Stream music from multiple online catalogs. Add custom GitHub Pages or server URLs hosting a tracks.json catalog.</p>
+          <div class="source-input-group">
+            <label class="spec-key" for="inputNewRepoUrl">ADD REPOSITORY URL</label>
+            <div class="source-input-row">
+              <input type="url" id="inputNewRepoUrl" placeholder="https://username.github.io/my-music/" />
+              <button class="action-btn" id="btnAddRepo"><span>+ ADD</span></button>
+            </div>
+          </div>
+          <div class="source-actions">
+            <button class="action-btn" id="btnSyncAllRepos"><span>SYNC ALL REPOS</span></button>
+            <button class="action-btn action-btn-secondary" id="btnResetRepos"><span>RESET DEFAULT</span></button>
+          </div>
+          <div class="source-status-msg" id="repoStatusMsg"></div>
+          <div class="remote-repos-list" id="remoteReposList"></div>
+        </div>
+        <div class="source-config-card">
           <div class="source-card-header"><span class="spec-key">CUSTOM MUSIC ARCHIVE</span><span class="badge" id="customCountBadge">0 ADDED</span></div>
           <p class="source-subtext">Add tracker or audio files (.xm, .mod, .it, .s3m, .flac, .mp3, .wav). Stored permanently in IndexedDB and blended into Archive.</p>
           <div class="source-actions">
@@ -84,13 +112,6 @@
             <button class="action-btn action-btn-secondary" id="btnClearAllCustom"><span>CLEAR ALL</span></button>
           </div>
           <div class="custom-tracks-list" id="customTracksList"></div>
-        </div>
-        <div class="source-config-card">
-          <span class="spec-key">DEFAULT REPOSITORY</span><div class="source-url-text">https://farhan-real.github.io/XM-Music/</div>
-          <p class="source-subtext">XM-Studio streams online tracks directly from the repository. Connect a custom repository below or reset back to default.</p>
-          <div class="source-input-group"><label class="spec-key" for="inputCustomSource">CUSTOM REPOSITORY URL</label><input type="url" id="inputCustomSource" placeholder="https://username.github.io/my-music/" /></div>
-          <div class="source-actions"><button class="action-btn" id="btnSaveSource"><span>SAVE &amp; SYNC</span></button><button class="action-btn action-btn-secondary" id="btnResetSource"><span>USE DEFAULT</span></button></div>
-          <div class="source-status-msg" id="sourceStatusMsg"></div>
         </div>
       </div>
     </aside>
@@ -134,7 +155,8 @@
   <audio id="nativeAudio" preload="auto"></audio>
   <script src="js/engine/visualizer.js"></script><script src="js/engine/audio.js"></script>
   <script src="js/data/zip.js"></script><script src="js/data/playlist.js"></script>
-  <script src="js/data/custom.js"></script><script src="js/data/backup.js"></script>
+  <script src="js/data/custom.js"></script><script src="js/data/sources.js"></script>
+  <script src="js/data/backup.js"></script>
   <script src="js/data/library.js"></script><script src="js/app.js"></script>
 </body>
 </html>

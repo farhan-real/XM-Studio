@@ -1,4 +1,4 @@
-/* css/library.css - Left Panel navigation, playlists, source tab, and studio modals */
+/* css/library.css - Left Panel navigation, playlists, multi-source tab, and studio modals */
 .panel-nav-bar {
   display: flex;
   gap: 6px;
@@ -118,7 +118,7 @@
 .pl-card-meta { font-family: var(--font-mono); font-size: 0.65rem; color: var(--col-purple); }
 .pl-card-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 
-/* Source View & Custom Music */
+/* Source View, Local Folders & Multiple Repos */
 .source-view {
   padding: 14px;
   overflow-y: auto;
@@ -138,11 +138,12 @@
 }
 
 .source-card-header { display: flex; justify-content: space-between; align-items: center; }
-.source-url-text { font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent); word-break: break-all; }
 .source-subtext { font-size: 0.72rem; color: var(--text-tertiary); line-height: 1.35; }
-.source-input-group { display: flex; flex-direction: column; gap: 4px; }
+.source-input-group { display: flex; flex-direction: column; gap: 6px; }
+.source-input-row { display: flex; gap: 6px; align-items: center; }
 
-#inputCustomSource {
+#inputNewRepoUrl {
+  flex: 1;
   background: #090a0d;
   border: 1px solid var(--border-subtle);
   border-radius: 4px;
@@ -153,32 +154,40 @@
 }
 
 .source-actions { display: flex; gap: 8px; }
-.custom-tracks-list { display: flex; flex-direction: column; gap: 4px; max-height: 180px; overflow-y: auto; }
+.custom-tracks-list, .folder-sources-list, .remote-repos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 200px;
+  overflow-y: auto;
+}
 
-.custom-track-item {
+.source-item-row, .custom-track-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 8px;
+  padding: 7px 9px;
   background: #090b0e;
   border: 1px solid var(--border-subtle);
-  border-radius: 4px;
-  gap: 6px;
+  border-radius: 5px;
+  gap: 8px;
 }
 
-.custom-track-meta { flex: 1; min-width: 0; }
-.custom-track-title { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.custom-track-artist { font-size: 0.70rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.library-empty-msg { text-align: center; padding: 30px 14px; color: var(--text-tertiary); font-size: 0.78rem; line-height: 1.4; }
+.source-item-info, .custom-track-meta { flex: 1; min-width: 0; }
+.source-item-title, .custom-track-title { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.source-item-sub, .custom-track-artist { font-size: 0.68rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.source-item-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.source-toggle { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+.source-status-msg { font-size: 0.70rem; color: var(--col-gold); font-family: var(--font-mono); }
+.library-empty-msg { text-align: center; padding: 24px 12px; color: var(--text-tertiary); font-size: 0.78rem; line-height: 1.4; }
 
-/* Status Badges in Source: Normal states use gold/green, errors use red exclusively */
-#backupStatusBadge {
+#backupStatusBadge, #reposCountBadge {
   color: var(--col-gold);
   background: rgba(234, 179, 8, 0.12);
   border: 1px solid rgba(234, 179, 8, 0.35);
 }
 
-#customCountBadge {
+#customCountBadge, #folderCountBadge {
   color: var(--accent);
   background: rgba(34, 197, 94, 0.12);
   border: 1px solid rgba(34, 197, 94, 0.35);

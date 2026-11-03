@@ -1,0 +1,319 @@
+/**
+ * js/data/sources.js - Multi-repository aggregator and local folder directory source manager.
+ */
+(function(window) {
+  const DEFAULT_REPO = {
+    id: 'repo_default',
+    name: 'Default Repository',
+    url: 'https://farhan-real.github.io/XM-Music/',
+    enabled: true,
+    isDefault: true,
+    trackCount: 0
+  };
+
+  const SUPPORTED_EXTS = ['.xm', '.mod', '.it', '.s3m', '.mtm', '.flac', '.mp3', '.ogg', '.wav', '.v2m', '.mid', '.ahx', '.sid'];
+
+  function getRepos() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('xm_remote_repos'));
+      if (Array.isArray(saved) && saved.length > 0) return saved;
+    } catch (e) {}
+    const legacy = localStorage.getItem('xm_custom_library_url');
+    if (legacy && legacy.trim() && legacy.trim() !== DEFAULT_REPO.url) {
+      return [DEFAULT_REPO, { id: `repo_${Date.now()}`, name: 'Custom Repository', url: legacy.trim(), enabled: true, isDefault: false, trackCount: 0 }];
+    }
+    return [DEFAULT_REPO];
+  }
+
+  function saveRepos(repos) {
+    localStorage.setItem('xm_remote_repos', JSON.stringify(repos));
+  }
+
+  function getFolderSources() {
+    try {
+      return JSON.parse(localStorage.getItem('xm_local_folder_sources')) || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveFolderSources(sources) {
+    localStorage.setItem('xm_local_folder_sources', JSON.stringify(sources));
+  }
+
+  function normalizeUrl(url) {
+    let clean = (url || '').trim();
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) clean = 'https://' + clean;
+    if (!clean.endsWith('/')) clean += '/';
+    return clean;
+  }
+
+  const inputNewRepoUrl = document.getElementById('inputNewRepoUrl');
+  const btnAddRepo = document.getElementById('btnAddRepo');
+  const btnSyncAllRepos = document.getElementById('btnSyncAllRepos');
+  const btnResetRepos = document.getElementById('btnResetRepos');
+  const remoteReposList = document.getElementById('remoteReposList');
+  const reposCountBadge = document.getElementById('reposCountBadge');
+  const repoStatusMsg = document.getElementById('repoStatusMsg');
+
+  const inputLocalFolder = document.getElementById('inputLocalFolder');
+  const btnAddFolderSource = document.getElementById('btnAddFolderSource');
+  const btnClearFolders = document.getElementById('btnClearFolders');
+  const folderSourcesList = document.getElementById('folderSourcesList');
+  const folderCountBadge = document.getElementById('folderCountBadge');
+  const folderStatusMsg = document.getElementById('folderStatusMsg');
+
+  function renderRemoteReposList() {
+    if (!remoteReposList) return;
+    const repos = getRepos();
+    const activeCount = repos.filter(r => r.enabled).length;
+    if (reposCountBadge) reposCountBadge.textContent = `${activeCount} ACTIVE`;
+    remoteReposList.innerHTML = '';
+
+    repos.forEach(repo => {
+      const row = document.createElement('div');
+      row.className = 'source-item-row';
+      row.innerHTML = `
+        <label class="source-item-info" style="cursor:pointer;">
+          <div class="source-item-title">${repo.name} ${repo.isDefault ? '<span class="badge" style="font-size:0.55rem;padding:1px 4px;">DEFAULT</span>' : ''}</div>
+          <div class="source-item-sub">${repo.url}</div>
+        </label>
+        <div class="source-item-actions">
+          <input type="checkbox" class="source-toggle" data-toggle-repo="${repo.id}" ${repo.enabled ? 'checked' : ''} title="Toggle active status" />
+          ${!repo.isDefault ? `<button class="km-btn-icon btn-danger-text" data-del-repo="${repo.id}" title="Remove repository"><svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>` : ''}
+        </div>
+      `;
+
+      row.querySelector('[data-toggle-repo]').addEventListener('change', (e) => {
+        repo.enabled = e.target.checked;
+        saveRepos(repos);
+        renderRemoteReposList();
+        if (window.XMLibrary) window.XMLibrary.refreshArchive();
+      });
+
+      const delBtn = row.querySelector('[data-del-repo]');
+      if (delBtn) {
+        delBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const filtered = getRepos().filter(r => r.id !== repo.id);
+          saveRepos(filtered);
+          renderRemoteReposList();
+          if (window.XMLibrary) window.XMLibrary.refreshArchive();
+        });
+      }
+      remoteReposList.appendChild(row);
+    });
+  }
+
+  function renderFolderSourcesList() {
+    if (!folderSourcesList) return;
+    const folders = getFolderSources();
+    if (folderCountBadge) folderCountBadge.textContent = `${folders.length} FOLDERS`;
+    folderSourcesList.innerHTML = '';
+
+    if (folders.length === 0) {
+      folderSourcesList.innerHTML = '<div class="library-empty-msg" style="padding:14px 8px;">No local folders mounted. Click "+ Add Local Folder" to select a folder.</div>';
+      return;
+    }
+
+    folders.forEach(folder => {
+      const row = document.createElement('div');
+      row.className = 'source-item-row';
+      row.innerHTML = `
+        <div class="source-item-info">
+          <div class="source-item-title">${folder.name}</div>
+          <div class="source-item-sub">${folder.trackCount} tracks &bull; ${new Date(folder.dateAdded).toLocaleDateString()}</div>
+        </div>
+        <div class="source-item-actions">
+          <button class="km-btn-icon btn-danger-text" data-del-folder="${folder.id}" title="Unmount local folder">
+            <svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+          </button>
+        </div>
+      `;
+
+      row.querySelector('[data-del-folder]').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (window.XMCustom && window.XMCustom.deleteTracksByFolder) {
+          await window.XMCustom.deleteTracksByFolder(folder.id);
+        }
+        const updated = getFolderSources().filter(f => f.id !== folder.id);
+        saveFolderSources(updated);
+        renderFolderSourcesList();
+        if (window.XMLibrary) window.XMLibrary.refreshArchive();
+      });
+
+      folderSourcesList.appendChild(row);
+    });
+  }
+
+  async function fetchRemoteCatalogs() {
+    const repos = getRepos().filter(r => r.enabled);
+    const allTracks = [];
+    let successCount = 0;
+
+    for (const repo of repos) {
+      try {
+        const url = `${repo.url.replace(/\/+$/, '')}/tracks.json`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          const cleanBase = repo.url.replace(/\/+$/, '') + '/';
+          data.forEach((t, i) => {
+            const extMatch = (t.path || '').match(/\.([a-z0-9]+)$/i);
+            const ext = t.ext || (extMatch ? extMatch[1].toUpperCase() : 'XM');
+            const cleanPath = (t.path || '').replace(/^\/+/, '');
+            allTracks.push({
+              id: `${repo.id}_${cleanPath || i}`,
+              title: (t.title || t.name || cleanPath.split('/').pop().replace(/\.[^.]+$/, '') || `Track ${i + 1}`).trim(),
+              artist: (t.artist || t.author || repo.name).trim(),
+              ext: ext,
+              path: cleanPath,
+              url: cleanPath.startsWith('http://') || cleanPath.startsWith('https://') ? cleanPath : cleanBase + encodeURI(cleanPath),
+              repoId: repo.id,
+              repoName: repo.name,
+              folder: t.folder || cleanPath.split('/')[0] || repo.name
+            });
+          });
+          repo.trackCount = data.length;
+          successCount++;
+        }
+      } catch (err) {
+        repo.trackCount = 0;
+      }
+    }
+
+    if (repoStatusMsg) {
+      repoStatusMsg.textContent = `Synced ${successCount}/${repos.length} active repos (${allTracks.length} tracks).`;
+      setTimeout(() => { if (repoStatusMsg) repoStatusMsg.textContent = ''; }, 4000);
+    }
+    return allTracks;
+  }
+
+  function parseFilename(filename) {
+    let base = filename.replace(/\.[a-z0-9]+$/i, '').trim();
+    if (base.includes('_-_')) base = base.replace(/_-_/g, ' - ').replace(/_/g, ' ');
+    else if (!base.includes(' ') && base.includes('_')) base = base.replace(/_/g, ' ');
+
+    let artist = "Local Artist";
+    let title = base;
+    const match = base.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+    if (match) { artist = match[1].trim(); title = match[2].trim(); }
+    const extMatch = filename.toLowerCase().match(/\.[a-z0-9]+$/);
+    const ext = extMatch ? extMatch[0].replace('.', '').toUpperCase() : 'XM';
+    return { artist, title, ext };
+  }
+
+  async function handleFolderSelection(fileList) {
+    const files = Array.from(fileList || []);
+    const valid = files.filter(f => SUPPORTED_EXTS.some(ext => f.name.toLowerCase().endsWith(ext)));
+    if (valid.length === 0) {
+      if (folderStatusMsg) folderStatusMsg.textContent = 'No supported tracker or audio files found in directory.';
+      return;
+    }
+
+    let rootName = 'Local Directory';
+    if (valid[0].webkitRelativePath) rootName = valid[0].webkitRelativePath.split('/')[0] || rootName;
+    const folderId = `fld_${Date.now()}`;
+
+    if (folderStatusMsg) folderStatusMsg.textContent = `Importing ${valid.length} tracks from ${rootName}...`;
+
+    for (let i = 0; i < valid.length; i++) {
+      const file = valid[i];
+      const meta = parseFilename(file.name);
+      let subfolder = rootName;
+      if (file.webkitRelativePath) {
+        const parts = file.webkitRelativePath.split('/');
+        if (parts.length > 2) subfolder = parts.slice(0, -1).join('/');
+      }
+
+      await window.XMCustom.saveTrack({
+        id: `fld_${folderId}_${i}`,
+        title: meta.title,
+        artist: meta.artist,
+        ext: meta.ext,
+        blob: file,
+        folder: subfolder,
+        folderSourceId: folderId,
+        dateAdded: Date.now(),
+        isCustom: true,
+        isFolderTrack: true
+      });
+    }
+
+    const currentFolders = getFolderSources();
+    currentFolders.push({ id: folderId, name: rootName, trackCount: valid.length, dateAdded: Date.now() });
+    saveFolderSources(currentFolders);
+    renderFolderSourcesList();
+
+    if (folderStatusMsg) {
+      folderStatusMsg.textContent = `Mounted ${valid.length} tracks from "${rootName}"!`;
+      setTimeout(() => { if (folderStatusMsg) folderStatusMsg.textContent = ''; }, 4000);
+    }
+    if (window.XMLibrary) window.XMLibrary.refreshArchive();
+  }
+
+  if (btnAddRepo && inputNewRepoUrl) {
+    btnAddRepo.addEventListener('click', () => {
+      const url = normalizeUrl(inputNewRepoUrl.value);
+      if (!url.startsWith('http://') && !url.startsWith('https://')) return;
+      const repos = getRepos();
+      let repoName = 'Remote Repository';
+      try { repoName = new URL(url).hostname; } catch (e) {}
+      repos.push({ id: `repo_${Date.now()}`, name: repoName, url, enabled: true, isDefault: false, trackCount: 0 });
+      saveRepos(repos);
+      inputNewRepoUrl.value = '';
+      renderRemoteReposList();
+      if (window.XMLibrary) window.XMLibrary.refreshArchive();
+    });
+  }
+
+  if (btnSyncAllRepos) {
+    btnSyncAllRepos.addEventListener('click', () => {
+      if (window.XMLibrary) window.XMLibrary.refreshArchive();
+    });
+  }
+
+  if (btnResetRepos) {
+    btnResetRepos.addEventListener('click', () => {
+      saveRepos([DEFAULT_REPO]);
+      localStorage.removeItem('xm_custom_library_url');
+      renderRemoteReposList();
+      if (window.XMLibrary) window.XMLibrary.refreshArchive();
+    });
+  }
+
+  if (btnAddFolderSource && inputLocalFolder) {
+    btnAddFolderSource.addEventListener('click', () => inputLocalFolder.click());
+    inputLocalFolder.addEventListener('change', async (e) => {
+      await handleFolderSelection(e.target.files);
+      inputLocalFolder.value = '';
+    });
+  }
+
+  if (btnClearFolders) {
+    btnClearFolders.addEventListener('click', () => {
+      if (!window.XMPlaylist) return;
+      window.XMPlaylist.showConfirm("CLEAR ALL FOLDERS", "Unmount and remove all local directory tracks from the Archive?", async () => {
+        if (window.XMCustom && window.XMCustom.clearAllFolderTracks) {
+          await window.XMCustom.clearAllFolderTracks();
+        }
+        saveFolderSources([]);
+        renderFolderSourcesList();
+        if (window.XMLibrary) window.XMLibrary.refreshArchive();
+      });
+    });
+  }
+
+  renderRemoteReposList();
+  renderFolderSourcesList();
+
+  window.XMSources = {
+    getRepos,
+    saveRepos,
+    getFolderSources,
+    saveFolderSources,
+    fetchRemoteCatalogs,
+    renderLists: function() { renderRemoteReposList(); renderFolderSourcesList(); }
+  };
+})(window);

@@ -31,9 +31,10 @@
 
       const config = {
         app: 'XM-Studio',
-        version: 2,
+        version: 3,
         exportDate: new Date().toISOString(),
-        customRepoUrl: localStorage.getItem('xm_custom_library_url') || ''
+        remoteRepos: window.XMSources ? window.XMSources.getRepos() : [],
+        localFolderSources: window.XMSources ? window.XMSources.getFolderSources() : []
       };
       zip.addFile('config.json', JSON.stringify(config, null, 2));
 
@@ -66,6 +67,9 @@
           title: t.title,
           artist: t.artist,
           ext: t.ext,
+          folder: t.folder || '',
+          folderSourceId: t.folderSourceId || '',
+          isFolderTrack: !!t.isFolderTrack,
           dateAdded: t.dateAdded || Date.now(),
           filename: zipPath,
           isCustom: true
@@ -99,8 +103,8 @@
 
         if (zipFiles.has('config.json')) {
           const conf = JSON.parse(await zipFiles.get('config.json').text());
-          if (conf.customRepoUrl) localStorage.setItem('xm_custom_library_url', conf.customRepoUrl);
-          else localStorage.removeItem('xm_custom_library_url');
+          if (Array.isArray(conf.remoteRepos) && window.XMSources) window.XMSources.saveRepos(conf.remoteRepos);
+          if (Array.isArray(conf.localFolderSources) && window.XMSources) window.XMSources.saveFolderSources(conf.localFolderSources);
         }
 
         if (zipFiles.has('favorites.json')) {
@@ -133,6 +137,9 @@
                 title: cm.title,
                 artist: cm.artist,
                 ext: cm.ext,
+                folder: cm.folder || '',
+                folderSourceId: cm.folderSourceId || '',
+                isFolderTrack: !!cm.isFolderTrack,
                 blob: trackBlob,
                 dateAdded: cm.dateAdded || Date.now(),
                 isCustom: true
@@ -148,10 +155,8 @@
         if (Array.isArray(bundle.favorites)) window.XMPlaylist.saveFavorites(bundle.favorites);
       }
 
-      if (window.XMLibrary) {
-        await window.XMLibrary.refreshArchive();
-        window.XMLibrary.renderCurrentTab();
-      }
+      if (window.XMSources) window.XMSources.renderLists();
+      if (window.XMLibrary) await window.XMLibrary.refreshArchive();
 
       setStatus('Workstation restored successfully!', 'RESTORED');
       setTimeout(() => setStatus('', 'READY'), 4000);

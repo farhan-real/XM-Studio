@@ -70,6 +70,32 @@
     });
   }
 
+  async function deleteTracksByFolder(folderId) {
+    const db = await openDB();
+    const tracks = await getTracks();
+    const toDelete = tracks.filter(t => t.folderSourceId === folderId);
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      toDelete.forEach(t => store.delete(t.id));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  async function clearAllFolderTracks() {
+    const db = await openDB();
+    const tracks = await getTracks();
+    const toDelete = tracks.filter(t => t.isFolderTrack);
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      toDelete.forEach(t => store.delete(t.id));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   function parseFilename(filename) {
     let base = filename.replace(/\.[a-z0-9]+$/i, '').trim();
     if (base.includes('_-_')) base = base.replace(/_-_/g, ' - ').replace(/_/g, ' ');
@@ -84,7 +110,6 @@
     }
     const extMatch = filename.toLowerCase().match(/\.[a-z0-9]+$/);
     const ext = extMatch ? extMatch[0].replace('.', '').toUpperCase() : 'XM';
-
     return { artist, title, ext };
   }
 
@@ -96,12 +121,13 @@
 
   async function renderCustomManagerList() {
     if (!customTracksList) return;
-    const tracks = await getTracks();
+    const all = await getTracks();
+    const tracks = all.filter(t => !t.isFolderTrack);
     if (customCountBadge) customCountBadge.textContent = `${tracks.length} ADDED`;
     customTracksList.innerHTML = '';
 
     if (tracks.length === 0) {
-      customTracksList.innerHTML = '<div class="library-empty-msg" style="padding:14px 8px;">No custom tracks uploaded yet. Click "+ Add Tracks" to upload.</div>';
+      customTracksList.innerHTML = '<div class="library-empty-msg" style="padding:14px 8px;">No individual custom tracks uploaded yet. Click "+ Add Tracks" to upload.</div>';
       return;
     }
 
@@ -150,7 +176,8 @@
           ext: meta.ext,
           blob: file,
           dateAdded: Date.now(),
-          isCustom: true
+          isCustom: true,
+          isFolderTrack: false
         };
         await saveTrack(record);
       }
@@ -164,7 +191,10 @@
     btnClearAllCustom.addEventListener('click', () => {
       if (!window.XMPlaylist) return;
       window.XMPlaylist.showConfirm("CLEAR ALL CUSTOM MUSIC", "Remove all your custom added music from the Archive?", async () => {
-        await clearTracks();
+        const all = await getTracks();
+        for (const t of all) {
+          if (!t.isFolderTrack) await deleteTrack(t.id);
+        }
         await renderCustomManagerList();
         if (window.XMLibrary) window.XMLibrary.refreshArchive();
       });
@@ -174,10 +204,13 @@
   renderCustomManagerList();
 
   window.XMCustom = {
-    saveTrack: saveTrack,
-    getTracks: getTracks,
-    getTrackBlob: getTrackBlob,
-    deleteTrack: deleteTrack,
+    saveTrack,
+    getTracks,
+    getTrackBlob,
+    deleteTrack,
+    deleteTracksByFolder,
+    clearAllFolderTracks,
+    clearTracks,
     renderList: renderCustomManagerList
   };
 })(window);

@@ -1,8 +1,7 @@
 /**
- * js/data/library.js - High-performance chunked rendering, debounced search, and event delegation.
+ * js/data/library.js - High-performance chunked rendering, debounced search, and multi-source archive coordinator.
  */
 (function(window) {
-  const DEFAULT_REPO_URL = 'https://farhan-real.github.io/XM-Music/';
   let remoteCatalog = [];
   let customCatalog = [];
   let fullCatalog = [];
@@ -16,11 +15,6 @@
   let activeRenderQueue = [];
   let currentRenderedIndex = 0;
   let searchDebounceTimer = null;
-
-  function getBaseUrl() {
-    const saved = localStorage.getItem('xm_custom_library_url');
-    return (saved && saved.trim()) ? saved.trim() : DEFAULT_REPO_URL;
-  }
 
   function sortAlphabetical(tracks) {
     return tracks.sort((a, b) => {
@@ -39,15 +33,6 @@
     if (e === 's3m') return 'fmt-s3m';
     if (e === 'flac') return 'fmt-flac';
     return 'fmt-default';
-  }
-
-  function resolveTrackUrl(item) {
-    if (item.url) return item.url;
-    if (!item.path) return null;
-    if (item.path.startsWith('http://') || item.path.startsWith('https://')) return item.path;
-    const cleanBase = getBaseUrl().replace(/\/+$/, '') + '/';
-    const cleanPath = item.path.replace(/^\/+/, '');
-    return cleanBase + encodeURI(cleanPath);
   }
 
   const tableBody = document.getElementById('kmTableBody');
@@ -111,12 +96,10 @@
         </div>`;
       frag.appendChild(card);
     }
-
     tableBody.appendChild(frag);
     currentRenderedIndex = end;
   }
 
-  // Event Delegation: One master listener replaces thousands of per-card event closures
   tableBody.addEventListener('click', (e) => {
     const card = e.target.closest('.track-card');
     if (!card) return;
@@ -131,8 +114,7 @@
       if (action === 'fav') window.XMPlaylist.toggleFavorite(track);
       else if (action === 'add-pl') window.XMPlaylist.openPlaylistPicker(track);
     } else {
-      const idx = activeRenderQueue.indexOf(track);
-      playTrack(track, activeRenderQueue, idx >= 0 ? idx : 0);
+      playTrack(track, activeRenderQueue, activeRenderQueue.indexOf(track));
     }
   });
 
@@ -145,7 +127,6 @@
     activeRenderQueue = tracks;
     currentRenderedIndex = 0;
     countBadge.textContent = `${tracks.length} TRACKS`;
-
     if (tracks.length === 0) {
       tableBody.innerHTML = '<div class="library-empty-msg">No matching tracks found.</div>';
       return;
@@ -162,7 +143,7 @@
   async function playTrack(track, queue, idx) {
     currentlyPlayingId = track.id;
     updateActiveCards();
-    if (track.isCustom) {
+    if (track.isCustom || track.isFolderTrack) {
       let blob = track.blob;
       if (!blob && window.XMCustom) blob = await window.XMCustom.getTrackBlob(track.id);
       if (blob) {
@@ -170,8 +151,7 @@
         return;
       }
     }
-    const fullUrl = resolveTrackUrl(track);
-    window.XMAudio.loadTrack(fullUrl, `${track.artist} - ${track.title}.${(track.ext || 'xm').toLowerCase()}`, track, queue, idx);
+    window.XMAudio.loadTrack(track.url, `${track.artist} - ${track.title}.${(track.ext || 'xm').toLowerCase()}`, track, queue, idx);
   }
 
   function updateActiveCards() {
@@ -186,7 +166,6 @@
     playlistItemsWrap.innerHTML = '';
     const playlists = window.XMPlaylist.getPlaylists();
     countBadge.textContent = `${playlists.length} PLAYLISTS`;
-
     if (playlists.length === 0) {
       playlistItemsWrap.innerHTML = '<div class="library-empty-msg">No playlists created yet. Enter a name above to create one.</div>';
       return;
@@ -292,18 +271,12 @@
     renderModalItems(fullCatalog);
     colSearch.addEventListener('input', (e) => {
       const q = e.target.value.toLowerCase().trim();
-      const filtered = q ? fullCatalog.filter(t => (t.artist && t.artist.toLowerCase().includes(q)) || (t.title && t.title.toLowerCase().includes(q))) : fullCatalog;
-      renderModalItems(filtered);
+      renderModalItems(q ? fullCatalog.filter(t => (t.artist && t.artist.toLowerCase().includes(q)) || (t.title && t.title.toLowerCase().includes(q))) : fullCatalog);
     });
   }
 
   btnAddFromCollection.addEventListener('click', openAddFromCollectionModal);
-  if (btnExportCurPlaylist) {
-    btnExportCurPlaylist.addEventListener('click', () => {
-      if (currentPlaylistId) window.XMPlaylist.exportPlaylist(currentPlaylistId);
-    });
-  }
-
+  if (btnExportCurPlaylist) btnExportCurPlaylist.addEventListener('click', () => { if (currentPlaylistId) window.XMPlaylist.exportPlaylist(currentPlaylistId); });
   btnCreatePlaylist.addEventListener('click', () => {
     const name = inputNewPlaylist.value.trim();
     if (!name) return;
@@ -313,47 +286,34 @@
     inputNewPlaylist.value = '';
     renderPlaylists();
   });
-
   if (btnImportPlaylist && inputImportPlaylist) {
     btnImportPlaylist.addEventListener('click', () => inputImportPlaylist.click());
     inputImportPlaylist.addEventListener('change', (e) => {
-      if (e.target.files && e.target.files.length > 0) {
-        window.XMPlaylist.importPlaylist(e.target.files[0]);
-        inputImportPlaylist.value = '';
-      }
+      if (e.target.files && e.target.files.length > 0) { window.XMPlaylist.importPlaylist(e.target.files[0]); inputImportPlaylist.value = ''; }
     });
   }
-
   btnBackPlaylists.addEventListener('click', renderPlaylists);
   btnPlayAllPlaylist.addEventListener('click', () => {
     if (!currentPlaylistId) return;
     const pl = window.XMPlaylist.getPlaylists().find(p => p.id === currentPlaylistId);
     if (pl && pl.tracks.length > 0) playTrack(pl.tracks[0], pl.tracks, 0);
   });
-
   if (btnShufflePlaylist) {
     btnShufflePlaylist.addEventListener('click', () => {
       if (!currentPlaylistId) return;
       const pl = window.XMPlaylist.getPlaylists().find(p => p.id === currentPlaylistId);
       if (pl && pl.tracks.length > 0) {
-        if (window.XMAudio && !window.XMAudio.isShuffle) {
-          window.XMAudio.toggleShuffle();
-          const shuffBtn = document.getElementById('btnShuffle');
-          if (shuffBtn) shuffBtn.classList.add('active');
-        }
-        const startIdx = Math.floor(Math.random() * pl.tracks.length);
-        playTrack(pl.tracks[startIdx], pl.tracks, startIdx);
+        if (window.XMAudio && !window.XMAudio.isShuffle) { window.XMAudio.toggleShuffle(); const b = document.getElementById('btnShuffle'); if (b) b.classList.add('active'); }
+        const s = Math.floor(Math.random() * pl.tracks.length);
+        playTrack(pl.tracks[s], pl.tracks, s);
       }
     });
   }
-
   btnModifyPlaylist.addEventListener('click', () => {
     if (currentPlaylistId) {
       const pls = window.XMPlaylist.getPlaylists();
       const pl = pls.find(p => p.id === currentPlaylistId);
-      if (pl) {
-        window.XMPlaylist.showPrompt("RENAME PLAYLIST", pl.name, "New name...", (nn) => { pl.name = nn; window.XMPlaylist.savePlaylists(pls); viewPlaylist(currentPlaylistId); });
-      }
+      if (pl) window.XMPlaylist.showPrompt("RENAME PLAYLIST", pl.name, "New name...", (nn) => { pl.name = nn; window.XMPlaylist.savePlaylists(pls); viewPlaylist(currentPlaylistId); });
     }
   });
   btnDeletePlaylist.addEventListener('click', () => {
@@ -375,13 +335,8 @@
       searchBarWrap.classList.remove('hide');
       paneTable.classList.remove('hide');
       searchInput.placeholder = "Filter artist (A-Z), title, or folder...";
-      if (renderedTab !== 'archive') {
-        renderTrackList(displayCatalog, true);
-        renderedTab = 'archive';
-      } else {
-        countBadge.textContent = `${displayCatalog.length} TRACKS`;
-        updateActiveCards();
-      }
+      if (renderedTab !== 'archive') { renderTrackList(displayCatalog, true); renderedTab = 'archive'; }
+      else { countBadge.textContent = `${displayCatalog.length} TRACKS`; updateActiveCards(); }
     } else if (tabId === 'favorites') {
       tabFavs.classList.add('active');
       searchBarWrap.classList.remove('hide');
@@ -399,9 +354,9 @@
       tabSource.classList.add('active');
       searchBarWrap.classList.add('hide');
       paneSource.classList.remove('hide');
-      document.getElementById('inputCustomSource').value = localStorage.getItem('xm_custom_library_url') || '';
-      countBadge.textContent = "SOURCE";
+      countBadge.textContent = "SOURCES";
       renderedTab = 'source';
+      if (window.XMSources) window.XMSources.renderLists();
     }
   }
 
@@ -410,7 +365,6 @@
   tabPlaylists.addEventListener('click', () => switchTab('playlists'));
   tabSource.addEventListener('click', () => switchTab('source'));
 
-  // Debounced search input (keeps mobile soft-keyboard typing butter smooth)
   searchInput.addEventListener('input', (e) => {
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => {
@@ -420,8 +374,7 @@
         renderTrackList(displayCatalog, true);
       } else if (activeTab === 'favorites') {
         const favs = window.XMPlaylist.getFavorites();
-        const filtered = q ? favs.filter(t => (t.artist && t.artist.toLowerCase().includes(q)) || (t.title && t.title.toLowerCase().includes(q))) : favs;
-        renderTrackList(filtered, true);
+        renderTrackList(q ? favs.filter(t => (t.artist && t.artist.toLowerCase().includes(q)) || (t.title && t.title.toLowerCase().includes(q))) : favs, true);
       }
     }, 80);
   });
@@ -433,36 +386,21 @@
     if (activeTab === 'archive') renderTrackList(displayCatalog, true);
   }
 
-  async function loadCatalog() {
-    const baseUrl = getBaseUrl();
-    tableBody.innerHTML = `<div class="library-empty-msg">Loading XM-Music repository catalog...</div>`;
-    try {
-      const res = await fetch(`${baseUrl}tracks.json`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      data.forEach((t, i) => {
-        t.title = (t.title || t.name || t.song || '').trim() || (t.path ? t.path.split('/').pop().replace(/\.[a-z0-9]+$/i, '') : `Track ${i + 1}`);
-        t.artist = (t.artist || t.author || '').trim() || 'Unknown Artist';
-        if (!t.ext && t.path) {
-          const m = t.path.match(/\.([a-z0-9]+)$/i);
-          if (m) t.ext = m[1].toUpperCase();
-        }
-        if (!t.id) t.id = t.path ? `cloud_${t.path}` : `track_${i}`;
-      });
-      remoteCatalog = data;
-    } catch (e) {
-      remoteCatalog = [];
-    }
+  async function loadAllCatalogs() {
+    tableBody.innerHTML = `<div class="library-empty-msg">Syncing active repository catalogs...</div>`;
+    remoteCatalog = window.XMSources ? await window.XMSources.fetchRemoteCatalogs() : [];
     await syncFullCatalog();
     switchTab('archive');
   }
 
-  loadCatalog();
+  loadAllCatalogs();
 
   window.XMLibrary = {
-    getBaseUrl,
     notifyPlaying: function(trackId) { currentlyPlayingId = trackId; updateActiveCards(); },
     renderCurrentTab: function() { switchTab(activeTab); },
-    refreshArchive: async function() { await syncFullCatalog(); }
+    refreshArchive: async function() {
+      remoteCatalog = window.XMSources ? await window.XMSources.fetchRemoteCatalogs() : [];
+      await syncFullCatalog();
+    }
   };
 })(window);
