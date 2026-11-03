@@ -1,5 +1,5 @@
 /**
- * js/backup.js - Complete workstation backup & restore (IndexedDB custom music, playlists, favorites).
+ * js/data/backup.js - Complete workstation backup & restore (IndexedDB custom music, playlists, favorites).
  */
 (function(window) {
   function blobToBase64(blob) {

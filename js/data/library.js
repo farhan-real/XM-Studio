@@ -1,5 +1,5 @@
 /**
- * js/library.js - Multi-line track list, FLAC tag detection, and catalog rendering.
+ * js/data/library.js - Multi-line track list, FLAC tag detection, and catalog rendering.
  */
 (function(window) {
   const DEFAULT_REPO_URL = 'https://farhan-real.github.io/XM-Music/';

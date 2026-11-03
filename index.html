@@ -26,8 +26,8 @@
   </script>
   <script src="js/libopenmpt.js" onerror="window.USE_CDN=true; this.src='https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js';"></script>
   <script src="js/lame.min.js" onerror="this.src='https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js';"></script>
-  <script src="js/chiptune2.js"></script>
-  <script src="js/compiler.js"></script>
+  <script src="js/engine/chiptune2.js"></script>
+  <script src="js/engine/compiler.js"></script>
 </head>
 <body>
   <div class="mobile-view-toggle">
@@ -99,9 +99,7 @@
         <div class="playlist-items-wrap" id="playlistItemsWrap"></div>
       </div>
 
-      <!-- VIEW 3: Source & Workstation Backup/Restore -->
       <div class="panel-content source-view hide" id="paneSource">
-        <!-- Section A: Workstation Backup & Restore -->
         <div class="source-config-card">
           <div class="source-card-header">
             <span class="spec-key">WORKSTATION BACKUP &amp; RESTORE</span>
@@ -122,7 +120,6 @@
           <div class="source-status-msg" id="backupStatusMsg"></div>
         </div>
 
-        <!-- Section B: Custom Music Management (FLAC Supported) -->
         <div class="source-config-card">
           <div class="source-card-header">
             <span class="spec-key">CUSTOM MUSIC ARCHIVE</span>
@@ -142,7 +139,6 @@
           <div class="custom-tracks-list" id="customTracksList"></div>
         </div>
 
-        <!-- Section C: Repository Configuration -->
         <div class="source-config-card">
           <span class="spec-key">DEFAULT REPOSITORY</span>
           <div class="source-url-text">https://farhan-real.github.io/XM-Music/</div>
@@ -273,12 +269,12 @@
   </div>
 
   <audio id="nativeAudio" preload="auto"></audio>
-  <script src="js/visualizer.js"></script>
-  <script src="js/audio.js"></script>
-  <script src="js/playlist.js"></script>
-  <script src="js/custom.js"></script>
-  <script src="js/backup.js"></script>
-  <script src="js/library.js"></script>
+  <script src="js/engine/visualizer.js"></script>
+  <script src="js/engine/audio.js"></script>
+  <script src="js/data/playlist.js"></script>
+  <script src="js/data/custom.js"></script>
+  <script src="js/data/backup.js"></script>
+  <script src="js/data/library.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

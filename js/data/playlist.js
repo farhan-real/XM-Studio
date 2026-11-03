@@ -1,5 +1,5 @@
 /**
- * js/playlist.js - Playlist CRUD management and studio modal dialogs.
+ * js/data/playlist.js - Playlist CRUD management and studio modal dialogs.
  */
 (function(window) {
   function getPlaylists() {
@@ -41,7 +41,6 @@
     if (window.XMLibrary) window.XMLibrary.renderCurrentTab();
   }
 
-  // Modals
   const modalBackdrop = document.getElementById('studioModalBackdrop');
   const modalTitle = document.getElementById('studioModalTitle');
   const modalBody = document.getElementById('studioModalBody');

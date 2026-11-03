@@ -1,5 +1,5 @@
 /**
- * js/audio.js - Master playback coordinator with FLAC lossless stream support.
+ * js/engine/audio.js - Master playback coordinator with FLAC lossless stream support.
  */
 (function(window) {
   const player = new ChiptuneJsPlayer();

@@ -1,5 +1,5 @@
 /**
- * js/custom.js - IndexedDB storage & UI manager for user-added custom music.
+ * js/data/custom.js - IndexedDB storage & UI manager for user-added custom music.
  */
 (function(window) {
   const DB_NAME = 'xm_studio_custom_db';

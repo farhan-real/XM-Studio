@@ -1,5 +1,5 @@
 /**
- * js/chiptune2.js - Real-time Chiptune2 DSP player engine.
+ * js/engine/chiptune2.js - Real-time Chiptune2 DSP player engine.
  */
 (function(window) {
   var ChiptuneAudioContext = window.AudioContext || window.webkitAudioContext;

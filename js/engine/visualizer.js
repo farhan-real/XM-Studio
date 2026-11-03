@@ -1,5 +1,5 @@
 /**
- * js/visualizer.js - Fast frequency spectrum analyzer render loop.
+ * js/engine/visualizer.js - Fast frequency spectrum analyzer render loop.
  */
 (function(window) {
   var canvas = document.getElementById('visualizer');

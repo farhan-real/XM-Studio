@@ -1,5 +1,5 @@
 /**
- * js/compiler.js - On-demand background audio compiler for WAV/MP3 exports.
+ * js/engine/compiler.js - On-demand background audio compiler for WAV/MP3 exports.
  */
 (function(window) {
   function createWavBlob(pcmChunks, totalPcmBytes, sampleRate) {
