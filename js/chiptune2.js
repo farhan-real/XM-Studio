@@ -1,5 +1,5 @@
 /**
- * chiptune2.js - Studio Master engine with mobile-optimized real-time preview & hardware handoff
+ * js/chiptune2.js - Real-time Chiptune2 DSP player engine.
  */
 (function(window) {
   var ChiptuneAudioContext = window.AudioContext || window.webkitAudioContext;
@@ -16,7 +16,6 @@
 
     this.currentPlayingNode = null;
     this.repeatCount = -1;
-    this.isCompiling = false;
     this.handlers = {};
   }
 
@@ -76,14 +75,12 @@
     return meta;
   };
 
-  // INSTANT REAL-TIME PREVIEW: 8192-sample buffer prevents mobile underruns
   ChiptuneJsPlayer.prototype.play = function(buffer) {
     this.stop();
     this.unlock();
 
     var sampleRate = 48000;
     var maxFramesPerChunk = 4096;
-    // 8192 buffer = 170.6ms of cushion against mobile CPU jitter
     var processNode = this.context.createScriptProcessor(8192, 0, 2);
     processNode.player = this;
 
@@ -100,7 +97,6 @@
     }
     processNode.modulePtr = mod;
 
-    // Fast 4-tap sinc interpolation for real-time preview (low CPU), level 5 ramping, 100% stereo
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [mod, 3, 4]);
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [mod, 4, 5]);
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [mod, 2, 100]);
@@ -191,14 +187,6 @@
     }
   };
 
-  ChiptuneJsPlayer.prototype.pause = function() {
-    if (this.currentPlayingNode) this.currentPlayingNode.paused = true;
-  };
-
-  ChiptuneJsPlayer.prototype.unpause = function() {
-    if (this.currentPlayingNode) this.currentPlayingNode.paused = false;
-  };
-
   ChiptuneJsPlayer.prototype.togglePause = function() {
     if (this.currentPlayingNode) {
       this.currentPlayingNode.paused = !this.currentPlayingNode.paused;
@@ -235,185 +223,6 @@
     this.repeatCount = loop ? -1 : 0;
     if (this.currentPlayingNode && this.currentPlayingNode.modulePtr) {
       libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [this.currentPlayingNode.modulePtr, this.repeatCount]);
-    }
-  };
-
-  function createWavBlob(pcmChunks, totalPcmBytes, sampleRate) {
-    var buffer = new ArrayBuffer(44);
-    var view = new DataView(buffer);
-    function writeStr(offset, str) {
-      for (var i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
-    }
-    writeStr(0, 'RIFF');
-    view.setUint32(4, 36 + totalPcmBytes, true);
-    writeStr(8, 'WAVE');
-    writeStr(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true);
-    view.setUint16(22, 2, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 4, true);
-    view.setUint16(32, 4, true);
-    view.setUint16(34, 16, true);
-    writeStr(36, 'data');
-    view.setUint32(40, totalPcmBytes, true);
-
-    return new Blob([buffer].concat(pcmChunks), { type: 'audio/wav' });
-  }
-
-  // MASTER BACKGROUND COMPILER: SINC-8 48kHz, gently throttled to never stall audio
-  ChiptuneJsPlayer.prototype.compileAudio = function(buffer, format, onProgress, onComplete, onError) {
-    this.cancelCompilation();
-    var player = this;
-    player.isCompiling = true;
-
-    try {
-      var byteArray = new Uint8Array(buffer);
-      var ptrToFile = libopenmpt._malloc(byteArray.byteLength);
-      libopenmpt.HEAPU8.set(byteArray, ptrToFile);
-
-      var modulePtr = libopenmpt._openmpt_module_create_from_memory(ptrToFile, byteArray.byteLength, 0, 0, 0);
-      if (!modulePtr) {
-        libopenmpt._free(ptrToFile);
-        player.isCompiling = false;
-        if (onError) onError(new Error("Unable to parse module."));
-        return;
-      }
-
-      // 8-Tap Windowed Sinc for master recording
-      libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 8]);
-      libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
-      libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 2, 100]);
-
-      var duration = libopenmpt._openmpt_module_get_duration_seconds(modulePtr) || 180;
-      var sampleRate = 48000;
-      var totalFrames = Math.ceil(duration * sampleRate);
-
-      var mp3encoder = (format === 'mp3') ? new lamejs.Mp3Encoder(2, sampleRate, 320) : null;
-      var encodedChunks = [];
-      var totalPcmBytes = 0;
-
-      var chunkSize = 16384;
-      var leftBufferPtr = libopenmpt._malloc(4 * chunkSize);
-      var rightBufferPtr = libopenmpt._malloc(4 * chunkSize);
-
-      var leftInt16 = new Int16Array(chunkSize);
-      var rightInt16 = new Int16Array(chunkSize);
-      var interleavedPcm = (format === 'wav') ? new Int16Array(chunkSize * 2) : null;
-
-      var framesRendered = 0;
-      // 1 chunk per tick with 25ms pauses prevents thread starvation on mobile
-      var chunksPerTick = 1;
-
-      function cleanup() {
-        player.isCompiling = false;
-        if (modulePtr) { libopenmpt._openmpt_module_destroy(modulePtr); modulePtr = 0; }
-        if (leftBufferPtr) { libopenmpt._free(leftBufferPtr); leftBufferPtr = 0; }
-        if (rightBufferPtr) { libopenmpt._free(rightBufferPtr); rightBufferPtr = 0; }
-        if (ptrToFile) { libopenmpt._free(ptrToFile); ptrToFile = 0; }
-      }
-
-      player.activeCompilerCleanup = cleanup;
-
-      function step() {
-        if (!player.isCompiling) {
-          cleanup();
-          return;
-        }
-        try {
-          for (var c = 0; c < chunksPerTick; c++) {
-            var framesToRead = Math.min(chunkSize, totalFrames - framesRendered);
-            if (framesToRead <= 0) break;
-
-            var actual = libopenmpt._openmpt_module_read_float_stereo(
-              modulePtr,
-              sampleRate,
-              framesToRead,
-              leftBufferPtr,
-              rightBufferPtr
-            );
-
-            if (actual === 0) {
-              framesRendered = totalFrames;
-              break;
-            }
-
-            var rawL = libopenmpt.HEAPF32.subarray(leftBufferPtr / 4, leftBufferPtr / 4 + actual);
-            var rawR = libopenmpt.HEAPF32.subarray(rightBufferPtr / 4, rightBufferPtr / 4 + actual);
-
-            for (var i = 0; i < actual; i++) {
-              var sL = rawL[i];
-              var sR = rawR[i];
-              if (sL > 1.0) sL = 1.0 - Math.exp(-sL);
-              else if (sL < -1.0) sL = -1.0 + Math.exp(sL);
-              if (sR > 1.0) sR = 1.0 - Math.exp(-sR);
-              else if (sR < -1.0) sR = -1.0 + Math.exp(sR);
-
-              var ditherL = ((Math.random() - Math.random()) * 0.5) / 32768.0;
-              var ditherR = ((Math.random() - Math.random()) * 0.5) / 32768.0;
-              var cL = Math.max(-1.0, Math.min(1.0, sL + ditherL));
-              var cR = Math.max(-1.0, Math.min(1.0, sR + ditherR));
-
-              leftInt16[i] = cL < 0 ? Math.round(cL * 32768) : Math.round(cL * 32767);
-              rightInt16[i] = cR < 0 ? Math.round(cR * 32768) : Math.round(cR * 32767);
-
-              if (format === 'wav') {
-                interleavedPcm[i * 2] = leftInt16[i];
-                interleavedPcm[i * 2 + 1] = rightInt16[i];
-              }
-            }
-
-            if (format === 'mp3') {
-              var mp3buf = mp3encoder.encodeBuffer(leftInt16.subarray(0, actual), rightInt16.subarray(0, actual));
-              if (mp3buf.length > 0) encodedChunks.push(mp3buf);
-            } else {
-              var pcmSlice = interleavedPcm.slice(0, actual * 2);
-              encodedChunks.push(pcmSlice.buffer);
-              totalPcmBytes += pcmSlice.byteLength;
-            }
-
-            framesRendered += actual;
-            if (actual < framesToRead) {
-              framesRendered = totalFrames;
-              break;
-            }
-          }
-
-          var progress = Math.min(1, framesRendered / totalFrames);
-          if (onProgress) onProgress(progress);
-
-          if (framesRendered < totalFrames) {
-            setTimeout(step, 25);
-          } else {
-            var finalBlob = null;
-            if (format === 'mp3') {
-              var endBuf = mp3encoder.flush();
-              if (endBuf.length > 0) encodedChunks.push(endBuf);
-              finalBlob = new Blob(encodedChunks, { type: 'audio/mp3' });
-            } else {
-              finalBlob = createWavBlob(encodedChunks, totalPcmBytes, sampleRate);
-            }
-            cleanup();
-            if (onComplete) onComplete(finalBlob);
-          }
-        } catch (err) {
-          cleanup();
-          if (onError) onError(err);
-        }
-      }
-
-      setTimeout(step, 25);
-    } catch (e) {
-      player.isCompiling = false;
-      if (onError) onError(e);
-    }
-  };
-
-  ChiptuneJsPlayer.prototype.cancelCompilation = function() {
-    this.isCompiling = false;
-    if (typeof this.activeCompilerCleanup === 'function') {
-      this.activeCompilerCleanup();
-      this.activeCompilerCleanup = null;
     }
   };
 

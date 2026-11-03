@@ -1,39 +1,32 @@
-const CACHE_NAME = 'xm-studio-v34';
-const ASSETS_TO_CACHE = [
-  './',
-  './index.html',
-  './manifest.json',
-  './icon.svg',
-  './css/main.css',
-  './css/library.css',
-  './js/app.js',
-  './js/library.js',
-  './js/chiptune2.js',
-  './js/lame.min.js',
-  './js/libopenmpt.js',
-  './js/libopenmpt.js.mem'
-];
+// service-worker.js - Zero UI caching. Always network-first for immediate updates.
+const CACHE_NAME = 'xm-runtime-v35';
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS_TO_CACHE)).then(() => self.skipWaiting())
-  );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keys) => {
-      return Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)));
+      return Promise.all(keys.map(k => caches.delete(k)));
     }).then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', (e) => {
+  const url = e.request.url;
+  // Always fetch application UI, scripts, and stylesheets directly from network
+  if (url.endsWith('.html') || url.endsWith('.css') || url.endsWith('.js') || url.includes('/js/')) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
+
+  // Audio files and openmpt binaries can be cached for performance
   e.respondWith(
     caches.match(e.request).then((cached) => {
       if (cached) return cached;
       return fetch(e.request).then((res) => {
-        if (e.request.url.includes('jsdelivr') || e.request.url.includes('.mod') || e.request.url.includes('.xm')) {
+        if (url.includes('.xm') || url.includes('.mod') || url.includes('libopenmpt.js.mem')) {
           const clone = res.clone();
           caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
         }
