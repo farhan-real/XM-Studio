@@ -1,34 +1,111 @@
-/* css/tracks.css - Multi-line track card list with fixed-dimension virtual scroll support */
+/* css/tracks.css - Virtual list viewport, card styling, and precision custom scrollbar */
 .track-list-wrap {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
-  flex-direction: column;
-  contain: strict;
-  transform: translateZ(0);
+  flex-direction: row;
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.track-viewport {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  outline: none;
 }
 
 .track-cards-list {
-  display: flex;
-  flex-direction: column;
+  position: relative;
+  width: 100%;
+  height: 100%;
   box-sizing: border-box;
 }
 
-.track-card {
-  display: flex;
-  align-items: center;
+.track-cards-list .track-card {
+  position: absolute;
+  left: 0;
+  right: 0;
   height: 54px;
-  min-height: 54px;
   padding: 6px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  background: transparent;
+  background: #13161b;
   cursor: pointer;
   transition: background 0.08s ease, border-color 0.08s ease;
   gap: 10px;
   box-sizing: border-box;
+  display: flex;
+  align-items: center;
 }
 
-.track-card:nth-child(even) {
+.playlist-items-wrap {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.playlist-items-wrap .track-card {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  height: 54px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  background: #13161b;
+  cursor: pointer;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.custom-scrollbar-track {
+  width: 12px;
+  height: 100%;
+  background: #090b0e;
+  border-left: 1px solid var(--border-subtle);
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.custom-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  left: 2px;
+  width: 8px;
+  background: #2a313d;
+  border-radius: 4px;
+  cursor: grab;
+  touch-action: none;
+  transition: background 0.12s ease;
+}
+
+.custom-scrollbar-thumb::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -8px;
+  right: -8px;
+}
+
+.custom-scrollbar-track:hover .custom-scrollbar-thumb {
+  background: #3f4a5c;
+}
+
+.custom-scrollbar-thumb:hover,
+.custom-scrollbar-thumb.dragging {
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.45);
+  cursor: grabbing;
+}
+
+.track-card.track-even {
   background: rgba(255, 255, 255, 0.015);
 }
 
@@ -59,7 +136,8 @@
   gap: 2px;
 }
 
-.track-card-row1 {
+.track-card-row1,
+.track-card-row2 {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -100,13 +178,6 @@
 .track-card.active-playing .track-card-num {
   color: var(--accent);
   font-weight: 700;
-}
-
-.track-card-row2 {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
 
 .track-card-artist {

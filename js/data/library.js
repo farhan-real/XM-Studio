@@ -1,5 +1,5 @@
 /**
- * js/data/library.js - High-performance virtual windowed rendering, debounced search, and multi-source archive coordinator.
+ * js/data/library.js - Precision virtual list rendering, live search, and multi-source archive coordinator.
  */
 (function(window) {
   let remoteCatalog = [];
@@ -13,19 +13,19 @@
 
   let activeRenderQueue = [];
   let searchDebounceTimer = null;
-
-  const ITEM_HEIGHT = 54;
-  const BUFFER = 12;
-  let lastStartIndex = -1;
-  let lastEndIndex = -1;
-  let isScrollTicking = false;
+  let scroller = null;
 
   function sortAlphabetical(tracks) {
     return tracks.sort((a, b) => {
-      const artA = (a.artist || 'Unknown').toLowerCase();
-      const artB = (b.artist || 'Unknown').toLowerCase();
-      if (artA !== artB) return artA.localeCompare(artB);
-      return (a.title || '').toLowerCase().localeCompare((b.title || '').toLowerCase());
+      const aArt = (a.artist || '').toLowerCase();
+      const bArt = (b.artist || '').toLowerCase();
+      if (aArt < bArt) return -1;
+      if (aArt > bArt) return 1;
+      const aTit = (a.title || '').toLowerCase();
+      const bTit = (b.title || '').toLowerCase();
+      if (aTit < bTit) return -1;
+      if (aTit > bTit) return 1;
+      return 0;
     });
   }
 
@@ -67,79 +67,44 @@
   const panePlaylists = document.getElementById('panePlaylists');
   const paneSource = document.getElementById('paneSource');
 
-  function buildCardHtml(track, idx, isPlaying, isFav) {
+  function buildCardHtml(track, idx, topOffset, isPlaying, isFav) {
     const fmtClass = getFormatBadgeClass(track.ext);
+    const isEven = (idx % 2 === 1);
     const favIcon = `<svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? 'var(--col-gold)' : 'none'}" stroke="${isFav ? 'var(--col-gold)' : 'currentColor'}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
-    return `<div class="track-card ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}" data-track-id="${track.id}"><span class="track-card-num">${idx + 1}</span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div><div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions"><button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite">${favIcon}</button><button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button></div></div></div></div>`;
+    return `<div class="track-card ${isEven ? 'track-even' : ''} ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}" style="top:${topOffset}px" data-track-id="${track.id}"><span class="track-card-num">${idx + 1}</span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div><div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions"><button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite">${favIcon}</button><button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button></div></div></div></div>`;
   }
 
-  function updateVirtualWindow() {
-    isScrollTicking = false;
-    if (!activeRenderQueue || activeRenderQueue.length === 0) return;
-
-    const total = activeRenderQueue.length;
-    const st = paneTable.scrollTop;
-    const ch = paneTable.clientHeight || 500;
-
-    const start = Math.max(0, Math.floor(st / ITEM_HEIGHT) - BUFFER);
-    const end = Math.min(total, Math.ceil((st + ch) / ITEM_HEIGHT) + BUFFER);
-
-    if (start === lastStartIndex && end === lastEndIndex) return;
-    lastStartIndex = start;
-    lastEndIndex = end;
-
-    const topPad = start * ITEM_HEIGHT;
-    const botPad = Math.max(0, (total - end) * ITEM_HEIGHT);
-
-    tableBody.style.paddingTop = `${topPad}px`;
-    tableBody.style.paddingBottom = `${botPad}px`;
-
-    const favSet = new Set((window.XMPlaylist ? window.XMPlaylist.getFavorites() : []).map(f => f.id));
-    const count = end - start;
-    const htmlParts = new Array(count);
-
-    for (let i = 0; i < count; i++) {
-      const idx = start + i;
-      const track = activeRenderQueue[idx];
-      htmlParts[i] = buildCardHtml(track, idx, currentlyPlayingId === track.id, favSet.has(track.id));
-    }
-
-    tableBody.innerHTML = htmlParts.join('');
+  function initScroller() {
+    scroller = window.XMScroller.create({
+      viewport: document.getElementById('trackViewport'),
+      track: document.getElementById('customScrollbarTrack'),
+      thumb: document.getElementById('customScrollbarThumb'),
+      itemHeight: 54,
+      buffer: 8,
+      onRender: (start, end, st) => {
+        if (!activeRenderQueue || activeRenderQueue.length === 0) {
+          tableBody.innerHTML = '<div class="library-empty-msg">No matching tracks found.</div>';
+          return;
+        }
+        const favSet = new Set((window.XMPlaylist ? window.XMPlaylist.getFavorites() : []).map(f => f.id));
+        const count = end - start;
+        const htmlParts = new Array(count);
+        for (let i = 0; i < count; i++) {
+          const idx = start + i;
+          const track = activeRenderQueue[idx];
+          const topOffset = idx * 54 - st;
+          htmlParts[i] = buildCardHtml(track, idx, topOffset, currentlyPlayingId === track.id, favSet.has(track.id));
+        }
+        tableBody.innerHTML = htmlParts.join('');
+      }
+    });
   }
-
-  paneTable.addEventListener('scroll', () => {
-    if (!isScrollTicking) {
-      isScrollTicking = true;
-      requestAnimationFrame(updateVirtualWindow);
-    }
-  }, { passive: true });
-
-  window.addEventListener('resize', () => {
-    lastStartIndex = -1;
-    lastEndIndex = -1;
-    updateVirtualWindow();
-  });
 
   function renderTrackList(tracks, forceReset = false) {
     activeRenderQueue = tracks;
     countBadge.textContent = `${tracks.length} TRACKS`;
-
-    if (tracks.length === 0) {
-      tableBody.style.paddingTop = '0px';
-      tableBody.style.paddingBottom = '0px';
-      tableBody.innerHTML = '<div class="library-empty-msg">No matching tracks found.</div>';
-      lastStartIndex = -1;
-      lastEndIndex = -1;
-      return;
-    }
-
-    if (forceReset) {
-      paneTable.scrollTop = 0;
-      lastStartIndex = -1;
-      lastEndIndex = -1;
-    }
-
-    updateVirtualWindow();
+    if (!scroller) initScroller();
+    scroller.setTotal(tracks.length, forceReset);
   }
 
   tableBody.addEventListener('click', (e) => {
@@ -354,7 +319,7 @@
       paneTable.classList.remove('hide');
       searchInput.placeholder = "Filter artist (A-Z), title, or folder...";
       if (renderedTab !== 'archive') { renderTrackList(displayCatalog, true); renderedTab = 'archive'; }
-      else { countBadge.textContent = `${displayCatalog.length} TRACKS`; updateActiveCards(); }
+      else { countBadge.textContent = `${displayCatalog.length} TRACKS`; updateActiveCards(); if (scroller) scroller.refresh(); }
     } else if (tabId === 'favorites') {
       tabFavs.classList.add('active');
       searchBarWrap.classList.remove('hide');
@@ -421,6 +386,11 @@
       await syncFullCatalog();
     },
     getDisplayCatalog: () => (activeRenderQueue && activeRenderQueue.length > 0) ? activeRenderQueue : displayCatalog,
-    playTrackDirect: playTrack
+    playTrackDirect: playTrack,
+    scrollToPlaying: () => {
+      if (!currentlyPlayingId || !scroller) return;
+      const idx = activeRenderQueue.findIndex(t => t.id === currentlyPlayingId);
+      if (idx >= 0) scroller.scrollToIndex(idx);
+    }
   };
 })(window);

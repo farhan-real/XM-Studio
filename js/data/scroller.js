@@ -1,0 +1,200 @@
+/**
+ * js/data/scroller.js - Precision custom scrollbar and virtual windowing coordinator.
+ */
+(function(window) {
+  function createScroller(options) {
+    const viewport = options.viewport;
+    const track = options.track;
+    const thumb = options.thumb;
+    const itemHeight = options.itemHeight || 54;
+    const buffer = options.buffer || 8;
+    const onRender = options.onRender;
+
+    let totalItems = 0;
+    let scrollTop = 0;
+    let maxScroll = 0;
+    let thumbHeight = 28;
+    let maxTravel = 0;
+    let isDragging = false;
+    let dragStartPointerY = 0;
+    let dragStartScrollTop = 0;
+
+    let touchStartY = 0;
+    let touchLastY = 0;
+    let touchLastTime = 0;
+    let touchVelocity = 0;
+    let touchAnimId = null;
+
+    function getViewportHeight() {
+      return viewport.clientHeight || 500;
+    }
+
+    function getTrackHeight() {
+      return track.clientHeight || getViewportHeight();
+    }
+
+    function updateMetrics() {
+      const vh = getViewportHeight();
+      const th = getTrackHeight();
+      const totalH = totalItems * itemHeight;
+      maxScroll = Math.max(0, totalH - vh);
+
+      if (maxScroll <= 0 || totalItems === 0) {
+        track.classList.add('hide');
+        thumbHeight = 0;
+        maxTravel = 0;
+        scrollTop = 0;
+      } else {
+        track.classList.remove('hide');
+        const viewRatio = vh / totalH;
+        thumbHeight = Math.max(28, Math.min(th, Math.round(th * viewRatio)));
+        maxTravel = Math.max(1, th - thumbHeight);
+        thumb.style.height = `${thumbHeight}px`;
+      }
+    }
+
+    function syncThumb() {
+      if (maxTravel <= 0 || maxScroll <= 0) return;
+      const fraction = Math.max(0, Math.min(1, scrollTop / maxScroll));
+      const thumbTop = Math.round(fraction * maxTravel);
+      thumb.style.transform = `translateY(${thumbTop}px)`;
+    }
+
+    function emitRender() {
+      if (totalItems === 0) {
+        if (onRender) onRender(0, 0, 0);
+        return;
+      }
+      const vh = getViewportHeight();
+      const start = Math.max(0, Math.floor(scrollTop / itemHeight) - buffer);
+      const end = Math.min(totalItems, Math.ceil((scrollTop + vh) / itemHeight) + buffer);
+      if (onRender) onRender(start, end, scrollTop);
+    }
+
+    function setScroll(targetTop) {
+      scrollTop = Math.max(0, Math.min(maxScroll, targetTop));
+      syncThumb();
+      emitRender();
+    }
+
+    function setTotal(count, forceReset = false) {
+      totalItems = count;
+      if (forceReset) scrollTop = 0;
+      updateMetrics();
+      if (scrollTop > maxScroll) scrollTop = maxScroll;
+      syncThumb();
+      emitRender();
+    }
+
+    thumb.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      isDragging = true;
+      dragStartPointerY = e.clientY;
+      dragStartScrollTop = scrollTop;
+      thumb.classList.add('dragging');
+      thumb.setPointerCapture(e.pointerId);
+    });
+
+    thumb.addEventListener('pointermove', (e) => {
+      if (!isDragging || maxTravel <= 0) return;
+      const deltaY = e.clientY - dragStartPointerY;
+      const scrollDelta = (deltaY / maxTravel) * maxScroll;
+      setScroll(dragStartScrollTop + scrollDelta);
+    });
+
+    function endThumbDrag(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      thumb.classList.remove('dragging');
+      try { thumb.releasePointerCapture(e.pointerId); } catch (err) {}
+    }
+    thumb.addEventListener('pointerup', endThumbDrag);
+    thumb.addEventListener('pointercancel', endThumbDrag);
+
+    track.addEventListener('pointerdown', (e) => {
+      if (e.target === thumb) return;
+      e.preventDefault();
+      const rect = track.getBoundingClientRect();
+      const clickY = e.clientY - rect.top;
+      const targetTravelPos = clickY - thumbHeight / 2;
+      const fraction = Math.max(0, Math.min(1, targetTravelPos / maxTravel));
+      setScroll(fraction * maxScroll);
+    });
+
+    viewport.addEventListener('wheel', (e) => {
+      if (maxScroll <= 0) return;
+      e.preventDefault();
+      let delta = e.deltaY;
+      if (e.deltaMode === 1) delta *= 40;
+      else if (e.deltaMode === 2) delta *= getViewportHeight();
+      setScroll(scrollTop + delta);
+    }, { passive: false });
+
+    viewport.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1 || maxScroll <= 0) return;
+      if (touchAnimId) cancelAnimationFrame(touchAnimId);
+      touchStartY = e.touches[0].clientY;
+      touchLastY = touchStartY;
+      touchLastTime = performance.now();
+      touchVelocity = 0;
+    }, { passive: true });
+
+    viewport.addEventListener('touchmove', (e) => {
+      if (e.touches.length !== 1 || maxScroll <= 0) return;
+      const currentY = e.touches[0].clientY;
+      const deltaY = touchLastY - currentY;
+      const now = performance.now();
+      const dt = Math.max(1, now - touchLastTime);
+      touchVelocity = deltaY / dt;
+      touchLastY = currentY;
+      touchLastTime = now;
+      setScroll(scrollTop + deltaY);
+    }, { passive: true });
+
+    viewport.addEventListener('touchend', () => {
+      if (maxScroll <= 0 || Math.abs(touchVelocity) < 0.15) return;
+      let v = touchVelocity * 16;
+      function momentum() {
+        if (Math.abs(v) < 0.4) return;
+        setScroll(scrollTop + v);
+        v *= 0.92;
+        touchAnimId = requestAnimationFrame(momentum);
+      }
+      touchAnimId = requestAnimationFrame(momentum);
+    }, { passive: true });
+
+    viewport.addEventListener('keydown', (e) => {
+      const vh = getViewportHeight();
+      if (e.key === 'ArrowDown') { e.preventDefault(); setScroll(scrollTop + itemHeight); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setScroll(scrollTop - itemHeight); }
+      else if (e.key === 'PageDown') { e.preventDefault(); setScroll(scrollTop + vh); }
+      else if (e.key === 'PageUp') { e.preventDefault(); setScroll(scrollTop - vh); }
+      else if (e.key === 'Home') { e.preventDefault(); setScroll(0); }
+      else if (e.key === 'End') { e.preventDefault(); setScroll(maxScroll); }
+    });
+
+    window.addEventListener('resize', () => {
+      updateMetrics();
+      syncThumb();
+      emitRender();
+    });
+
+    return {
+      setTotal,
+      setScroll,
+      scrollToIndex: (idx) => {
+        const vh = getViewportHeight();
+        setScroll(idx * itemHeight - (vh - itemHeight) / 2);
+      },
+      refresh: () => {
+        updateMetrics();
+        syncThumb();
+        emitRender();
+      },
+      getScrollTop: () => scrollTop
+    };
+  }
+
+  window.XMScroller = { create: createScroller };
+})(window);

@@ -43,7 +43,14 @@
           <span class="badge" id="leftCountBadge">0 TRACKS</span>
         </div>
       </div>
-      <div class="panel-content track-list-wrap" id="paneTable"><div id="kmTableBody" class="track-cards-list"></div></div>
+      <div class="panel-content track-list-wrap" id="paneTable">
+        <div class="track-viewport" id="trackViewport">
+          <div id="kmTableBody" class="track-cards-list"></div>
+        </div>
+        <div class="custom-scrollbar-track hide" id="customScrollbarTrack" aria-label="Track list scrollbar">
+          <div class="custom-scrollbar-thumb" id="customScrollbarThumb" role="scrollbar" aria-orientation="vertical" tabindex="0"></div>
+        </div>
+      </div>
       <div class="panel-content playlists-view hide" id="panePlaylists">
         <div class="playlist-create-row" id="playlistCreateRow">
           <input type="text" id="inputNewPlaylist" placeholder="Enter playlist name..." maxlength="30" />
@@ -168,6 +175,7 @@
   <script src="js/engine/visualizer.js"></script><script src="js/engine/audio.js"></script>
   <script src="js/data/zip.js"></script><script src="js/data/playlist.js"></script>
   <script src="js/data/custom.js"></script><script src="js/data/sources.js"></script>
+  <script src="js/data/scroller.js"></script>
   <script src="js/data/backup.js"></script>
   <script src="js/data/library.js"></script><script src="js/app.js"></script>
 </body>
