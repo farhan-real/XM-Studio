@@ -36,13 +36,13 @@
   border-left: 3px solid var(--accent);
 }
 
-/* Track numerical index */
+/* Track numerical index - Left aligned */
 .track-card-num {
   font-family: var(--font-mono);
   font-size: 0.70rem;
   color: var(--text-tertiary);
   min-width: 26px;
-  text-align: right;
+  text-align: left;
   flex-shrink: 0;
   font-weight: 600;
 }
