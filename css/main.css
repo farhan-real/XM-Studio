@@ -36,29 +36,24 @@
   -webkit-font-smoothing: antialiased;
 }
 
-/* Prevent mobile browser rubber-banding and address bar scroll overflows */
 html {
   height: 100%;
-  height: 100dvh;
-  overflow: hidden;
-  overscroll-behavior: none;
 }
 
 body {
   font-family: var(--font-sans);
   background-color: #08090b;
   color: var(--text-primary);
-  height: 100%;
-  height: 100dvh;
+  min-height: 100%;
+  min-height: 100dvh;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: max(12px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom)) 16px;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: none;
+  padding: env(safe-area-inset-top, 0) 16px env(safe-area-inset-bottom, 0) 16px;
+  box-sizing: border-box;
 }
 
+/* Original, Uncompressed Box Dimensions */
 .chassis {
   width: 100%;
   max-width: 490px;
@@ -71,7 +66,7 @@ body {
     0 0 0 1px rgba(255, 255, 255, 0.03) inset;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   position: relative;
 }
 
@@ -84,14 +79,15 @@ body {
 .header {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
-/* Top Row: Heading on left, X on top right */
+/* Top Row: Heading on left, Engine and X on top right */
 .header-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
 }
 
 .brand-cluster {
@@ -123,7 +119,14 @@ body {
   color: var(--text-tertiary);
 }
 
-/* Top Right Unload Button */
+/* Top Right Cluster: Engine Badge + X Button */
+.header-top-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .btn-unload {
   width: 24px;
   height: 24px;
@@ -155,12 +158,12 @@ body {
   stroke-linejoin: round;
 }
 
-/* Badges Row: Left Badges Group + Only Status Badge at Right */
+/* Badges Row: Left Badges Group + Status Badge at Right */
 .header-badges {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -175,7 +178,7 @@ body {
 .badge {
   font-family: var(--font-mono);
   font-size: 0.62rem;
-  padding: 2.5px 6px;
+  padding: 3px 7px;
   border-radius: 4px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -184,7 +187,6 @@ body {
   line-height: 1.2;
 }
 
-/* Only Status Badge at Right */
 #statusBadge {
   margin-left: auto;
 }
@@ -247,9 +249,10 @@ body {
   margin-right: 3px;
 }
 
+/* Original Visualizer Deck Height */
 .deck-container {
   width: 100%;
-  height: 90px;
+  height: 96px;
   background: #090a0d;
   border-radius: 6px;
   border: 1px solid var(--border-subtle);
@@ -278,12 +281,12 @@ body {
   pointer-events: none;
 }
 
-/* Readout Panel */
+/* Readout Panel (Original Clean Readout) */
 .readout-panel {
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
-  padding: 10px 14px;
+  padding: 12px 14px;
 }
 
 .readout-main {
@@ -291,7 +294,7 @@ body {
 }
 
 .song-title {
-  font-size: 0.92rem;
+  font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
@@ -301,10 +304,10 @@ body {
 }
 
 .song-artist {
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   color: var(--text-secondary);
   font-weight: 500;
-  margin-top: 2px;
+  margin-top: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -315,7 +318,7 @@ body {
   height: 3px;
   background: rgba(255, 255, 255, 0.06);
   border-radius: 2px;
-  margin-top: 6px;
+  margin-top: 8px;
   overflow: hidden;
 }
 
@@ -331,7 +334,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1px 0;
+  padding: 2px 0;
 }
 
 .segment-label {
@@ -345,7 +348,7 @@ body {
 .segmented-control {
   display: flex;
   background: #090a0d;
-  padding: 2.5px;
+  padding: 3px;
   border-radius: 6px;
   border: 1px solid var(--border-subtle);
   gap: 2px;
@@ -356,9 +359,9 @@ body {
   background: transparent;
   color: var(--text-tertiary);
   font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-size: 0.68rem;
   font-weight: 600;
-  padding: 3.5px 8px;
+  padding: 4px 10px;
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.12s ease;
@@ -423,6 +426,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   background: var(--accent);
 }
 
+/* Original Transport Button Sizes */
 .transport-grid {
   display: flex;
   align-items: center;
@@ -431,8 +435,8 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 }
 
 .t-btn {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
@@ -466,8 +470,8 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 }
 
 .t-btn-main {
-  width: 50px;
-  height: 50px;
+  width: 54px;
+  height: 54px;
   background: var(--surface-elevated);
   border-color: var(--border-strong);
   color: var(--text-primary);
@@ -511,7 +515,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;
   padding: 0 10px 0 6px;
-  height: 42px;
+  height: 44px;
 }
 
 .fader-btn {
@@ -529,7 +533,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 }
 
 .vol-slider-wrap {
-  width: 70px;
+  width: 72px;
 }
 
 .ingest-deck {
@@ -547,7 +551,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 14px;
+  padding: 11px 16px;
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
@@ -586,54 +590,4 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 
 .hide {
   display: none !important;
-}
-
-/* Compact Mobile Viewport Adjustments (Zero Page Scroll) */
-@media (max-width: 480px), (max-height: 750px) {
-  body {
-    padding: max(8px, env(safe-area-inset-top)) 10px max(8px, env(safe-area-inset-bottom)) 10px;
-  }
-
-  .chassis {
-    padding: 12px;
-    gap: 10px;
-  }
-
-  .deck-container {
-    height: 72px;
-  }
-
-  .readout-panel {
-    padding: 8px 12px;
-  }
-
-  .song-title {
-    font-size: 0.85rem;
-  }
-
-  .song-artist {
-    font-size: 0.72rem;
-  }
-
-  .t-btn {
-    width: 38px;
-    height: 38px;
-  }
-
-  .t-btn-main {
-    width: 46px;
-    height: 46px;
-  }
-
-  .fader-cluster {
-    height: 38px;
-  }
-
-  .vol-slider-wrap {
-    width: 52px;
-  }
-
-  .action-btn {
-    padding: 8px 12px;
-  }
 }
