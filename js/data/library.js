@@ -1,5 +1,5 @@
 /**
- * js/data/library.js - High-performance full-height rendering, debounced search, and multi-source archive coordinator.
+ * js/data/library.js - High-performance virtual windowed rendering, debounced search, and multi-source archive coordinator.
  */
 (function(window) {
   let remoteCatalog = [];
@@ -13,6 +13,12 @@
 
   let activeRenderQueue = [];
   let searchDebounceTimer = null;
+
+  const ITEM_HEIGHT = 54;
+  const BUFFER = 12;
+  let lastStartIndex = -1;
+  let lastEndIndex = -1;
+  let isScrollTicking = false;
 
   function sortAlphabetical(tracks) {
     return tracks.sort((a, b) => {
@@ -67,30 +73,73 @@
     return `<div class="track-card ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}" data-track-id="${track.id}"><span class="track-card-num">${idx + 1}</span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div><div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions"><button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite">${favIcon}</button><button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button></div></div></div></div>`;
   }
 
-  function renderTrackList(tracks, forceReset = false) {
-    if (!forceReset && activeRenderQueue === tracks && tableBody.children.length > 0) {
-      updateActiveCards();
-      return;
+  function updateVirtualWindow() {
+    isScrollTicking = false;
+    if (!activeRenderQueue || activeRenderQueue.length === 0) return;
+
+    const total = activeRenderQueue.length;
+    const st = paneTable.scrollTop;
+    const ch = paneTable.clientHeight || 500;
+
+    const start = Math.max(0, Math.floor(st / ITEM_HEIGHT) - BUFFER);
+    const end = Math.min(total, Math.ceil((st + ch) / ITEM_HEIGHT) + BUFFER);
+
+    if (start === lastStartIndex && end === lastEndIndex) return;
+    lastStartIndex = start;
+    lastEndIndex = end;
+
+    const topPad = start * ITEM_HEIGHT;
+    const botPad = Math.max(0, (total - end) * ITEM_HEIGHT);
+
+    tableBody.style.paddingTop = `${topPad}px`;
+    tableBody.style.paddingBottom = `${botPad}px`;
+
+    const favSet = new Set((window.XMPlaylist ? window.XMPlaylist.getFavorites() : []).map(f => f.id));
+    const count = end - start;
+    const htmlParts = new Array(count);
+
+    for (let i = 0; i < count; i++) {
+      const idx = start + i;
+      const track = activeRenderQueue[idx];
+      htmlParts[i] = buildCardHtml(track, idx, currentlyPlayingId === track.id, favSet.has(track.id));
     }
+
+    tableBody.innerHTML = htmlParts.join('');
+  }
+
+  paneTable.addEventListener('scroll', () => {
+    if (!isScrollTicking) {
+      isScrollTicking = true;
+      requestAnimationFrame(updateVirtualWindow);
+    }
+  }, { passive: true });
+
+  window.addEventListener('resize', () => {
+    lastStartIndex = -1;
+    lastEndIndex = -1;
+    updateVirtualWindow();
+  });
+
+  function renderTrackList(tracks, forceReset = false) {
     activeRenderQueue = tracks;
     countBadge.textContent = `${tracks.length} TRACKS`;
 
     if (tracks.length === 0) {
+      tableBody.style.paddingTop = '0px';
+      tableBody.style.paddingBottom = '0px';
       tableBody.innerHTML = '<div class="library-empty-msg">No matching tracks found.</div>';
+      lastStartIndex = -1;
+      lastEndIndex = -1;
       return;
     }
 
-    const favSet = new Set((window.XMPlaylist ? window.XMPlaylist.getFavorites() : []).map(f => f.id));
-    const len = tracks.length;
-    const htmlParts = new Array(len);
-
-    for (let i = 0; i < len; i++) {
-      const track = tracks[i];
-      htmlParts[i] = buildCardHtml(track, i, currentlyPlayingId === track.id, favSet.has(track.id));
+    if (forceReset) {
+      paneTable.scrollTop = 0;
+      lastStartIndex = -1;
+      lastEndIndex = -1;
     }
 
-    tableBody.innerHTML = htmlParts.join('');
-    if (forceReset) paneTable.scrollTop = 0;
+    updateVirtualWindow();
   }
 
   tableBody.addEventListener('click', (e) => {
@@ -105,6 +154,18 @@
       const action = actionBtn.getAttribute('data-action');
       if (action === 'fav') {
         window.XMPlaylist.toggleFavorite(track);
+        if (activeTab === 'favorites') {
+          renderTrackList(sortAlphabetical(window.XMPlaylist.getFavorites()), false);
+        } else {
+          const isFav = window.XMPlaylist.isFavorited(track.id);
+          card.classList.toggle('is-favorite', isFav);
+          actionBtn.classList.toggle('active', isFav);
+          const svg = actionBtn.querySelector('svg');
+          if (svg) {
+            svg.setAttribute('fill', isFav ? 'var(--col-gold)' : 'none');
+            svg.setAttribute('stroke', isFav ? 'var(--col-gold)' : 'currentColor');
+          }
+        }
       } else if (action === 'add-pl') {
         window.XMPlaylist.openPlaylistPicker(track);
       }
