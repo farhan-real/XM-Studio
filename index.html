@@ -29,7 +29,7 @@
 </head>
 <body>
   <main class="chassis" id="dropZone">
-    <!-- Header: Heading and Top Right X -->
+    <!-- Header: Heading on left, Engine and X on top right -->
     <header class="header">
       <div class="header-top">
         <div class="brand-cluster">
@@ -37,21 +37,23 @@
           <span class="brand-title">XM-Studio</span>
           <span class="model-sub">Offline DSP</span>
         </div>
-        <button class="btn-unload hide" id="btnUnload" title="Unload track" aria-label="Unload track">
-          <svg viewBox="0 0 24 24" class="t-icon-xs">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+        <div class="header-top-right">
+          <span class="badge badge-engine"><span class="spec-key">ENGINE:</span> <span id="modType">FT2</span></span>
+          <button class="btn-unload hide" id="btnUnload" title="Unload track" aria-label="Unload track">
+            <svg viewBox="0 0 24 24" class="t-icon-xs">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
       </div>
 
-      <!-- Badges Row: Engine placed to the right of Channels -->
+      <!-- Badges Row: Quality, Clock, and Channels on Left; Status on Right -->
       <div class="header-badges">
         <div class="badges-group">
           <span class="badge" id="qualityBadge">320 KBPS</span>
           <span class="badge" id="rateBadge">48 KHZ</span>
           <span class="badge badge-channels"><span class="spec-key">CHANNELS:</span> <span id="channels">--</span></span>
-          <span class="badge badge-engine"><span class="spec-key">ENGINE:</span> <span id="modType">FT2</span></span>
         </div>
         <span class="badge status-badge status-idle" id="statusBadge">STATUS: IDLE</span>
       </div>
@@ -65,7 +67,7 @@
       <div class="screen-grid"></div>
     </div>
 
-    <!-- Metadata Readout Panel (Titlecase Empty State) -->
+    <!-- Metadata Readout Panel -->
     <section class="readout-panel">
       <div class="readout-main">
         <h2 class="song-title" id="songTitle">No Module Loaded</h2>

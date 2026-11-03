@@ -75,11 +75,12 @@ body {
   gap: 10px;
 }
 
-/* Top Row: Heading on left, X on top right */
+/* Top Row: Heading on left, Engine and X on top right */
 .header-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
 }
 
 .brand-cluster {
@@ -111,7 +112,14 @@ body {
   color: var(--text-tertiary);
 }
 
-/* Top Right Unload Button */
+/* Top Right Cluster: Engine Badge + X Button */
+.header-top-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .btn-unload {
   width: 24px;
   height: 24px;
@@ -143,7 +151,7 @@ body {
   stroke-linejoin: round;
 }
 
-/* Badges Row: Left Badges Group + Only Status Badge at Right */
+/* Badges Row: Left Badges Group + Status Badge at Right */
 .header-badges {
   display: flex;
   align-items: center;
@@ -172,7 +180,6 @@ body {
   line-height: 1.2;
 }
 
-/* Only Status Badge at Right */
 #statusBadge {
   margin-left: auto;
 }
