@@ -4,7 +4,7 @@
 
 ---
 
-## Use the app
+## Use the App
 
 XM-Studio is designed to run directly in your browser with zero installation:
 
@@ -41,13 +41,15 @@ Powered by `libopenmpt` compiled to WebAssembly, XM-Studio provides sample-accur
 - **Shuffle & Loop Controls**: Dedicated transport buttons for queue randomization and track looping.
 - **Interactive Scrubber**: Timeline progress slider with elapsed and total time readouts.
 - **Master Volume Fader**: Hardware fader cluster with percentage display and mute toggle.
-- **Drag-and-Drop Ingest**: Drop tracker files or audio tracks directly onto the deck chassis.
+- **Drag-and-Drop Files**: Drop tracker files or audio tracks directly onto the deck chassis.
 
 ### Collection Explorer & Playlists
-- **Multi-Line Track Cards**: Two-line cards showing track title, artist, format badge, and quick actions. Entire card surface is clickable to play.
+- **Numbered Multi-Line Track Cards**: Sequential numerical track indices (`1`, `2`, `3`...) with track title, artist, and format tags. Entire card surface is clickable to play.
+- **Bold Favorites**: Starred favorites stand out in bold typography with a warm gold ambient tone.
+- **Playlist Manager with Shuffle**: Create, rename, delete playlists, launch randomized shuffle playback, and add tracks from the collection.
+- **Per-Playlist Import & Export**: Export any individual playlist to a clean `.json` file or import playlists directly.
 - **Local Custom Music (IndexedDB)**: Add custom music files directly in the Source tab. Files persist permanently in your browser's local database and blend into the Archive.
-- **Playlist Manager**: Create, rename, delete custom playlists, and pick songs from the collection.
-- **Workstation Backup & Restore**: Export all custom music files, playlists, favorites, and repository settings to a single portable `.json` backup file.
+- **Full ZIP Workstation Backup & Restore**: Export a complete `.zip` archive containing individual playlist JSONs, `favorites.json`, `config.json`, `custom_music.json`, and raw custom audio files, or restore everything seamlessly.
 
 ---
 
@@ -104,7 +106,7 @@ curl -L -o js/lame.min.js https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js
 ├── css/
 │   ├── main.css             # Chassis layout, typography & wide scrollbars
 │   ├── player.css           # Hardware badges, visualizer & transport controls
-│   ├── tracks.css           # Multi-line track card list & format tags
+│   ├── tracks.css           # Multi-line track card list, numbering & format tags
 │   └── library.css          # Navigation tabs, playlists & source configuration
 └── js/
     ├── app.js               # Application coordinator & transport bindings
@@ -114,10 +116,11 @@ curl -L -o js/lame.min.js https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js
     │   ├── compiler.js      # On-demand WAV & LAME MP3 background compiler
     │   └── visualizer.js    # 28-band canvas spectrum visualizer loop
     └── data/
-        ├── backup.js        # JSON backup export & restore manager
+        ├── backup.js        # ZIP backup export & restore manager
         ├── custom.js        # IndexedDB storage for user-uploaded custom tracks
         ├── library.js       # Catalog fetcher, live search & archive list
-        └── playlist.js      # Playlist CRUD storage & modal dialogs
+        ├── playlist.js      # Playlist CRUD storage, export/import & dialogs
+        └── zip.js           # Client-side ZIP writer and extractor
 ```
 
 ---
