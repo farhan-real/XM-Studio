@@ -1,5 +1,5 @@
 /**
- * js/data/library.js - High-performance chunked rendering, debounced search, and multi-source archive coordinator.
+ * js/data/library.js - High-performance full-height rendering, debounced search, and multi-source archive coordinator.
  */
 (function(window) {
   let remoteCatalog = [];
@@ -11,9 +11,7 @@
   let currentPlaylistId = null;
   let currentlyPlayingId = null;
 
-  const CHUNK_SIZE = 60;
   let activeRenderQueue = [];
-  let currentRenderedIndex = 0;
   let searchDebounceTimer = null;
 
   function sortAlphabetical(tracks) {
@@ -63,33 +61,36 @@
   const panePlaylists = document.getElementById('panePlaylists');
   const paneSource = document.getElementById('paneSource');
 
-  function appendTrackChunk() {
-    if (currentRenderedIndex >= activeRenderQueue.length) return;
-    const end = Math.min(currentRenderedIndex + CHUNK_SIZE, activeRenderQueue.length);
-    const frag = document.createDocumentFragment();
+  function buildCardHtml(track, idx, isPlaying, isFav) {
+    const fmtClass = getFormatBadgeClass(track.ext);
+    const favIcon = `<svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? 'var(--col-gold)' : 'none'}" stroke="${isFav ? 'var(--col-gold)' : 'currentColor'}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
+    return `<div class="track-card ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}" data-track-id="${track.id}"><span class="track-card-num">${idx + 1}</span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div><div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions"><button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite">${favIcon}</button><button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button></div></div></div></div>`;
+  }
 
-    for (let idx = currentRenderedIndex; idx < end; idx++) {
-      const track = activeRenderQueue[idx];
-      const card = document.createElement('div');
-      const isFav = window.XMPlaylist.isFavorited(track.id);
-      const isPlaying = currentlyPlayingId === track.id;
-      const fmtClass = getFormatBadgeClass(track.ext);
-
-      card.className = `track-card ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}`;
-      card.setAttribute('data-track-id', track.id);
-      card.innerHTML = `
-        <span class="track-card-num">${idx + 1}</span>
-        <div class="track-card-content">
-          <div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div>
-          <div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions">
-            <button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite"><svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? 'var(--col-gold)' : 'none'}" stroke="${isFav ? 'var(--col-gold)' : 'currentColor'}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button>
-            <button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-          </div></div>
-        </div>`;
-      frag.appendChild(card);
+  function renderTrackList(tracks, forceReset = false) {
+    if (!forceReset && activeRenderQueue === tracks && tableBody.children.length > 0) {
+      updateActiveCards();
+      return;
     }
-    tableBody.appendChild(frag);
-    currentRenderedIndex = end;
+    activeRenderQueue = tracks;
+    countBadge.textContent = `${tracks.length} TRACKS`;
+
+    if (tracks.length === 0) {
+      tableBody.innerHTML = '<div class="library-empty-msg">No matching tracks found.</div>';
+      return;
+    }
+
+    const favSet = new Set((window.XMPlaylist ? window.XMPlaylist.getFavorites() : []).map(f => f.id));
+    const len = tracks.length;
+    const htmlParts = new Array(len);
+
+    for (let i = 0; i < len; i++) {
+      const track = tracks[i];
+      htmlParts[i] = buildCardHtml(track, i, currentlyPlayingId === track.id, favSet.has(track.id));
+    }
+
+    tableBody.innerHTML = htmlParts.join('');
+    if (forceReset) paneTable.scrollTop = 0;
   }
 
   tableBody.addEventListener('click', (e) => {
@@ -102,32 +103,15 @@
     if (actionBtn) {
       e.stopPropagation();
       const action = actionBtn.getAttribute('data-action');
-      if (action === 'fav') window.XMPlaylist.toggleFavorite(track);
-      else if (action === 'add-pl') window.XMPlaylist.openPlaylistPicker(track);
+      if (action === 'fav') {
+        window.XMPlaylist.toggleFavorite(track);
+      } else if (action === 'add-pl') {
+        window.XMPlaylist.openPlaylistPicker(track);
+      }
     } else {
       playTrack(track, activeRenderQueue, activeRenderQueue.indexOf(track));
     }
   });
-
-  function renderTrackList(tracks, forceReset = false) {
-    if (!forceReset && activeRenderQueue === tracks && tableBody.children.length > 0) {
-      updateActiveCards();
-      return;
-    }
-    tableBody.innerHTML = '';
-    activeRenderQueue = tracks;
-    currentRenderedIndex = 0;
-    countBadge.textContent = `${tracks.length} TRACKS`;
-    if (tracks.length === 0) {
-      tableBody.innerHTML = '<div class="library-empty-msg">No matching tracks found.</div>';
-      return;
-    }
-    appendTrackChunk();
-  }
-
-  paneTable.addEventListener('scroll', () => {
-    if (paneTable.scrollTop + paneTable.clientHeight >= paneTable.scrollHeight - 350) appendTrackChunk();
-  }, { passive: true });
 
   async function playTrack(track, queue, idx) {
     currentlyPlayingId = track.id;
@@ -144,9 +128,14 @@
   }
 
   function updateActiveCards() {
-    document.querySelectorAll('.track-card').forEach(el => {
-      el.classList.toggle('active-playing', el.getAttribute('data-track-id') === currentlyPlayingId);
-    });
+    const prev = tableBody.querySelector('.track-card.active-playing');
+    if (prev && prev.getAttribute('data-track-id') !== currentlyPlayingId) {
+      prev.classList.remove('active-playing');
+    }
+    if (currentlyPlayingId) {
+      const cur = tableBody.querySelector(`.track-card[data-track-id="${currentlyPlayingId}"]`);
+      if (cur) cur.classList.add('active-playing');
+    }
   }
 
   function renderPlaylists() {
