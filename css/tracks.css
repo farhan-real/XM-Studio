@@ -82,7 +82,7 @@
   flex-shrink: 0;
 }
 
-/* Format Tags */
+/* Format Tags: Non-red distinctive colors for all standard audio formats */
 .fmt-badge {
   font-family: var(--font-mono);
   font-size: 0.58rem;
@@ -106,10 +106,11 @@
   border: 1px solid rgba(168, 85, 247, 0.25);
 }
 
+/* Impulse Tracker: Vibrant Teal (not red) */
 .fmt-it {
-  color: var(--col-rose);
-  background: rgba(244, 63, 94, 0.1);
-  border: 1px solid rgba(244, 63, 94, 0.25);
+  color: #2dd4bf;
+  background: rgba(45, 212, 191, 0.12);
+  border: 1px solid rgba(45, 212, 191, 0.3);
 }
 
 .fmt-s3m {

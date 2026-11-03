@@ -171,6 +171,19 @@
 .custom-track-artist { font-size: 0.70rem; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .library-empty-msg { text-align: center; padding: 30px 14px; color: var(--text-tertiary); font-size: 0.78rem; line-height: 1.4; }
 
+/* Status Badges in Source: Normal states use gold/green, errors use red exclusively */
+#backupStatusBadge {
+  color: var(--col-gold);
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+}
+
+#customCountBadge {
+  color: var(--accent);
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
 /* Studio Modals */
 .studio-modal-backdrop {
   position: fixed;

@@ -13,7 +13,11 @@
       statusMsg.textContent = text;
       statusMsg.style.color = isError ? 'var(--col-red)' : 'var(--col-gold)';
     }
-    if (statusBadge) statusBadge.textContent = badgeText;
+    if (statusBadge) {
+      statusBadge.textContent = badgeText;
+      statusBadge.className = 'badge';
+      if (isError) statusBadge.classList.add('badge-error');
+    }
   }
 
   function sanitize(str) {

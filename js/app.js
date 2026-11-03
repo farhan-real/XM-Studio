@@ -47,7 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const readoutProgressTrack = document.getElementById('readoutProgressTrack');
   const readoutProgressBar = document.getElementById('readoutProgressBar');
 
-  // Mobile layout switch
   const btnToggleLeft = document.getElementById('btnToggleLeft');
   const btnToggleRight = document.getElementById('btnToggleRight');
   const panelLeft = document.getElementById('panelLeft');
@@ -94,6 +93,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (state === 'ready') {
       statusBadge.classList.add('status-ready');
       statusBadge.textContent = 'STATUS: READY';
+    } else if (state === 'error') {
+      statusBadge.classList.add('status-error');
+      statusBadge.textContent = 'STATUS: ERROR';
     }
   }
 
@@ -160,7 +162,10 @@ document.addEventListener('DOMContentLoaded', () => {
     songTitle.textContent = "No Module Loaded";
     songArtist.textContent = "Ready for FastTracker II / Audio input";
     modType.textContent = "NONE";
-    if (badgeEngine) badgeEngine.classList.add('engine-none');
+    if (badgeEngine) {
+      badgeEngine.classList.add('engine-none');
+      badgeEngine.classList.remove('engine-error');
+    }
     channels.textContent = "--";
     progressBar.value = 0;
     progressBar.disabled = true;
@@ -244,7 +249,7 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       () => {
         readoutProgressTrack.classList.add('hide');
-        setStatus('ready');
+        setStatus('error');
       }
     );
   });
@@ -276,17 +281,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.XMApp = {
     updateTrackUI: function(title, artist, engine, channelCount, isNative) {
+      const isError = (engine === 'ERROR');
       songTitle.textContent = title;
       songArtist.textContent = artist;
       modType.textContent = engine;
-      if (badgeEngine) badgeEngine.classList.remove('engine-none');
+
+      if (badgeEngine) {
+        badgeEngine.classList.remove('engine-none');
+        badgeEngine.classList.toggle('engine-error', isError);
+      }
       channels.textContent = channelCount;
       qualityBadge.textContent = isNative ? engine : (activeFormat === 'mp3' ? "320 KBPS" : "16-BIT PCM");
-      rateBadge.textContent = "48 KHZ";
-      progressBar.disabled = false;
-      btnDownload.disabled = isNative;
-      setStatus('ready');
-      setPlayingState(true);
+      rateBadge.textContent = isError ? "--" : "48 KHZ";
+      progressBar.disabled = isError;
+      btnDownload.disabled = isNative || isError;
+      setStatus(isError ? 'error' : 'ready');
+      if (!isError) setPlayingState(true);
     },
     onTrackEnded: function() {
       setPlayingState(false);
