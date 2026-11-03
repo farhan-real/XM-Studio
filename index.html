@@ -29,21 +29,24 @@
 </head>
 <body>
   <main class="chassis" id="dropZone">
-    <!-- Header with X at Top Left and Status at Top -->
+    <!-- Header with Top Right X Button and Badges Below Heading -->
     <header class="header">
-      <div class="header-left">
+      <!-- Top Row: Heading on left, X on top right -->
+      <div class="header-top">
+        <div class="brand-cluster">
+          <span class="status-pip" id="statusPip"></span>
+          <span class="brand-title">XM-PRECISION</span>
+          <span class="model-sub">STUDIO DSP</span>
+        </div>
         <button class="btn-unload hide" id="btnUnload" title="Unload track" aria-label="Unload track">
           <svg viewBox="0 0 24 24" class="t-icon-xs">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
           </svg>
         </button>
-        <div class="brand-cluster">
-          <span class="status-pip" id="statusPip"></span>
-          <span class="brand-title">XM-PRECISION</span>
-          <span class="model-sub">STUDIO DSP</span>
-        </div>
       </div>
+
+      <!-- Badges Row: Positioned directly below heading -->
       <div class="header-badges">
         <span class="badge status-badge status-idle" id="statusBadge">STATUS: IDLE</span>
         <span class="badge" id="qualityBadge">320 KBPS</span>

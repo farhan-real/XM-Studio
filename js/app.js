@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Set Top Status Badge State: idle, compiling, ready
+  // Set Status Badge State: idle, compiling, ready
   function setStatus(state) {
     statusBadge.className = 'badge status-badge';
     if (state === 'idle') {
@@ -247,12 +247,12 @@ document.addEventListener('DOMContentLoaded', () => {
       qualityBadge.textContent = activeFormat === 'mp3' ? "320 KBPS" : "16-BIT PCM";
       rateBadge.textContent = "48 KHZ";
 
-      // Show top-left unload button and inline progress bar
+      // Show top-right unload button and inline progress bar
       btnUnload.classList.remove('hide');
       readoutProgressTrack.classList.remove('hide');
       readoutProgressBar.style.width = '0%';
 
-      // Set top status to COMPILING
+      // Set status to COMPILING
       setStatus('compiling');
 
       // PLAY IMMEDIATELY
