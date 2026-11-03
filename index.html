@@ -70,7 +70,14 @@
     <!-- Metadata Readout Panel -->
     <section class="readout-panel">
       <div class="readout-main">
-        <h2 class="song-title" id="songTitle">No Module Loaded</h2>
+        <div class="readout-title-row">
+          <h2 class="song-title" id="songTitle">No Module Loaded</h2>
+          <button class="btn-track-action hide" id="btnFavCurrent" title="Favorite track" aria-label="Favorite track">
+            <svg viewBox="0 0 24 24" class="t-icon-sm" id="svgFavCurrent">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+          </button>
+        </div>
         <p class="song-artist" id="songArtist">Ready for FastTracker II / Audio input</p>
         <div class="readout-progress-track hide" id="readoutProgressTrack">
           <div class="readout-progress-bar" id="readoutProgressBar"></div>
@@ -176,11 +183,11 @@
       </button>
     </div>
 
-    <!-- Slide-Up Library Browser Modal -->
+    <!-- Complete Library & Playlists Drawer -->
     <div class="library-drawer hide" id="libraryDrawer">
       <div class="library-header">
         <div class="library-title-group">
-          <span class="brand-title">XM-MUSIC LIBRARY</span>
+          <span class="brand-title">MUSIC WORKSPACE</span>
           <span class="badge" id="libraryCount">0 TRACKS</span>
         </div>
         <button class="btn-unload" id="btnCloseLibrary" title="Close Library" aria-label="Close Library">
@@ -191,18 +198,108 @@
         </button>
       </div>
 
-      <!-- Search Input -->
-      <div class="library-search-box">
-        <svg viewBox="0 0 24 24" class="search-icon">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
-        <input type="text" id="librarySearch" placeholder="Search title, artist, or subfolder..." autocomplete="off" />
+      <!-- Navigation Tabs: Library, Favorites, Playlists, Source -->
+      <nav class="drawer-tabs">
+        <button class="drawer-tab active" id="tabCloud" data-tab="cloud">
+          <svg viewBox="0 0 24 24" class="tab-icon">
+            <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
+          </svg>
+          <span>Cloud</span>
+        </button>
+        <button class="drawer-tab" id="tabFavs" data-tab="favs">
+          <svg viewBox="0 0 24 24" class="tab-icon">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+          <span>Favorites</span>
+        </button>
+        <button class="drawer-tab" id="tabPlaylists" data-tab="playlists">
+          <svg viewBox="0 0 24 24" class="tab-icon">
+            <line x1="8" y1="6" x2="21" y2="6"></line>
+            <line x1="8" y1="12" x2="21" y2="12"></line>
+            <line x1="8" y1="18" x2="21" y2="18"></line>
+            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+          </svg>
+          <span>Playlists</span>
+        </button>
+        <button class="drawer-tab" id="tabSource" data-tab="source">
+          <svg viewBox="0 0 24 24" class="tab-icon">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>Source</span>
+        </button>
+      </nav>
+
+      <!-- Panel 1: Cloud & Favorites Search Container -->
+      <div class="tab-pane active" id="paneTracks">
+        <div class="library-search-box">
+          <svg viewBox="0 0 24 24" class="search-icon">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="librarySearch" placeholder="Search title, artist, or subfolder..." autocomplete="off" />
+        </div>
+        <div class="library-list" id="libraryList">
+          <div class="library-empty-msg">Loading tracks...</div>
+        </div>
       </div>
 
-      <!-- High-Speed Virtual Track List -->
-      <div class="library-list" id="libraryList">
-        <div class="library-empty-msg">Connect your XM-Music repository to browse tracks.</div>
+      <!-- Panel 2: Playlists Manager -->
+      <div class="tab-pane hide" id="panePlaylists">
+        <div class="playlist-create-bar">
+          <input type="text" id="playlistNewName" placeholder="New playlist name..." maxlength="30" />
+          <button class="action-btn" id="btnCreatePlaylist">
+            <svg viewBox="0 0 24 24" class="action-icon">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>ADD</span>
+          </button>
+        </div>
+        <div class="playlist-view-header hide" id="playlistViewHeader">
+          <button class="seg-btn" id="btnBackPlaylists">← All Playlists</button>
+          <span class="brand-title" id="playlistActiveTitle">Playlist</span>
+          <button class="seg-btn" id="btnPlayAllPlaylist">▶ Play All</button>
+        </div>
+        <div class="library-list" id="playlistContainer"></div>
+      </div>
+
+      <!-- Panel 3: Source & Repository Configuration -->
+      <div class="tab-pane hide" id="paneSource">
+        <div class="source-config-card">
+          <div class="source-info">
+            <span class="spec-key">DEFAULT REPOSITORY</span>
+            <span class="source-url-text">https://farhan-real.github.io/XM-Music/</span>
+            <p class="source-subtext">XM-Music is your default library. You can optionally connect a custom personal library or reset back to default at any time.</p>
+          </div>
+          <div class="source-input-group">
+            <label class="spec-key" for="inputCustomSource">CUSTOM LIBRARY URL</label>
+            <input type="url" id="inputCustomSource" placeholder="https://username.github.io/my-music/" />
+          </div>
+          <div class="source-actions">
+            <button class="action-btn" id="btnSaveSource"><span>SAVE & SYNC</span></button>
+            <button class="action-btn action-btn-secondary" id="btnResetSource"><span>USE DEFAULT</span></button>
+          </div>
+          <div class="source-status-msg" id="sourceStatusMsg"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Add-to-Playlist Popover -->
+    <div class="playlist-modal hide" id="playlistModal">
+      <div class="playlist-modal-card">
+        <div class="modal-header">
+          <span class="brand-title">ADD TO PLAYLIST</span>
+          <button class="btn-unload" id="btnCloseModal">
+            <svg viewBox="0 0 24 24" class="t-icon-xs">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body" id="playlistModalList"></div>
       </div>
     </div>
   </main>

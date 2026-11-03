@@ -53,7 +53,7 @@ body {
   box-sizing: border-box;
 }
 
-/* Original Uncompressed Box Dimensions */
+/* Original, Uncompressed Box Dimensions */
 .chassis {
   width: 100%;
   max-width: 490px;
@@ -83,7 +83,6 @@ body {
   gap: 10px;
 }
 
-/* Top Row: Heading on left, Engine and X on top right */
 .header-top {
   display: flex;
   justify-content: space-between;
@@ -120,7 +119,6 @@ body {
   color: var(--text-tertiary);
 }
 
-/* Top Right Cluster: Engine Badge + X Button */
 .header-top-right {
   display: flex;
   align-items: center;
@@ -159,7 +157,6 @@ body {
   stroke-linejoin: round;
 }
 
-/* Badges Row: Left Badges Group + Status Badge at Right */
 .header-badges {
   display: flex;
   align-items: center;
@@ -175,7 +172,6 @@ body {
   flex-wrap: wrap;
 }
 
-/* Base Badge Style */
 .badge {
   font-family: var(--font-mono);
   font-size: 0.62rem;
@@ -192,7 +188,6 @@ body {
   margin-left: auto;
 }
 
-/* Status Badge States */
 .status-badge {
   transition: all 0.15s ease;
 }
@@ -231,7 +226,6 @@ body {
   box-shadow: 0 0 8px rgba(34, 197, 94, 0.12);
 }
 
-/* Engine & Channels Badges */
 .badge-engine {
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.04);
@@ -250,7 +244,6 @@ body {
   margin-right: 3px;
 }
 
-/* Original Visualizer Deck Height */
 .deck-container {
   width: 100%;
   height: 96px;
@@ -294,6 +287,13 @@ body {
   width: 100%;
 }
 
+.readout-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .song-title {
   font-size: 0.95rem;
   font-weight: 600;
@@ -302,6 +302,22 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   letter-spacing: -0.01em;
+  flex: 1;
+}
+
+.btn-track-action {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  transition: all 0.12s ease;
+}
+
+.btn-track-action:hover, .btn-track-action.active {
+  color: var(--accent);
 }
 
 .song-artist {
@@ -600,12 +616,12 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   stroke-linejoin: round;
 }
 
-/* Slide-Up Library Drawer */
+/* Full Workspace & Drawer Styling */
 .library-drawer {
   position: absolute;
   inset: 0;
   background: rgba(13, 15, 18, 0.98);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(14px);
   z-index: 50;
   padding: 18px;
   display: flex;
@@ -632,6 +648,61 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   gap: 8px;
 }
 
+/* Tab Navigation Strip */
+.drawer-tabs {
+  display: flex;
+  background: #090a0d;
+  padding: 3px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  gap: 2px;
+}
+
+.drawer-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.drawer-tab.active {
+  background: var(--surface-elevated);
+  color: var(--accent);
+}
+
+.tab-icon {
+  width: 13px;
+  height: 13px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.tab-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.tab-pane.hide {
+  display: none !important;
+}
+
 .library-search-box {
   display: flex;
   align-items: center;
@@ -647,8 +718,8 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 }
 
 .search-icon {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   stroke: var(--text-tertiary);
   fill: none;
   stroke-width: 2;
@@ -661,7 +732,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   border: none;
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   outline: none;
 }
 
@@ -674,7 +745,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
   padding-right: 4px;
 }
 
@@ -690,12 +761,12 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
+  padding: 7px 10px;
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
   border-radius: 6px;
-  cursor: pointer;
   transition: all 0.1s ease;
+  gap: 8px;
 }
 
 .library-item:hover {
@@ -703,15 +774,12 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   border-color: var(--border-strong);
 }
 
-.library-item:active {
-  transform: scale(0.99);
-}
-
 .lib-item-info {
   display: flex;
   flex-direction: column;
   min-width: 0;
   flex: 1;
+  cursor: pointer;
 }
 
 .lib-item-title {
@@ -724,26 +792,195 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 }
 
 .lib-item-sub {
-  font-size: 0.70rem;
+  font-size: 0.68rem;
   color: var(--text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.lib-item-meta {
+.lib-item-actions {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: 8px;
   flex-shrink: 0;
+}
+
+.btn-item-action {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 4px;
+  border-radius: 3px;
+  transition: color 0.1s ease;
+}
+
+.btn-item-action:hover {
+  color: var(--text-primary);
+}
+
+.btn-item-action.active {
+  color: var(--accent);
+}
+
+.playlist-create-bar {
+  display: flex;
+  gap: 8px;
+}
+
+#playlistNewName {
+  flex: 1;
+  background: #090a0d;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  outline: none;
+}
+
+#playlistNewName:focus {
+  border-color: var(--accent);
+}
+
+.playlist-view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 4px;
+}
+
+/* Source Settings Card */
+.source-config-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.source-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.source-url-text {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--led-green);
+  word-break: break-all;
+}
+
+.source-subtext {
+  font-size: 0.70rem;
+  color: var(--text-tertiary);
+  line-height: 1.3;
+}
+
+.source-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+#inputCustomSource {
+  background: #090a0d;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  outline: none;
+}
+
+#inputCustomSource:focus {
+  border-color: var(--accent);
+}
+
+.source-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.source-status-msg {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--accent);
+}
+
+/* Playlist Add Modal */
+.playlist-modal {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.playlist-modal-card {
+  width: 100%;
+  max-width: 320px;
+  background: var(--surface-base);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.8);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.modal-pl-btn {
+  padding: 8px 12px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.80rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.1s ease;
+}
+
+.modal-pl-btn:hover {
+  background: var(--surface-elevated);
+  border-color: var(--accent);
 }
 
 .library-empty-msg {
   text-align: center;
   padding: 30px 10px;
   color: var(--text-tertiary);
-  font-size: 0.80rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
 }
 
 .hide {
