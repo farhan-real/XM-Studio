@@ -1,5 +1,5 @@
 /**
- * js/engine/chiptune2.js - Real-time Chiptune2 DSP player engine with error callback.
+ * js/engine/chiptune2.js - Real-time Chiptune2 DSP player engine with 16k buffer cushion.
  */
 (function(window) {
   var ChiptuneAudioContext = window.AudioContext || window.webkitAudioContext;
@@ -82,13 +82,14 @@
     return meta;
   };
 
+  // 16,384-sample buffer provides ~341ms of cushion, preventing audio stutter during tab switching
   ChiptuneJsPlayer.prototype.play = function(buffer) {
     this.stop();
     this.unlock();
 
     var sampleRate = 48000;
     var maxFramesPerChunk = 4096;
-    var processNode = this.context.createScriptProcessor(8192, 0, 2);
+    var processNode = this.context.createScriptProcessor(16384, 0, 2);
     processNode.player = this;
 
     var byteArray = new Uint8Array(buffer);

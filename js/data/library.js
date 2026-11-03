@@ -1,5 +1,5 @@
 /**
- * js/data/library.js - Multi-line track list, numerical numbering, favorites highlight, and catalog management.
+ * js/data/library.js - High-performance chunked track rendering and lag-free tab caching.
  */
 (function(window) {
   const DEFAULT_REPO_URL = 'https://farhan-real.github.io/XM-Music/';
@@ -8,8 +8,14 @@
   let fullCatalog = [];
   let displayCatalog = [];
   let activeTab = 'archive';
+  let renderedTab = null;
   let currentPlaylistId = null;
   let currentlyPlayingId = null;
+
+  // Progressive rendering state (prevents main thread lockup & audio underruns)
+  const CHUNK_SIZE = 60;
+  let activeRenderQueue = [];
+  let currentRenderedIndex = 0;
 
   function getBaseUrl() {
     const saved = localStorage.getItem('xm_custom_library_url');
@@ -72,19 +78,18 @@
   const panePlaylists = document.getElementById('panePlaylists');
   const paneSource = document.getElementById('paneSource');
 
-  function renderTrackList(tracks) {
-    tableBody.innerHTML = '';
-    countBadge.textContent = `${tracks.length} TRACKS`;
-    if (tracks.length === 0) {
-      tableBody.innerHTML = '<div class="library-empty-msg">No matching tracks found.</div>';
-      return;
-    }
+  function appendTrackChunk() {
+    if (currentRenderedIndex >= activeRenderQueue.length) return;
+    const end = Math.min(currentRenderedIndex + CHUNK_SIZE, activeRenderQueue.length);
     const frag = document.createDocumentFragment();
-    tracks.forEach((track, idx) => {
+
+    for (let idx = currentRenderedIndex; idx < end; idx++) {
+      const track = activeRenderQueue[idx];
       const card = document.createElement('div');
       const isFav = window.XMPlaylist.isFavorited(track.id);
       const isPlaying = currentlyPlayingId === track.id;
       const fmtClass = getFormatBadgeClass(track.ext);
+
       card.className = `track-card ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}`;
       card.setAttribute('data-track-id', track.id);
       card.innerHTML = `
@@ -98,23 +103,56 @@
             <span class="track-card-artist">${track.artist}</span>
             <div class="track-card-actions">
               <button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite">
-                <svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? 'var(--col-gold)' : 'none'}" stroke="${isFav ? 'var(--col-gold)' : 'currentColor'}">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                </svg>
+                <svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? 'var(--col-gold)' : 'none'}" stroke="${isFav ? 'var(--col-gold)' : 'currentColor'}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
               </button>
-              <button class="km-btn-icon" data-action="add-pl" title="Add to playlist">
-                <svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-              </button>
+              <button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
             </div>
           </div>
         </div>`;
-      card.addEventListener('click', (e) => { if (e.target.closest('.km-btn-icon')) return; playTrack(track, tracks, idx); });
-      card.querySelector('[data-action="fav"]').addEventListener('click', (e) => { e.stopPropagation(); window.XMPlaylist.toggleFavorite(track); });
-      card.querySelector('[data-action="add-pl"]').addEventListener('click', (e) => { e.stopPropagation(); window.XMPlaylist.openPlaylistPicker(track); });
+
+      card.addEventListener('click', (e) => {
+        if (e.target.closest('.km-btn-icon')) return;
+        playTrack(track, activeRenderQueue, idx);
+      });
+      card.querySelector('[data-action="fav"]').addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.XMPlaylist.toggleFavorite(track);
+      });
+      card.querySelector('[data-action="add-pl"]').addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.XMPlaylist.openPlaylistPicker(track);
+      });
+
       frag.appendChild(card);
-    });
+    }
+
     tableBody.appendChild(frag);
+    currentRenderedIndex = end;
   }
+
+  function renderTrackList(tracks, forceReset = false) {
+    if (!forceReset && activeRenderQueue === tracks && tableBody.children.length > 0) {
+      updateActiveCards();
+      return;
+    }
+    tableBody.innerHTML = '';
+    activeRenderQueue = tracks;
+    currentRenderedIndex = 0;
+    countBadge.textContent = `${tracks.length} TRACKS`;
+
+    if (tracks.length === 0) {
+      tableBody.innerHTML = '<div class="library-empty-msg">No matching tracks found.</div>';
+      return;
+    }
+    appendTrackChunk();
+  }
+
+  // Infinite scroll trigger: loads next chunk without blocking audio
+  paneTable.addEventListener('scroll', () => {
+    if (paneTable.scrollTop + paneTable.clientHeight >= paneTable.scrollHeight - 350) {
+      appendTrackChunk();
+    }
+  }, { passive: true });
 
   async function playTrack(track, queue, idx) {
     currentlyPlayingId = track.id;
@@ -332,29 +370,39 @@
     activeTab = tabId;
     [tabArchive, tabPlaylists, tabFavs, tabSource].forEach(t => t.classList.remove('active'));
     [paneTable, panePlaylists, paneSource].forEach(p => p.classList.add('hide'));
+
     if (tabId === 'archive') {
       tabArchive.classList.add('active');
       searchBarWrap.classList.remove('hide');
       paneTable.classList.remove('hide');
       searchInput.placeholder = "Filter artist (A-Z), title, or folder...";
-      renderTrackList(displayCatalog);
+      if (renderedTab !== 'archive') {
+        renderTrackList(displayCatalog, true);
+        renderedTab = 'archive';
+      } else {
+        countBadge.textContent = `${displayCatalog.length} TRACKS`;
+        updateActiveCards();
+      }
     } else if (tabId === 'favorites') {
       tabFavs.classList.add('active');
       searchBarWrap.classList.remove('hide');
       paneTable.classList.remove('hide');
       searchInput.placeholder = "Filter favorites...";
-      renderTrackList(sortAlphabetical(window.XMPlaylist.getFavorites()));
+      renderTrackList(sortAlphabetical(window.XMPlaylist.getFavorites()), true);
+      renderedTab = 'favorites';
     } else if (tabId === 'playlists') {
       tabPlaylists.classList.add('active');
       searchBarWrap.classList.add('hide');
       panePlaylists.classList.remove('hide');
       renderPlaylists();
+      renderedTab = 'playlists';
     } else if (tabId === 'source') {
       tabSource.classList.add('active');
       searchBarWrap.classList.add('hide');
       paneSource.classList.remove('hide');
       document.getElementById('inputCustomSource').value = localStorage.getItem('xm_custom_library_url') || '';
       countBadge.textContent = "SOURCE";
+      renderedTab = 'source';
     }
   }
 
@@ -367,11 +415,11 @@
     const q = e.target.value.toLowerCase().trim();
     if (activeTab === 'archive') {
       displayCatalog = q ? fullCatalog.filter(t => (t.artist && t.artist.toLowerCase().includes(q)) || (t.title && t.title.toLowerCase().includes(q)) || (t.folder && t.folder.toLowerCase().includes(q))) : fullCatalog;
-      renderTrackList(displayCatalog);
+      renderTrackList(displayCatalog, true);
     } else if (activeTab === 'favorites') {
       const favs = window.XMPlaylist.getFavorites();
       const filtered = q ? favs.filter(t => (t.artist && t.artist.toLowerCase().includes(q)) || (t.title && t.title.toLowerCase().includes(q))) : favs;
-      renderTrackList(filtered);
+      renderTrackList(filtered, true);
     }
   });
 
@@ -379,7 +427,7 @@
     customCatalog = window.XMCustom ? await window.XMCustom.getTracks() : [];
     fullCatalog = sortAlphabetical([...customCatalog, ...remoteCatalog]);
     displayCatalog = fullCatalog;
-    if (activeTab === 'archive') renderTrackList(displayCatalog);
+    if (activeTab === 'archive') renderTrackList(displayCatalog, true);
   }
 
   async function loadCatalog() {
