@@ -12,7 +12,7 @@ XM-Studio is designed to run directly in your browser with zero installation:
 
 - **Runs Everywhere**: Works on Desktop and Android browsers (Chrome, Firefox, Safari, Edge).
 - **100% Client-Side Privacy**: All audio synthesis, DSP mixing, and file processing happen locally on your computer via WebAudio. Nothing is uploaded to external servers.
-- **Offline Capable**: Progressive web app structure with a service worker for instant runtime caching.
+- **Offline Capable**: Progressive web app architecture with a service worker for instant runtime caching.
 
 ---
 
@@ -32,13 +32,13 @@ Powered by `libopenmpt` compiled to WebAssembly, XM-Studio provides sample-accur
 ## Features
 
 ### Audio Engine & Real-Time DSP
-- **Offline Audio Compilation & Saving**: Compiles and exports tracker modules into standalone audio files (MP3/WAV), avoiding perpetual real-time DSP re-synthesis and eliminating the playback lag and audio stutter common in other tracker player websites.
 - **Tracker DSP Engine**: Full module playback via `libopenmpt` running at 48 kHz.
 - **Lossless FLAC Support**: Direct hardware-accelerated playback for `.flac` and native audio streams routed through WebAudio.
 - **Phosphor Spectrum Visualizer**: 28-band real-time audio analyzer rendered to HTML5 Canvas with device-pixel-ratio display scaling.
 - **Master Audio Compiler**: Export tracker modules on-demand to MP3 (320kbps CBR via LAME) or uncompressed WAV (16-bit PCM) without interrupting playback.
 
 ### High Performance & Mobile Optimization
+- **Offline Audio Compilation & Saving**: Compiles and exports tracker modules into standalone audio files (MP3/WAV), avoiding perpetual real-time DSP re-synthesis and eliminating the playback lag and audio stutter common in other tracker player websites.
 - **Multithreaded Background Worker**: Offloads heavy tracker module rendering and LAME MP3 compilation to a dedicated Web Worker thread, keeping the UI running at a fluid 60 FPS during audio exports.
 - **Native CSS Layout Virtualization**: Uses modern `content-visibility: auto` and `contain-intrinsic-size` to skip layout and paint passes for off-screen track cards, reducing DOM render time for 5,000+ tracks from ~400ms down to ~3ms.
 - **Single-Node Event Delegation**: Replaces thousands of per-card event closures with container delegation, eliminating memory leaks and garbage collection stutters on mobile.
@@ -57,8 +57,114 @@ Powered by `libopenmpt` compiled to WebAssembly, XM-Studio provides sample-accur
 - **Bold Favorites**: Starred favorites stand out in bold typography with a warm gold ambient tone.
 - **Playlist Manager with Shuffle**: Create, rename, delete playlists, launch randomized shuffle playback, and add tracks from the collection.
 - **Per-Playlist Import & Export**: Export any individual playlist to a clean `.json` file or import playlists directly.
-- **Local Custom Music (IndexedDB)**: Add custom music files directly in the Source tab. Files persist permanently in your browser's local database and blend into the Archive.
-- **Full ZIP Workstation Backup & Restore**: Export a complete `.zip` archive containing individual playlist JSONs, `favorites.json`, `config.json`, `custom_music.json`, and raw custom audio files, or restore everything seamlessly.
+- **Local Directory Folder Sources**: Ingest entire local directories into the workstation via the Source tab. Subdirectories and metadata are preserved and persisted offline in IndexedDB.
+- **Full ZIP Workstation Backup & Restore**: Export a complete `.zip` archive containing repository configurations, mounted local folders, playlist JSONs, `favorites.json`, `config.json`, `custom_music.json`, and raw custom audio files, or restore everything seamlessly.
+
+---
+
+## Music Repositories & XM-Music Integration
+
+XM-Studio decouples the audio library from the player chassis to keep deployment packages small while streaming music over HTTPS only when required. By leveraging open CORS headers, it streams audio on demand directly into client-side DSP memory, eliminating proxy overhead and audio stutter while keeping the app ultra-lightweight and responsive.
+
+### Default Repository: `XM-Music`
+By default, XM-Studio connects to [**XM-Music**](https://github.com/farhan-real/XM-Music) (`https://farhan-real.github.io/XM-Music/`), streaming thousands of indexed chiptunes and demoscene tracker modules directly through GitHub Pages.
+
+---
+
+### How to Set Up Another Music Repository
+
+You can host your own collection on GitHub Pages or any standard static web server and mount it directly into XM-Studio.
+
+#### 1. Repository Directory Structure
+Organize your audio files within a `music/` folder:
+
+```text
+My-Music-Repo/
+├── tracks.json             <-- Root index manifest consumed by XM-Studio
+├── generate_index.py       <-- Script to build tracks.json automatically
+└── music/
+    ├── Demoscene/
+    │   └── Skaven - Catch That Goblin.xm
+    └── Amiga/
+        └── Jochen Hippel - Wings of Death.mod
+```
+
+File naming convention: `Artist - Title.ext` (e.g. `Purple Motion - Satellite One.s3m`).
+
+#### 2. The `tracks.json` Manifest Format
+At the root of your repository, supply a `tracks.json` array containing an entry for every track:
+
+```json
+[
+  {
+    "title": "Catch That Goblin",
+    "artist": "Skaven",
+    "folder": "Demoscene",
+    "path": "music/Demoscene/Skaven - Catch That Goblin.xm",
+    "ext": "XM"
+  },
+  {
+    "title": "Wings of Death",
+    "artist": "Jochen Hippel",
+    "folder": "Amiga",
+    "path": "music/Amiga/Jochen Hippel - Wings of Death.mod",
+    "ext": "MOD"
+  }
+]
+```
+
+#### Field Specifications
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `title` | `string` | Track song title displayed in the player and card lists. |
+| `artist` | `string` | Composer or musician name. |
+| `folder` | `string` | Category, subfolder, or collection label for searching and grouping. |
+| `path` | `string` | Relative path to the audio file from the repository root. |
+| `ext` | `string` | Uppercase audio format extension (`XM`, `MOD`, `IT`, `S3M`, `FLAC`, etc.). |
+
+#### 3. Indexing Script (`generate_index.py`)
+Use this Python script inside your repository to generate `tracks.json` recursively:
+
+```python
+import os, json, re
+
+MUSIC_DIR = "music"
+EXTS = (".xm", ".mod", ".it", ".s3m", ".mtm", ".flac", ".mp3", ".ogg", ".wav", ".v2m", ".mid", ".ahx", ".sid")
+
+tracks = []
+for root, _, files in os.walk(MUSIC_DIR):
+    for f in sorted(files):
+        ext = os.path.splitext(f)[1].lower()
+        if ext in EXTS:
+            rel = os.path.relpath(os.path.join(root, f), ".").replace("\\", "/")
+            base = re.sub(r'\s+', ' ', f.rsplit(".", 1)[0].replace("_-_", " - ").replace("_", " ")).strip()
+            artist, title = base.split(" - ", 1) if " - " in base else ("Unknown Artist", base)
+            folder = os.path.basename(root)
+            tracks.append({
+                "title": title.strip(),
+                "artist": artist.strip(),
+                "folder": folder if folder.lower() != "music" else "Root",
+                "path": rel,
+                "ext": ext.replace(".", "").upper()
+            })
+
+with open("tracks.json", "w", encoding="utf-8") as out:
+    json.dump(tracks, out, indent=2, ensure_ascii=False)
+```
+
+#### 4. Enable GitHub Pages & Cross-Origin Access
+1. Push your repository to GitHub.
+2. Go to **Settings** → **Pages** → select **Deploy from a branch** (`main` / root).
+3. GitHub Pages automatically serves files with open `Access-Control-Allow-Origin: *` headers, allowing XM-Studio to stream and decode files into WebAudio buffers.
+
+#### 5. Connect to XM-Studio
+1. In XM-Studio, click the **Source** tab in the navigation bar.
+2. Under **Online Repositories (Multiple)**, enter your repository URL:
+   ```text
+   https://<your-username>.github.io/<repo-name>/
+   ```
+3. Click **+ Add**, then click **Sync All Repos**.
+4. Tracks from all active repositories will blend into the unified **Archive** list.
 
 ---
 
@@ -89,20 +195,6 @@ Open `http://localhost:8080` in your web browser.
 
 ---
 
-## Dependencies Reference
-
-All runtime dependencies (`libopenmpt.js`, `libopenmpt.js.mem`, and `lame.min.js`) are already included inside the `js/` directory.
-
-If you ever need to manually re-download or update them, run:
-
-```bash
-curl -L -o js/libopenmpt.js https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js
-curl -L -o js/libopenmpt.js.mem https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js.mem
-curl -L -o js/lame.min.js https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js
-```
-
----
-
 ## Directory Architecture
 
 ```
@@ -127,6 +219,7 @@ curl -L -o js/lame.min.js https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js
     └── data/
         ├── backup.js        # ZIP backup export & restore manager
         ├── custom.js        # IndexedDB storage for user-uploaded custom tracks
+        ├── sources.js       # Multiple repository aggregator & local folder sources
         ├── library.js       # Catalog fetcher, live search & archive list
         ├── playlist.js      # Playlist CRUD storage, export/import & dialogs
         └── zip.js           # Client-side ZIP writer and extractor
