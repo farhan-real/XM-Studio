@@ -7,18 +7,19 @@
   --border-subtle: rgba(255, 255, 255, 0.07);
   --border-strong: rgba(255, 255, 255, 0.14);
   
-  /* Studio Warm Amber Accents (Zero electric blue) */
-  --accent: #f59e0b;
-  --accent-light: #fbbf24;
-  --accent-dim: rgba(245, 158, 11, 0.14);
-  --accent-border: rgba(245, 158, 11, 0.4);
-  
-  /* Rich Hardware Status Colors */
-  --led-green: #22c55e;
-  --led-amber: #f59e0b;
-  --led-red: #ef4444;
+  /* Studio Multi-Color Hardware Palette (Zero electric blue, zero monotonous flat look) */
+  --accent: #22c55e;               /* Green: Primary Clock, Ready & Transport */
+  --accent-light: #4ade80;
+  --accent-dim: rgba(34, 197, 94, 0.14);
+  --accent-border: rgba(34, 197, 94, 0.4);
 
-  --text-primary: #f3f4f6;
+  --col-gold: #eab308;              /* Gold: Bitrate, Compiling & Favorites */
+  --col-purple: #c084fc;            /* Purple/Violet: Channels & Polyphony */
+  --col-rose: #fb7185;              /* Rose/Coral: Audio Engine */
+  --col-slate: #94a3b8;             /* Slate: Idle & Neutral Placeholders */
+  --col-red: #ef4444;               /* Red: Unload & Danger */
+
+  --text-primary: #f8fafc;
   --text-secondary: #cbd5e1;
   --text-tertiary: #64748b;
   --text-muted: #475569;
@@ -73,7 +74,7 @@ body {
   flex-direction: column;
 }
 
-/* Mobile Toggle Switcher (Hidden on Desktop) */
+/* Mobile Toggle Switcher */
 .mobile-view-toggle {
   display: none;
   padding: 8px 12px;
@@ -166,7 +167,7 @@ body {
   height: 7px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
 }
 
 .brand-title {
@@ -209,10 +210,12 @@ body {
 .btn-unload:hover {
   background: rgba(239, 68, 68, 0.12);
   border-color: rgba(239, 68, 68, 0.4);
-  color: #ef4444;
+  color: var(--col-red);
 }
 
-/* Badges Row */
+/* ==========================================================================
+   Multi-Color Hardware Status Badges
+   ========================================================================== */
 .header-badges {
   display: flex;
   align-items: center;
@@ -240,6 +243,53 @@ body {
   line-height: 1.2;
 }
 
+/* 1. Quality / Bitrate Badge: Warm Gold */
+#qualityBadge {
+  color: var(--col-gold);
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  box-shadow: 0 0 8px rgba(234, 179, 8, 0.1);
+}
+
+/* 2. Clock / Rate Badge: Phosphor Green */
+#rateBadge {
+  color: var(--accent);
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.1);
+}
+
+/* 3. Channels Badge: Violet / Orchid */
+.badge-channels {
+  color: var(--col-purple);
+  background: rgba(168, 85, 247, 0.12);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.1);
+}
+
+/* 4. Engine Badge: Coral / Rose (or Slate when NONE) */
+.badge-engine {
+  color: var(--col-rose);
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.35);
+  box-shadow: 0 0 8px rgba(244, 63, 94, 0.1);
+  transition: all 0.15s ease;
+}
+
+.badge-engine.engine-none {
+  color: var(--col-slate);
+  background: rgba(148, 163, 184, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  box-shadow: none;
+}
+
+.spec-key {
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 700;
+  margin-right: 3px;
+}
+
+/* 5. Status Badge States: Right Aligned */
 #statusBadge {
   margin-left: auto;
 }
@@ -249,55 +299,23 @@ body {
 }
 
 .status-idle {
-  color: var(--text-muted);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--col-slate);
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 .status-compiling {
-  color: var(--accent);
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.12);
+  color: var(--col-gold);
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  box-shadow: 0 0 8px rgba(234, 179, 8, 0.15);
 }
 
 .status-ready {
-  color: var(--led-green);
+  color: var(--accent);
   background: rgba(34, 197, 94, 0.12);
   border: 1px solid rgba(34, 197, 94, 0.35);
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.12);
-}
-
-#qualityBadge {
-  color: var(--accent);
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.35);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.12);
-}
-
-#rateBadge {
-  color: var(--led-green);
-  background: rgba(34, 197, 94, 0.12);
-  border: 1px solid rgba(34, 197, 94, 0.35);
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.12);
-}
-
-.badge-engine {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.badge-channels {
-  color: var(--accent);
-  background: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.28);
-}
-
-.spec-key {
-  color: var(--text-muted);
-  font-weight: 700;
-  margin-right: 3px;
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.15);
 }
 
 /* Visualizer Deck */
@@ -427,7 +445,8 @@ body {
 
 .seg-btn.active {
   background: var(--surface-elevated);
-  color: var(--accent);
+  color: var(--col-gold);
+  border: 1px solid rgba(234, 179, 8, 0.3);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
@@ -528,7 +547,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   height: 54px;
   background: var(--surface-elevated);
   border-color: var(--border-strong);
-  color: var(--text-primary);
+  color: var(--accent);
 }
 
 .t-btn-main:hover {
@@ -605,7 +624,7 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
   font-family: var(--font-mono);
   font-size: 0.65rem;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: var(--col-gold);
   min-width: 26px;
   text-align: right;
   letter-spacing: 0.02em;
@@ -690,7 +709,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     max-width: 480px;
   }
 
-  /* When toggling on mobile */
   .panel-left.mobile-hide,
   .chassis.mobile-hide {
     display: none !important;

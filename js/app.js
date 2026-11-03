@@ -57,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const songTitle = document.getElementById('songTitle');
   const songArtist = document.getElementById('songArtist');
   const modType = document.getElementById('modType');
+  const badgeEngine = document.querySelector('.badge-engine');
   const channels = document.getElementById('channels');
   const qualityBadge = document.getElementById('qualityBadge');
   const rateBadge = document.getElementById('rateBadge');
@@ -244,8 +245,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const val = dataArray[i] / 255;
         const barHeight = Math.max(3 * window.devicePixelRatio, val * (canvas.height - 8));
 
+        // Phosphor Green Peak with Silver Mids
         if (val > 0.82) {
-          ctx.fillStyle = '#f59e0b';
+          ctx.fillStyle = '#22c55e';
         } else if (val > 0.5) {
           ctx.fillStyle = '#d4d4d8';
         } else {
@@ -298,6 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
     songTitle.textContent = "No Module Loaded";
     songArtist.textContent = "Ready for FastTracker II / Audio input";
     modType.textContent = "NONE";
+    if (badgeEngine) badgeEngine.classList.add('engine-none');
     channels.textContent = "--";
 
     readoutProgressTrack.classList.add('hide');
@@ -339,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
     currentQueue = queue || null;
     currentQueueIdx = (queueIdx !== undefined) ? queueIdx : -1;
 
-    // 1. Native Stream (.mp3, .ogg, .wav)
+    // 1. Native Stream
     if (NATIVE_STREAM_EXTS.includes(ext)) {
       isNativeStream = true;
       readoutProgressTrack.classList.add('hide');
@@ -360,6 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
       songTitle.textContent = info.title;
       songArtist.textContent = info.artist;
       modType.textContent = ext.replace('.', '').toUpperCase();
+      if (badgeEngine) badgeEngine.classList.remove('engine-none');
       channels.textContent = "2 CH";
       qualityBadge.textContent = ext.replace('.', '').toUpperCase();
       rateBadge.textContent = "DIRECT";
@@ -402,6 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
       songTitle.textContent = info.title;
       songArtist.textContent = info.artist;
       modType.textContent = (meta.type_long || "FT2").toUpperCase();
+      if (badgeEngine) badgeEngine.classList.remove('engine-none');
       channels.textContent = `${meta.channels || 8} CH`;
 
       qualityBadge.textContent = activeFormat === 'mp3' ? "320 KBPS" : "16-BIT PCM";
@@ -591,6 +596,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadModule('https://deskjet.github.io/chiptune2.js/tunes/chipsounds.mod', 'Dubmood - Chipsounds.mod');
   });
 
+  // Drag and drop
   ['dragenter', 'dragover'].forEach(n => dropZone.addEventListener(n, (e) => {
     e.preventDefault();
     dropZone.classList.add('drag-over');

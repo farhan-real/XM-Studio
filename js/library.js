@@ -13,7 +13,7 @@
   let fullCatalog = [];
   let displayCatalog = [];
   let isCatalogLoaded = false;
-  let activeTab = 'archive'; // 'archive', 'playlists', 'favorites', 'source'
+  let activeTab = 'archive';
   let currentPlaylistId = null;
   let currentlyPlayingId = null;
 
@@ -187,6 +187,15 @@
     }
   }
 
+  function getFormatBadgeClass(ext) {
+    const e = (ext || 'xm').toLowerCase();
+    if (e === 'xm') return 'fmt-xm';
+    if (e === 'mod') return 'fmt-mod';
+    if (e === 'it') return 'fmt-it';
+    if (e === 's3m') return 'fmt-s3m';
+    return 'fmt-default';
+  }
+
   // Keygenmusic Table Renderer
   function renderKeygenmusicTable(tracks) {
     tableBody.innerHTML = '';
@@ -202,6 +211,7 @@
       const row = document.createElement('div');
       const isFav = isFavorited(track.id);
       const isPlaying = currentlyPlayingId === track.id;
+      const fmtClass = getFormatBadgeClass(track.ext);
 
       row.className = `km-row ${isPlaying ? 'active-playing' : ''}`;
       row.innerHTML = `
@@ -213,11 +223,11 @@
         <div class="km-col-artist" title="${track.artist}">${track.artist}</div>
         <div class="km-col-title" title="${track.title}">${track.title}</div>
         <div class="km-col-fmt">
-          <span class="badge">${track.ext || 'XM'}</span>
+          <span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span>
         </div>
         <div class="km-col-actions">
           <button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite">
-            <svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? '#f59e0b' : 'none'}" stroke="${isFav ? '#f59e0b' : 'currentColor'}">
+            <svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? 'var(--col-gold)' : 'none'}" stroke="${isFav ? 'var(--col-gold)' : 'currentColor'}">
               <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
             </svg>
           </button>
@@ -261,7 +271,7 @@
     }
   }
 
-  // Playlists View (CRUD: Create, Modify, Delete, Add From Collection, Delete Added)
+  // Playlists View (CRUD)
   function renderPlaylists() {
     playlistCreateRow.classList.remove('hide');
     playlistDetailToolbar.classList.add('hide');
@@ -321,7 +331,7 @@
     });
   }
 
-  // Playlist Detail View (View Tracks, Delete Added, Add From Collection)
+  // Playlist Detail View
   function viewPlaylist(plId) {
     currentPlaylistId = plId;
     const pl = getPlaylists().find(p => p.id === plId);
@@ -340,6 +350,8 @@
     const frag = document.createDocumentFragment();
     pl.tracks.forEach((track, idx) => {
       const row = document.createElement('div');
+      const fmtClass = getFormatBadgeClass(track.ext);
+
       row.className = 'km-row';
       row.innerHTML = `
         <div class="km-col-play">
@@ -349,7 +361,7 @@
         </div>
         <div class="km-col-artist" title="${track.artist}">${track.artist}</div>
         <div class="km-col-title" title="${track.title}">${track.title}</div>
-        <div class="km-col-fmt"><span class="badge">${track.ext || 'XM'}</span></div>
+        <div class="km-col-fmt"><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div>
         <div class="km-col-actions">
           <button class="km-btn-icon" data-action="remove-added" title="Delete added track">
             <svg viewBox="0 0 24 24" class="t-icon-xs">
@@ -365,7 +377,6 @@
         playTrack(track, pl.tracks, idx);
       });
 
-      // "Delete Added" action
       row.querySelector('[data-action="remove-added"]').addEventListener('click', (e) => {
         e.stopPropagation();
         removeTrackFromPlaylist(plId, idx);
@@ -507,7 +518,7 @@
 
     let listHtml = '<div class="modal-collection-list">';
     pls.forEach((p, i) => {
-      listHtml += `<button class="action-btn" data-pl-idx="${i}" style="width:100%;justify-content:space-between;padding:8px 12px;margin-bottom:4px;"><span>${p.name}</span><span class="badge">${p.tracks.length}</span></button>`;
+      listHtml += `<button class="action-btn" data-pl-idx="${i}" style="width:100%;justify-content:space-between;padding:8px 12px;margin-bottom:4px;"><span>${p.name}</span><span class="badge" style="color:var(--col-purple);">${p.tracks.length}</span></button>`;
     });
     listHtml += '</div>';
 
@@ -618,7 +629,6 @@
     }, 600);
   });
 
-  // Initialize catalog on start
   loadCatalog();
 
   window.XMLibrary = {
