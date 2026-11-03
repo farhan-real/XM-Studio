@@ -1,5 +1,5 @@
 /**
- * js/engine/audio.js - Master playback coordinator with FLAC lossless stream support.
+ * js/engine/audio.js - Master playback coordinator with exact track metadata fidelity.
  */
 (function(window) {
   const player = new ChiptuneJsPlayer();
@@ -35,26 +35,38 @@
 
   function parseTrackInfo(filename, internalMeta) {
     internalMeta = internalMeta || {};
-    let base = filename.replace(/\.[a-z0-9]+$/i, '').trim();
+    let base = (filename || '').replace(/\.[a-z0-9]+$/i, '').trim();
     if (base.includes('_-_')) base = base.replace(/_-_/g, ' - ').replace(/_/g, ' ');
     else if (!base.includes(' ') && base.includes('_')) base = base.replace(/_/g, ' ');
 
-    let rawArtist = (internalMeta.artist || '').trim();
-    let rawTitle = (internalMeta.title || '').trim();
-
     const match = base.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+    let artist = '';
+    let title = '';
+
     if (match) {
-      if (!rawArtist) rawArtist = match[1].trim();
-      if (!rawTitle) rawTitle = match[2].trim();
+      artist = match[1].trim();
+      title = match[2].trim();
     } else {
-      if (!rawTitle) rawTitle = base;
-      if (!rawArtist) rawArtist = internalMeta.type_long || "FastTracker II";
+      title = (internalMeta.title || '').trim() || base;
+      artist = (internalMeta.artist || '').trim();
     }
 
     return {
-      artist: rawArtist || "Unknown Artist",
-      title: rawTitle || "Untitled Track"
+      title: title || 'Untitled Track',
+      artist: artist || (internalMeta.type_long || 'FastTracker II')
     };
+  }
+
+  function resolveTrackUrl(item) {
+    if (item.url) return item.url;
+    if (!item.path) return null;
+    if (item.path.startsWith('http://') || item.path.startsWith('https://')) {
+      return item.path;
+    }
+    const baseUrl = window.XMLibrary ? window.XMLibrary.getBaseUrl() : 'https://farhan-real.github.io/XM-Music/';
+    const cleanBase = baseUrl.replace(/\/+$/, '');
+    const cleanPath = item.path.replace(/^\/+/, '');
+    return `${cleanBase}/${cleanPath}`;
   }
 
   async function playTrackAt(idx) {
@@ -68,8 +80,7 @@
         return;
       }
     }
-    const baseUrl = window.XMLibrary ? window.XMLibrary.getBaseUrl() : 'https://farhan-real.github.io/XM-Music/';
-    const fullUrl = item.path ? `${baseUrl}${item.path}` : (item.url || null);
+    const fullUrl = resolveTrackUrl(item);
     loadTrack(fullUrl, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, currentQueue, idx);
   }
 
@@ -104,6 +115,15 @@
     currentQueue = queue || null;
     currentQueueIdx = (queueIdx !== undefined) ? queueIdx : -1;
 
+    let targetTitle = (trackItemRef && trackItemRef.title) ? trackItemRef.title.trim() : '';
+    let targetArtist = (trackItemRef && trackItemRef.artist) ? trackItemRef.artist.trim() : '';
+
+    if (!targetTitle) {
+      const parsed = parseTrackInfo(fallbackName, {});
+      targetTitle = parsed.title;
+      targetArtist = targetArtist || parsed.artist;
+    }
+
     if (NATIVE_STREAM_EXTS.includes(ext)) {
       isNativeStream = true;
       currentRawBuffer = null;
@@ -114,16 +134,15 @@
         audioEl.src = fileOrUrl;
       }
 
-      const info = parseTrackInfo(fallbackName, {});
-      activeTitle = info.title;
-      activeArtist = info.artist;
+      activeTitle = targetTitle;
+      activeArtist = targetArtist;
 
       routeNativeAudioToWebAudio();
       audioEl.loop = isLooping;
       audioEl.play().catch(() => {});
 
       if (window.XMApp) {
-        window.XMApp.updateTrackUI(info.title, info.artist, ext.replace('.', '').toUpperCase(), '2 CH', true);
+        window.XMApp.updateTrackUI(targetTitle, targetArtist, ext.replace('.', '').toUpperCase(), '2 CH', true);
       }
       if (window.XMLibrary && trackItemRef) {
         window.XMLibrary.notifyPlaying(trackItemRef.id);
@@ -137,15 +156,20 @@
       currentRawBuffer = buf;
 
       const meta = player.readMetadata(buf) || {};
-      const info = parseTrackInfo(fallbackName, meta);
-      activeTitle = info.title;
-      activeArtist = info.artist;
+      if (!targetTitle) {
+        const parsed = parseTrackInfo(fallbackName, meta);
+        targetTitle = parsed.title;
+        targetArtist = targetArtist || parsed.artist;
+      }
+
+      activeTitle = targetTitle;
+      activeArtist = targetArtist;
 
       player.setRepeat(isLooping);
       player.play(buf);
 
       if (window.XMApp) {
-        window.XMApp.updateTrackUI(info.title, info.artist, (meta.type_long || "FT2").toUpperCase(), `${meta.channels || 8} CH`, false);
+        window.XMApp.updateTrackUI(targetTitle, targetArtist, (meta.type_long || "FT2").toUpperCase(), `${meta.channels || 8} CH`, false);
       }
       if (window.XMLibrary && trackItemRef) {
         window.XMLibrary.notifyPlaying(trackItemRef.id);

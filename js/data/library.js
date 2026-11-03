@@ -1,5 +1,5 @@
 /**
- * js/data/library.js - Multi-line track list, FLAC tag detection, and catalog rendering.
+ * js/data/library.js - Multi-line track list, metadata normalization, and accurate playback.
  */
 (function(window) {
   const DEFAULT_REPO_URL = 'https://farhan-real.github.io/XM-Music/';
@@ -33,6 +33,15 @@
     if (e === 's3m') return 'fmt-s3m';
     if (e === 'flac') return 'fmt-flac';
     return 'fmt-default';
+  }
+
+  function resolveTrackUrl(item) {
+    if (item.url) return item.url;
+    if (!item.path) return null;
+    if (item.path.startsWith('http://') || item.path.startsWith('https://')) return item.path;
+    const cleanBase = getBaseUrl().replace(/\/+$/, '');
+    const cleanPath = item.path.replace(/^\/+/, '');
+    return `${cleanBase}/${cleanPath}`;
   }
 
   const tableBody = document.getElementById('kmTableBody');
@@ -79,11 +88,11 @@
       card.setAttribute('data-track-id', track.id);
       card.innerHTML = `
         <div class="track-card-row1">
-          <span class="track-card-title">${track.title || 'Untitled Track'}</span>
+          <span class="track-card-title">${track.title}</span>
           <span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span>
         </div>
         <div class="track-card-row2">
-          <span class="track-card-artist">${track.artist || 'Unknown Artist'}</span>
+          <span class="track-card-artist">${track.artist}</span>
           <div class="track-card-actions">
             <button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite">
               <svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? 'var(--col-gold)' : 'none'}" stroke="${isFav ? 'var(--col-gold)' : 'currentColor'}">
@@ -129,7 +138,7 @@
         return;
       }
     }
-    const fullUrl = track.path ? `${getBaseUrl()}${track.path}` : (track.url || null);
+    const fullUrl = resolveTrackUrl(track);
     window.XMAudio.loadTrack(fullUrl, `${track.artist} - ${track.title}.${(track.ext || 'xm').toLowerCase()}`, track, queue, idx);
   }
 
@@ -423,7 +432,15 @@
       const res = await fetch(`${baseUrl}tracks.json`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      data.forEach(t => { if (!t.id) t.id = `cloud_${t.path}`; });
+      data.forEach((t, i) => {
+        t.title = (t.title || t.name || t.song || '').trim() || (t.path ? t.path.split('/').pop().replace(/\.[a-z0-9]+$/i, '') : `Track ${i + 1}`);
+        t.artist = (t.artist || t.author || '').trim() || 'Unknown Artist';
+        if (!t.ext && t.path) {
+          const m = t.path.match(/\.([a-z0-9]+)$/i);
+          if (m) t.ext = m[1].toUpperCase();
+        }
+        if (!t.id) t.id = t.path ? `cloud_${t.path}` : `track_${i}`;
+      });
       remoteCatalog = data;
     } catch (e) {
       remoteCatalog = [];
