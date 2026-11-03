@@ -121,7 +121,6 @@ body {
   line-height: 1.2;
 }
 
-/* Quality Badge: Studio Warm Amber */
 #qualityBadge {
   color: var(--accent);
   background: rgba(245, 158, 11, 0.12);
@@ -129,7 +128,6 @@ body {
   box-shadow: 0 0 8px rgba(245, 158, 11, 0.12);
 }
 
-/* Sample Rate / Clock Badge: Phosphor Green */
 #rateBadge {
   color: var(--led-green);
   background: rgba(34, 197, 94, 0.12);
@@ -168,69 +166,7 @@ body {
   pointer-events: none;
 }
 
-.compiler-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(13, 15, 18, 0.94);
-  backdrop-filter: blur(4px);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  gap: 12px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
-  z-index: 10;
-}
-
-.compiler-overlay.active {
-  opacity: 1;
-  pointer-events: all;
-}
-
-.compiler-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.compiler-spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--border-strong);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.compiler-text {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--accent);
-  letter-spacing: 0.06em;
-}
-
-.compiler-bar-track {
-  width: 72%;
-  height: 4px;
-  background: var(--surface-card);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.compiler-bar {
-  width: 0%;
-  height: 100%;
-  background: var(--accent);
-  transition: width 0.06s linear;
-}
-
+/* Readout Panel with Integrated Inline Loading Bar */
 .readout-panel {
   display: flex;
   justify-content: space-between;
@@ -264,6 +200,23 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.readout-progress-track {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.readout-progress-bar {
+  width: 0%;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.1s linear;
 }
 
 .readout-specs {

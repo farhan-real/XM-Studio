@@ -42,30 +42,22 @@
       </div>
     </header>
 
-    <!-- Spectrum Display Deck -->
+    <!-- Spectrum Display Deck (Always Unobscured) -->
     <div class="deck-container">
       <div class="canvas-wrap">
         <canvas id="visualizer"></canvas>
       </div>
       <div class="screen-grid"></div>
-
-      <!-- Pre-render Compiler Overlay -->
-      <div class="compiler-overlay" id="compilerOverlay">
-        <div class="compiler-info">
-          <span class="compiler-spinner"></span>
-          <span class="compiler-text" id="compilerStatus">DSP RENDERING 48 KHZ</span>
-        </div>
-        <div class="compiler-bar-track">
-          <div class="compiler-bar" id="compilerProgressBar"></div>
-        </div>
-      </div>
     </div>
 
-    <!-- Metadata Readout -->
+    <!-- Metadata Readout Panel (Houses Integrated Loading) -->
     <section class="readout-panel">
       <div class="readout-main">
         <h2 class="song-title" id="songTitle">NO MODULE LOADED</h2>
         <p class="song-artist" id="songArtist">Ready for FastTracker II / Audio input</p>
+        <div class="readout-progress-track hide" id="readoutProgressTrack">
+          <div class="readout-progress-bar" id="readoutProgressBar"></div>
+        </div>
       </div>
       <div class="readout-specs">
         <div class="spec-block">

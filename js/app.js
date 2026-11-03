@@ -12,29 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeFormat = 'mp3';
   let isSeeking = false;
   let activeTitle = "NO MODULE LOADED";
+  let isNativeStream = false;
 
-  // Native streaming extensions that bypass OpenMPT compilation
+  // Native streaming extensions that bypass OpenMPT
   const NATIVE_STREAM_EXTS = ['.mp3', '.ogg', '.wav'];
-
-  // WebAudio Graph for Spectrum Analyzer
-  let audioCtx = null;
-  let analyser = null;
-  let sourceNode = null;
-
-  function initVisualizerRouting() {
-    if (!audioCtx) {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 64;
-      analyser.smoothingTimeConstant = 0.82;
-      sourceNode = audioCtx.createMediaElementSource(audioEl);
-      sourceNode.connect(analyser);
-      analyser.connect(audioCtx.destination);
-    }
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
-  }
 
   // UI Elements
   const btnPlayPause = document.getElementById('btnPlayPause');
@@ -60,9 +41,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnFmtMp3 = document.getElementById('btnFmtMp3');
   const btnFmtWav = document.getElementById('btnFmtWav');
 
-  const compilerOverlay = document.getElementById('compilerOverlay');
-  const compilerProgressBar = document.getElementById('compilerProgressBar');
-  const compilerStatus = document.getElementById('compilerStatus');
+  const readoutProgressTrack = document.getElementById('readoutProgressTrack');
+  const readoutProgressBar = document.getElementById('readoutProgressBar');
 
   // Canvas Studio Meter
   const canvas = document.getElementById('visualizer');
@@ -96,127 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return match ? match[0] : '';
   }
 
-  // Compiler Execution
-  function processAudioBuffer(buffer, fallbackName) {
-    currentRawBuffer = buffer;
-    compilerOverlay.classList.add('active');
-    compilerProgressBar.style.width = '0%';
-    compilerStatus.textContent = activeFormat === 'mp3' 
-      ? 'DSP RENDERING 320 KBPS' 
-      : 'DSP RENDERING 16-BIT WAV';
-
-    player.compileAudio(
-      buffer,
-      activeFormat,
-      (progress) => {
-        compilerProgressBar.style.width = `${Math.round(progress * 100)}%`;
-        compilerStatus.textContent = `DSP RENDERING ${Math.round(progress * 100)}%`;
-      },
-      (audioBlob, duration, meta) => {
-        compilerOverlay.classList.remove('active');
-        if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
-
-        currentAudioBlob = audioBlob;
-        currentAudioUrl = URL.createObjectURL(audioBlob);
-        audioEl.src = currentAudioUrl;
-
-        activeTitle = meta.title || fallbackName || "UNTITLED MODULE";
-        songTitle.textContent = activeTitle;
-        songArtist.textContent = meta.artist || "FastTracker II Module";
-        modType.textContent = (meta.type_long || "FT2").toUpperCase();
-        channels.textContent = `${meta.channels || 8} CH`;
-
-        if (activeFormat === 'mp3') {
-          qualityBadge.textContent = "320 KBPS";
-          rateBadge.textContent = "48 KHZ";
-        } else {
-          qualityBadge.textContent = "16-BIT PCM";
-          rateBadge.textContent = "48 KHZ";
-        }
-
-        progressBar.disabled = false;
-        btnDownload.disabled = false;
-
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.metadata = new MediaMetadata({
-            title: activeTitle,
-            artist: meta.artist || "FastTracker II",
-            album: "XM Precision Studio"
-          });
-          navigator.mediaSession.setActionHandler('play', () => audioEl.play());
-          navigator.mediaSession.setActionHandler('pause', () => audioEl.pause());
-          navigator.mediaSession.setActionHandler('stop', () => { audioEl.pause(); audioEl.currentTime = 0; });
-        }
-
-        initVisualizerRouting();
-        audioEl.play().catch(() => {});
-        setPlayingState(true);
-      },
-      (err) => {
-        compilerOverlay.classList.remove('active');
-        alert("Audio parsing error: " + err.message);
-      }
-    );
-  }
-
-  function loadModule(fileOrUrl, fallbackName) {
-    const ext = getFileExtension(fallbackName);
-
-    // 1. DIRECT HARDWARE STREAM (MP3, OGG, WAV)
-    if (NATIVE_STREAM_EXTS.includes(ext)) {
-      compilerOverlay.classList.remove('active');
-      
-      if (fileOrUrl instanceof File || fileOrUrl instanceof Blob) {
-        if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
-        currentAudioBlob = fileOrUrl;
-        currentAudioUrl = URL.createObjectURL(fileOrUrl);
-        audioEl.src = currentAudioUrl;
-      } else {
-        audioEl.src = fileOrUrl;
-      }
-
-      activeTitle = fallbackName.replace(/\.[^/.]+$/, "");
-      songTitle.textContent = activeTitle;
-      songArtist.textContent = "Direct Stream";
-      modType.textContent = ext.replace('.', '').toUpperCase();
-      channels.textContent = "2 CH";
-      qualityBadge.textContent = ext.replace('.', '').toUpperCase();
-      rateBadge.textContent = "DIRECT";
-
-      progressBar.disabled = false;
-      btnDownload.disabled = false;
-
-      initVisualizerRouting();
-      audioEl.play().catch(() => {});
-      setPlayingState(true);
-      return;
-    }
-
-    // 2. TRACKER COMPILER (XM, MOD, IT, S3M, etc.)
-    compilerOverlay.classList.add('active');
-    compilerProgressBar.style.width = '0%';
-    compilerStatus.textContent = 'BUFFERING MODULE';
-    player.load(fileOrUrl, (buf) => processAudioBuffer(buf, fallbackName));
-  }
-
-  // Format Selection
-  btnFmtMp3.addEventListener('click', () => {
-    if (activeFormat === 'mp3') return;
-    activeFormat = 'mp3';
-    btnFmtMp3.classList.add('active');
-    btnFmtWav.classList.remove('active');
-    if (currentRawBuffer) processAudioBuffer(currentRawBuffer, activeTitle);
-  });
-
-  btnFmtWav.addEventListener('click', () => {
-    if (activeFormat === 'wav') return;
-    activeFormat = 'wav';
-    btnFmtWav.classList.add('active');
-    btnFmtMp3.classList.remove('active');
-    if (currentRawBuffer) processAudioBuffer(currentRawBuffer, activeTitle);
-  });
-
-  // Spectrum Analyzer Render Loop (Monochrome Slate with Studio Amber Accents)
+  // Visualizer Loop
   const dataArray = new Uint8Array(32);
   function renderVisualizer() {
     requestAnimationFrame(renderVisualizer);
@@ -224,8 +84,12 @@ document.addEventListener('DOMContentLoaded', () => {
     ctx.fillStyle = '#090a0d';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    if (analyser && !audioEl.paused) {
-      analyser.getByteFrequencyData(dataArray);
+    var isLive = isNativeStream 
+      ? (!audioEl.paused) 
+      : (player.currentPlayingNode && !player.currentPlayingNode.paused);
+
+    if (isLive) {
+      player.analyser.getByteFrequencyData(dataArray);
       const totalBars = 28;
       const spacing = 3 * window.devicePixelRatio;
       const totalSpacing = spacing * (totalBars - 1);
@@ -236,7 +100,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const val = dataArray[i] / 255;
         const barHeight = Math.max(3 * window.devicePixelRatio, val * (canvas.height - 8));
 
-        // Slate to Amber color grading
         if (val > 0.82) {
           ctx.fillStyle = '#f59e0b';
         } else if (val > 0.5) {
@@ -252,65 +115,211 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   renderVisualizer();
 
-  // Audio Events
-  audioEl.addEventListener('timeupdate', () => {
-    if (!isSeeking && audioEl.duration) {
+  // Unified Real-Time Scrubber & Timeline Loop
+  setInterval(() => {
+    if (isSeeking) return;
+
+    if (!isNativeStream && player.currentPlayingNode && !player.currentPlayingNode.paused) {
+      const cur = player.getPosition();
+      const dur = player.duration();
+      if (dur > 0) {
+        progressBar.value = (cur / dur) * 100;
+        timeCurrent.textContent = formatTime(cur);
+        timeTotal.textContent = formatTime(dur);
+      }
+    } else if (isNativeStream && !audioEl.paused && audioEl.duration) {
       progressBar.value = (audioEl.currentTime / audioEl.duration) * 100;
       timeCurrent.textContent = formatTime(audioEl.currentTime);
       timeTotal.textContent = formatTime(audioEl.duration);
     }
-  });
+  }, 100);
 
-  audioEl.addEventListener('play', () => setPlayingState(true));
-  audioEl.addEventListener('pause', () => setPlayingState(false));
-  audioEl.addEventListener('ended', () => {
-    if (!audioEl.loop) {
-      setPlayingState(false);
-      progressBar.value = 0;
-      timeCurrent.textContent = "00:00";
+  // LOAD & PLAY IMMEDIATELY: Starts playing at second zero
+  function loadModule(fileOrUrl, fallbackName) {
+    const ext = getFileExtension(fallbackName);
+    player.stop();
+    audioEl.pause();
+
+    // 1. NATIVE HARDWARE STREAM (.mp3, .ogg, .wav)
+    if (NATIVE_STREAM_EXTS.includes(ext)) {
+      isNativeStream = true;
+      readoutProgressTrack.classList.add('hide');
+
+      if (fileOrUrl instanceof File || fileOrUrl instanceof Blob) {
+        if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
+        currentAudioBlob = fileOrUrl;
+        currentAudioUrl = URL.createObjectURL(fileOrUrl);
+        audioEl.src = currentAudioUrl;
+      } else {
+        audioEl.src = fileOrUrl;
+      }
+
+      activeTitle = fallbackName.replace(/\.[^/.]+$/, "");
+      songTitle.textContent = activeTitle;
+      songArtist.textContent = "Direct Hardware Stream";
+      modType.textContent = ext.replace('.', '').toUpperCase();
+      channels.textContent = "2 CH";
+      qualityBadge.textContent = ext.replace('.', '').toUpperCase();
+      rateBadge.textContent = "DIRECT";
+
+      progressBar.disabled = false;
+      btnDownload.disabled = false;
+
+      audioEl.play().catch(() => {});
+      setPlayingState(true);
+      return;
+    }
+
+    // 2. TRACKER MODULE: Starts playing immediately; renders MP3 in background
+    isNativeStream = false;
+    btnDownload.disabled = true;
+
+    player.load(fileOrUrl, (buf) => {
+      currentRawBuffer = buf;
+
+      // Extract metadata immediately
+      const meta = player.readMetadata(buf) || {};
+      activeTitle = meta.title || fallbackName || "UNTITLED TRACK";
+      const artist = meta.artist || "FastTracker II Module";
+      
+      songTitle.textContent = activeTitle;
+      songArtist.textContent = `${artist} • BUFFERING 0%`;
+      modType.textContent = (meta.type_long || "FT2").toUpperCase();
+      channels.textContent = `${meta.channels || 8} CH`;
+
+      qualityBadge.textContent = activeFormat === 'mp3' ? "320 KBPS" : "16-BIT PCM";
+      rateBadge.textContent = "48 KHZ";
+
+      // Show inline progress on the readout screen
+      readoutProgressTrack.classList.remove('hide');
+      readoutProgressBar.style.width = '0%';
+
+      // PLAY IMMEDIATELY WITHOUT WAITING FOR COMPILATION
+      player.play(buf);
+      setPlayingState(true);
+      progressBar.disabled = false;
+
+      // Update MediaSession for lock screens immediately
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+          title: activeTitle,
+          artist: artist,
+          album: "XM Precision Studio"
+        });
+      }
+
+      // ASYNCHRONOUS BACKGROUND COMPILATION (Enables Download upon completion)
+      player.compileAudio(
+        buf,
+        activeFormat,
+        (progress) => {
+          const pct = Math.round(progress * 100);
+          readoutProgressBar.style.width = `${pct}%`;
+          songArtist.textContent = `${artist} • ENCODING ${pct}%`;
+        },
+        (compiledBlob) => {
+          if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
+          currentAudioBlob = compiledBlob;
+          currentAudioUrl = URL.createObjectURL(compiledBlob);
+
+          readoutProgressBar.style.width = '100%';
+          setTimeout(() => readoutProgressTrack.classList.add('hide'), 500);
+
+          songArtist.textContent = `${artist} • READY`;
+          btnDownload.disabled = false;
+        },
+        (err) => {
+          readoutProgressTrack.classList.add('hide');
+          songArtist.textContent = artist;
+          console.error("Background compilation error:", err);
+        }
+      );
+    });
+  }
+
+  // Format Switchers
+  btnFmtMp3.addEventListener('click', () => {
+    if (activeFormat === 'mp3') return;
+    activeFormat = 'mp3';
+    btnFmtMp3.classList.add('active');
+    btnFmtWav.classList.remove('active');
+    qualityBadge.textContent = "320 KBPS";
+    if (currentRawBuffer && !isNativeStream) {
+      loadModule(currentRawBuffer, activeTitle);
     }
   });
 
-  // Transport Controls
+  btnFmtWav.addEventListener('click', () => {
+    if (activeFormat === 'wav') return;
+    activeFormat = 'wav';
+    btnFmtWav.classList.add('active');
+    btnFmtMp3.classList.remove('active');
+    qualityBadge.textContent = "16-BIT PCM";
+    if (currentRawBuffer && !isNativeStream) {
+      loadModule(currentRawBuffer, activeTitle);
+    }
+  });
+
+  // Master Transport Controls
   btnPlayPause.addEventListener('click', () => {
-    initVisualizerRouting();
-    if (audioEl.paused) {
-      audioEl.play().catch(() => {});
+    player.unlock();
+    if (isNativeStream) {
+      if (audioEl.paused) audioEl.play().catch(() => {});
+      else audioEl.pause();
+      setPlayingState(!audioEl.paused);
     } else {
-      audioEl.pause();
+      if (!player.currentPlayingNode && currentRawBuffer) {
+        player.play(currentRawBuffer);
+        setPlayingState(true);
+      } else if (player.currentPlayingNode) {
+        const isPaused = player.togglePause();
+        setPlayingState(!isPaused);
+      }
     }
   });
 
   btnStop.addEventListener('click', () => {
-    audioEl.pause();
-    audioEl.currentTime = 0;
+    if (isNativeStream) {
+      audioEl.pause();
+      audioEl.currentTime = 0;
+    } else {
+      player.stop();
+    }
     progressBar.value = 0;
     timeCurrent.textContent = "00:00";
     setPlayingState(false);
   });
 
-  audioEl.loop = true;
+  let isLooping = true;
   btnLoop.addEventListener('click', () => {
-    audioEl.loop = !audioEl.loop;
-    btnLoop.classList.toggle('active', audioEl.loop);
+    isLooping = !isLooping;
+    btnLoop.classList.toggle('active', isLooping);
+    audioEl.loop = isLooping;
+    player.setRepeat(isLooping);
   });
 
   progressBar.addEventListener('input', () => { isSeeking = true; });
   progressBar.addEventListener('change', () => {
-    if (audioEl.duration) {
-      audioEl.currentTime = (progressBar.value / 100) * audioEl.duration;
+    const target = (progressBar.value / 100);
+    if (isNativeStream && audioEl.duration) {
+      audioEl.currentTime = target * audioEl.duration;
+    } else if (!isNativeStream) {
+      const dur = player.duration();
+      if (dur > 0) player.seek(target * dur);
     }
     isSeeking = false;
   });
 
   volSlider.addEventListener('input', (e) => {
-    audioEl.volume = parseFloat(e.target.value);
+    const v = parseFloat(e.target.value);
+    audioEl.volume = v;
+    player.setVolume(v);
   });
 
   btnDownload.addEventListener('click', () => {
     if (!currentAudioBlob) return;
-    const ext = getFileExtension(activeTitle) || `.${activeFormat}`;
-    const filename = activeTitle.endsWith(ext) ? activeTitle : `${activeTitle}.${activeFormat}`;
+    const ext = isNativeStream ? getFileExtension(activeTitle) : `.${activeFormat}`;
+    const filename = activeTitle.endsWith(ext) ? activeTitle : `${activeTitle}${ext}`;
     const a = document.createElement('a');
     a.href = currentAudioUrl;
     a.download = filename.replace(/[/\\?%*:|"<>]/g, '_');
@@ -340,5 +349,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.dataTransfer.files.length > 0) {
       loadModule(e.dataTransfer.files[0], e.dataTransfer.files[0].name);
     }
+  });
+
+  player.on('onEnded', () => {
+    setPlayingState(false);
+    progressBar.value = 0;
+    timeCurrent.textContent = "00:00";
   });
 });
