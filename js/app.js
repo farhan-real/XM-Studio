@@ -41,6 +41,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnFmtMp3 = document.getElementById('btnFmtMp3');
   const btnFmtWav = document.getElementById('btnFmtWav');
 
+  // Top Status & Unload Controls
+  const statusBadge = document.getElementById('statusBadge');
+  const btnUnload = document.getElementById('btnUnload');
   const readoutProgressTrack = document.getElementById('readoutProgressTrack');
   const readoutProgressBar = document.getElementById('readoutProgressBar');
 
@@ -68,6 +71,21 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       svgPlay.classList.remove('hide');
       svgPause.classList.add('hide');
+    }
+  }
+
+  // Set Top Status Badge State: idle, compiling, ready
+  function setStatus(state) {
+    statusBadge.className = 'badge status-badge';
+    if (state === 'idle') {
+      statusBadge.classList.add('status-idle');
+      statusBadge.textContent = 'STATUS: IDLE';
+    } else if (state === 'compiling') {
+      statusBadge.classList.add('status-compiling');
+      statusBadge.textContent = 'STATUS: COMPILING';
+    } else if (state === 'ready') {
+      statusBadge.classList.add('status-ready');
+      statusBadge.textContent = 'STATUS: READY';
     }
   }
 
@@ -134,7 +152,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 100);
 
-  // LOAD & PLAY IMMEDIATELY: Starts playing at second zero
+  // UNLOAD MODULE: Resets player to empty/idle state
+  function unloadModule() {
+    player.cancelCompilation();
+    player.stop();
+    audioEl.pause();
+    audioEl.currentTime = 0;
+    
+    if (currentAudioUrl) {
+      URL.revokeObjectURL(currentAudioUrl);
+      currentAudioUrl = null;
+    }
+    currentRawBuffer = null;
+    currentAudioBlob = null;
+    isNativeStream = false;
+
+    songTitle.textContent = "NO MODULE LOADED";
+    songArtist.textContent = "Ready for FastTracker II / Audio input";
+    modType.textContent = "FT2";
+    channels.textContent = "--";
+
+    readoutProgressTrack.classList.add('hide');
+    readoutProgressBar.style.width = '0%';
+    btnUnload.classList.add('hide');
+
+    progressBar.value = 0;
+    progressBar.disabled = true;
+    timeCurrent.textContent = "00:00";
+    timeTotal.textContent = "00:00";
+    btnDownload.disabled = true;
+
+    setStatus('idle');
+    setPlayingState(false);
+
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = null;
+    }
+  }
+
+  // LOAD & PLAY IMMEDIATELY
   function loadModule(fileOrUrl, fallbackName) {
     const ext = getFileExtension(fallbackName);
     player.stop();
@@ -164,42 +220,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
       progressBar.disabled = false;
       btnDownload.disabled = false;
+      btnUnload.classList.remove('hide');
+      setStatus('ready');
 
       audioEl.play().catch(() => {});
       setPlayingState(true);
       return;
     }
 
-    // 2. TRACKER MODULE: Starts playing immediately; renders MP3 in background
+    // 2. TRACKER MODULE
     isNativeStream = false;
     btnDownload.disabled = true;
 
     player.load(fileOrUrl, (buf) => {
       currentRawBuffer = buf;
 
-      // Extract metadata immediately
       const meta = player.readMetadata(buf) || {};
       activeTitle = meta.title || fallbackName || "UNTITLED TRACK";
       const artist = meta.artist || "FastTracker II Module";
       
       songTitle.textContent = activeTitle;
-      songArtist.textContent = `${artist} • BUFFERING 0%`;
+      songArtist.textContent = artist;
       modType.textContent = (meta.type_long || "FT2").toUpperCase();
       channels.textContent = `${meta.channels || 8} CH`;
 
       qualityBadge.textContent = activeFormat === 'mp3' ? "320 KBPS" : "16-BIT PCM";
       rateBadge.textContent = "48 KHZ";
 
-      // Show inline progress on the readout screen
+      // Show top-left unload button and inline progress bar
+      btnUnload.classList.remove('hide');
       readoutProgressTrack.classList.remove('hide');
       readoutProgressBar.style.width = '0%';
 
-      // PLAY IMMEDIATELY WITHOUT WAITING FOR COMPILATION
+      // Set top status to COMPILING
+      setStatus('compiling');
+
+      // PLAY IMMEDIATELY
       player.play(buf);
       setPlayingState(true);
       progressBar.disabled = false;
 
-      // Update MediaSession for lock screens immediately
       if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
           title: activeTitle,
@@ -208,14 +268,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
       }
 
-      // ASYNCHRONOUS BACKGROUND COMPILATION (Enables Download upon completion)
+      // ASYNCHRONOUS BACKGROUND COMPILATION
       player.compileAudio(
         buf,
         activeFormat,
         (progress) => {
           const pct = Math.round(progress * 100);
           readoutProgressBar.style.width = `${pct}%`;
-          songArtist.textContent = `${artist} • ENCODING ${pct}%`;
         },
         (compiledBlob) => {
           if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
@@ -225,12 +284,12 @@ document.addEventListener('DOMContentLoaded', () => {
           readoutProgressBar.style.width = '100%';
           setTimeout(() => readoutProgressTrack.classList.add('hide'), 500);
 
-          songArtist.textContent = `${artist} • READY`;
+          setStatus('ready');
           btnDownload.disabled = false;
         },
         (err) => {
           readoutProgressTrack.classList.add('hide');
-          songArtist.textContent = artist;
+          setStatus('idle');
           console.error("Background compilation error:", err);
         }
       );
@@ -297,6 +356,8 @@ document.addEventListener('DOMContentLoaded', () => {
     audioEl.loop = isLooping;
     player.setRepeat(isLooping);
   });
+
+  btnUnload.addEventListener('click', unloadModule);
 
   progressBar.addEventListener('input', () => { isSeeking = true; });
   progressBar.addEventListener('change', () => {

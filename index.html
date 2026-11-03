@@ -29,20 +29,29 @@
 </head>
 <body>
   <main class="chassis" id="dropZone">
-    <!-- Header -->
+    <!-- Header with X at Top Left and Status at Top -->
     <header class="header">
-      <div class="brand-cluster">
-        <span class="status-pip" id="statusPip"></span>
-        <span class="brand-title">XM-PRECISION</span>
-        <span class="model-sub">STUDIO DSP</span>
+      <div class="header-left">
+        <button class="btn-unload hide" id="btnUnload" title="Unload track" aria-label="Unload track">
+          <svg viewBox="0 0 24 24" class="t-icon-xs">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+        <div class="brand-cluster">
+          <span class="status-pip" id="statusPip"></span>
+          <span class="brand-title">XM-PRECISION</span>
+          <span class="model-sub">STUDIO DSP</span>
+        </div>
       </div>
       <div class="header-badges">
+        <span class="badge status-badge status-idle" id="statusBadge">STATUS: IDLE</span>
         <span class="badge" id="qualityBadge">320 KBPS</span>
         <span class="badge" id="rateBadge">48 KHZ</span>
       </div>
     </header>
 
-    <!-- Spectrum Display Deck (Always Unobscured) -->
+    <!-- Spectrum Display Deck -->
     <div class="deck-container">
       <div class="canvas-wrap">
         <canvas id="visualizer"></canvas>
@@ -50,7 +59,7 @@
       <div class="screen-grid"></div>
     </div>
 
-    <!-- Metadata Readout Panel (Houses Integrated Loading) -->
+    <!-- Metadata Readout Panel -->
     <section class="readout-panel">
       <div class="readout-main">
         <h2 class="song-title" id="songTitle">NO MODULE LOADED</h2>

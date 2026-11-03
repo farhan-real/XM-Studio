@@ -68,10 +68,51 @@ body {
   box-shadow: 0 0 0 2px var(--accent-dim), 0 24px 48px rgba(0, 0, 0, 0.8);
 }
 
+/* Header with Top Left Unload Button */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Top Left Unload Button */
+.btn-unload {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s ease;
+}
+
+.btn-unload:hover {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+
+.t-icon-xs {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .brand-cluster {
@@ -105,7 +146,9 @@ body {
 
 .header-badges {
   display: flex;
+  align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 /* Base Badge Style */
@@ -119,6 +162,31 @@ body {
   display: inline-flex;
   align-items: center;
   line-height: 1.2;
+}
+
+/* Top Status Badge States */
+.status-badge {
+  transition: all 0.15s ease;
+}
+
+.status-idle {
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.status-compiling {
+  color: var(--accent);
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.12);
+}
+
+.status-ready {
+  color: var(--led-green);
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.12);
 }
 
 #qualityBadge {
@@ -166,7 +234,7 @@ body {
   pointer-events: none;
 }
 
-/* Readout Panel with Integrated Inline Loading Bar */
+/* Readout Panel */
 .readout-panel {
   display: flex;
   justify-content: space-between;
