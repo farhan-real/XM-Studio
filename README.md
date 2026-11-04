@@ -48,14 +48,21 @@ separation, and responsive frequency spectrum analysis.
     running at 48 kHz with persistent WASM stereo PCM scratch buffers
     and single-pass metadata extraction.
 -   **Ultra-Low-Latency Transport**: Interactive 2048-frame WebAudio
-    buffer (\~42ms) with instant graph node disconnect/reconnect on
+    buffer (~42ms) with instant graph node disconnect/reconnect on
     pause for sub-3ms play/pause response and 0% paused DSP CPU usage.
--   **Lossless FLAC Support**: Direct hardware-accelerated playback for
-    `.flac` and native audio streams routed through WebAudio with
-    automatic ObjectURL lifecycle cleanup.
+-   **Lossless FLAC & Native Audio Support**: Direct hardware-accelerated
+    playback for `.flac`, `.mp3`, `.wav`, and native audio streams routed
+    through WebAudio with automatic ObjectURL lifecycle cleanup.
+-   **Seamless Post-Compile Native Playback**: After compiling tracker
+    modules into 320kbps MP3 or 16-bit WAV, playback hands off immediately
+    into native hardware audio stream mode without losing playback position,
+    completely eliminating DSP overhead and audio lag.
+-   **Artifact-Free Audio Compilation**: 1152-sample aligned frame blocks
+    and continuous soft limiting eliminate bit reservoir underflow, frame drops,
+    and harsh clipping distortion during MP3 and WAV rendering.
 -   **Phosphor Spectrum Visualizer**: 28-band real-time audio analyzer
     rendered to HTML5 Canvas with device-pixel-ratio display scaling and
-    color-batched draw calls.
+    color-batched draw calls for both tracker modules and native streams.
 -   **Master Audio Compiler**: Export tracker modules on-demand to MP3
     (320kbps CBR via LAME) or uncompressed WAV (16-bit PCM) without
     interrupting playback.
@@ -64,14 +71,13 @@ separation, and responsive frequency spectrum analysis.
 
 -   **Background Playback & Lock-Screen Controls**: Continues playing
     seamlessly when switching apps or locking the phone screen via an
-    in-memory PCM WAV wake-lock loop, automatic `AudioContext`
-    resumption, and full `navigator.mediaSession` integration for
-    lock-screen, notification shade, and Bluetooth headset controls.
+    accurate in-memory audio carrier, automatic `AudioContext` resumption,
+    and full `navigator.mediaSession` integration for lock-screen,
+    notification shade, and Bluetooth headset controls.
 -   **Spotify-Style Mobile Miniplayer**: Displays a docked compact
     bottom bar on the mobile Archive & Playlists view showing the track
     number badge, song title, artist, and Prev/Play/Next controls, while
-    providing the full hardware deck on the Player Deck tab (or when
-    tapping the miniplayer).
+    providing the full hardware deck on the Player Deck tab.
 -   **Persistent 32-Node DOM Pool & Custom Scroller**: Virtualizes
     5,000+ track catalogs by recycling a fixed pool of 32 GPU-translated
     (`translate3d`) DOM nodes without detaching active touch targets
@@ -93,10 +99,7 @@ separation, and responsive frequency spectrum analysis.
     paused, stopped, or running in a background tab.
 -   **DPR Throttling**: Caps canvas resolution to 1.5× DPR on
     high-density screens (reducing fill-rate overhead by up to 75% on
-    3×/4× mobile displays) and throttles rendering to a stable \~33 FPS.
--   **Fast Polynomial DSP Soft-Clipping**: Replaces continuous
-    `Math.exp()` calculations per buffer with branch-free polynomial
-    limiting and bitwise integer truncation.
+    3×/4× mobile displays) and throttles rendering to a stable ~33 FPS.
 
 ### Workstation Transport Controls
 
@@ -145,7 +148,7 @@ audio stutter while keeping the app ultra-lightweight and responsive.
 
 By default, XM-Studio connects to
 **[XM-Music](https://github.com/farhan-real/XM-Music)**
-(`[https://farhan-real.github.io/XM-Music/](https://farhan-real.github.io/XM-Music/)`),
+(`https://farhan-real.github.io/XM-Music/`),
 streaming thousands of indexed chiptunes and demoscene tracker modules
 directly through GitHub Pages.
 
@@ -172,7 +175,7 @@ My-Music-Repo/
 ```
 
 File naming convention: `Artist - Title.ext`
-(e.g. `Purple Motion - Satellite One.s3m`).
+(e.g. `Purple Motion - Satellite One.s3m`).
 
 #### 2. The `tracks.json` Manifest Format
 
@@ -200,29 +203,29 @@ an entry for every track:
 
 #### Field Specifications
 
-  -----------------------------------------------------------------------
-  Field                   Type                    Description
-  ----------------------- ----------------------- -----------------------
-  `title`                 `string`                Track song title
-                                                  displayed in the player
-                                                  and card lists.
+-------------------------------------------------------------------------
+Field                   Type                    Description
+----------------------- ----------------------- -------------------------
+`title`                 `string`                Track song title
+                                                displayed in the player
+                                                and card lists.
 
-  `artist`                `string`                Composer or musician
-                                                  name.
+`artist`                `string`                Composer or musician
+                                                name.
 
-  `folder`                `string`                Category, subfolder, or
-                                                  collection label for
-                                                  searching and grouping.
+`folder`                `string`                Category, subfolder, or
+                                                collection label for
+                                                searching and grouping.
 
-  `path`                  `string`                Relative path to the
-                                                  audio file from the
-                                                  repository root.
+`path`                  `string`                Relative path to the
+                                                audio file from the
+                                                repository root.
 
-  `ext`                   `string`                Uppercase audio format
-                                                  extension (`XM`, `MOD`,
-                                                  `IT`, `S3M`, `FLAC`,
-                                                  etc.).
-  -----------------------------------------------------------------------
+`ext`                   `string`                Uppercase audio format
+                                                extension (`XM`, `MOD`,
+                                                `IT`, `S3M`, `FLAC`,
+                                                etc.).
+-------------------------------------------------------------------------
 
 #### 3. Indexing Script (`generate_index.py`)
 
@@ -241,7 +244,7 @@ for root, _, files in os.walk(MUSIC_DIR):
         ext = os.path.splitext(f)[1].lower()
         if ext in EXTS:
             rel = os.path.relpath(os.path.join(root, f), ".").replace("\\\\", "/")
-            base = re.sub(r'\\s+', ' ', f.rsplit(".", 1)[0].replace("_-_", " - ").replace("_", " ")).strip()
+            base = re.sub(r'\s+', ' ', f.rsplit(".", 1)[0].replace("_-_", " - ").replace("_", " ")).strip()
             artist, title = base.split(" - ", 1) if " - " in base else ("Unknown Artist", base)
             folder = os.path.basename(root)
             tracks.append({
@@ -282,20 +285,20 @@ https://<your-username>.github.io/<repo-name>/
 
 ## Supported Formats
 
-  -----------------------------------------------------------------------
-  Category                            File Extensions
-  ----------------------------------- -----------------------------------
-  **Tracker Modules**                 `.xm`, `.mod`, `.it`, `.s3m`,
-                                      `.mtm`, `.mo3`, `.med`, `.669`,
-                                      `.far`, `.ptm`
+-------------------------------------------------------------------------
+Category                            File Extensions
+----------------------------------- -------------------------------------
+**Tracker Modules**                 `.xm`, `.mod`, `.it`, `.s3m`,
+                                    `.mtm`, `.mo3`, `.med`, `.669`,
+                                    `.far`, `.ptm`
 
-  **Chiptune & Retro**                `.v2m`, `.ahx`, `.sid`, `.sap`,
-                                      `.ym`, `.nsf`, `.spc`, `.mid`
+**Chiptune & Retro**                `.v2m`, `.ahx`, `.sid`, `.sap`,
+                                    `.ym`, `.nsf`, `.spc`, `.mid`
 
-  **Native Audio Streams**            `.flac` (Lossless), `.wav` (PCM),
-                                      `.mp3` (MPEG Layer 3), `.ogg`
-                                      (Vorbis)
-  -----------------------------------------------------------------------
+**Native Audio Streams**            `.flac` (Lossless), `.wav` (PCM),
+                                    `.mp3` (MPEG Layer 3), `.ogg`
+                                    (Vorbis)
+-------------------------------------------------------------------------
 
 ------------------------------------------------------------------------
 
@@ -335,8 +338,8 @@ Open `http://localhost:8080` in your web browser.
 └── js/
     ├── app.js               # Application coordinator, transport & view toggles
     ├── engine/
-    │   ├── audio.js         # Master audio coordinator, queue & shuffle
-    │   ├── background.js    # Mobile background keep-alive & MediaSession API
+    │   ├── audio.js         # Master audio coordinator, handoff & playback queue
+    │   ├── background.js    # Chrome MediaSession, carrier sync & lock-screen API
     │   ├── chiptune2.js     # Low-latency libopenmpt WebAudio DSP player engine
     │   ├── compiler.js      # Background Worker coordinator for WAV/MP3 exports
     │   ├── visualizer.js    # 28-band canvas spectrum visualizer loop
