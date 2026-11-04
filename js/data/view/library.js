@@ -1,5 +1,5 @@
 /**
- * js/data/library.js - Pooled DOM virtual list, custom scroller binding, and archive navigation.
+ * js/data/view/library.js - Pooled DOM virtual list, custom scroller binding, and archive navigation.
  */
 (function(window) {
   const POOL_SIZE = 32;
@@ -171,7 +171,8 @@
         return;
       }
     }
-    window.XMAudio.loadTrack(track.url, `${track.artist} - ${track.title}.${(track.ext || 'xm').toLowerCase()}`, track, queue, idx);
+    const resolvedUrl = track.url || (track.path ? (track.path.startsWith('http') ? track.path : 'https://farhan-real.github.io/XM-Music/' + encodeURI(track.path.replace(/^\/+/, ''))) : '');
+    window.XMAudio.loadTrack(resolvedUrl, `${track.artist} - ${track.title}.${(track.ext || 'xm').toLowerCase()}`, track, queue, idx);
   }
 
   function updateActiveCards() {
@@ -199,25 +200,44 @@
   }
 
   function playRandomArchiveTrack() {
-    const catalog = window.XMCatalog.getDisplayCatalog();
-    if (!catalog || catalog.length === 0) return;
+    let catalog = window.XMCatalog ? window.XMCatalog.getDisplayCatalog() : [];
+    if (!catalog || catalog.length === 0) {
+      catalog = window.XMCatalog ? window.XMCatalog.getFullCatalog() : [];
+    }
+    if (!catalog || catalog.length === 0) {
+      if (window.XMPlaylist) {
+        const favs = window.XMPlaylist.getFavorites();
+        if (favs && favs.length > 0) catalog = favs;
+      }
+    }
+    if (!catalog || catalog.length === 0) return false;
+
     let randIdx = Math.floor(Math.random() * catalog.length);
     if (catalog.length > 1 && currentlyPlayingId) {
       const curIdx = catalog.findIndex((t) => t.id === currentlyPlayingId);
       if (curIdx === randIdx) randIdx = (randIdx + 1) % catalog.length;
     }
     const track = catalog[randIdx];
-    if (!track) return;
+    if (!track) return false;
+
     if (activeTab !== 'archive') switchTab('archive');
     if (searchInput && searchInput.value) {
       searchInput.value = '';
       const full = window.XMCatalog.getFullCatalog();
       window.XMCatalog.setDisplayCatalog(full);
       renderTrackList(full, false);
-      randIdx = activeRenderQueue.findIndex((t) => t.id === track.id);
     }
-    playTrack(track, activeRenderQueue, randIdx);
-    if (scroller) requestAnimationFrame(() => scroller.scrollToIndex(randIdx));
+
+    if (!activeRenderQueue || activeRenderQueue.length === 0) {
+      const disp = window.XMCatalog.getDisplayCatalog();
+      renderTrackList(disp && disp.length > 0 ? disp : [track], false);
+    }
+
+    const queueIdx = activeRenderQueue.findIndex((t) => t.id === track.id);
+    const targetIdx = queueIdx >= 0 ? queueIdx : randIdx;
+
+    playTrack(track, activeRenderQueue, targetIdx);
+    if (scroller) requestAnimationFrame(() => scroller.scrollToIndex(targetIdx));
     return track;
   }
 

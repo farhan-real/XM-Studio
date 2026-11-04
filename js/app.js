@@ -231,9 +231,11 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnPlayRandom) {
     btnPlayRandom.addEventListener('click', () => {
       if (window.innerWidth <= 900) showMobileArchiveView();
+      let played = false;
       if (window.XMLibrary && window.XMLibrary.playRandomArchiveTrack) {
-        window.XMLibrary.playRandomArchiveTrack();
-      } else {
+        played = Boolean(window.XMLibrary.playRandomArchiveTrack());
+      }
+      if (!played && window.XMAudio && window.XMAudio.playRandomTrack) {
         window.XMAudio.playRandomTrack();
       }
     });

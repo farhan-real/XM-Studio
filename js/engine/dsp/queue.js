@@ -38,7 +38,8 @@
         return;
       }
     }
-    window.XMAudio.loadTrack(resolveTrackUrl(item), `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, currentQueue, idx);
+    const targetUrl = resolveTrackUrl(item);
+    window.XMAudio.loadTrack(targetUrl, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, currentQueue, idx);
   }
 
   function playNextTrack(force) {
@@ -76,16 +77,28 @@
   }
 
   function playRandomTrack() {
-    if (window.XMLibrary && window.XMLibrary.playRandomArchiveTrack) {
-      window.XMLibrary.playRandomArchiveTrack();
-      return;
+    let pool = currentQueue;
+    if (!pool || pool.length === 0) {
+      pool = (window.XMLibrary && window.XMLibrary.getDisplayCatalog) ? window.XMLibrary.getDisplayCatalog() : null;
     }
-    let pool = currentQueue || (window.XMLibrary && window.XMLibrary.getDisplayCatalog ? window.XMLibrary.getDisplayCatalog() : null);
-    if (!pool || pool.length === 0) return;
+    if (!pool || pool.length === 0) {
+      pool = (window.XMLibrary && window.XMLibrary.getFullCatalog) ? window.XMLibrary.getFullCatalog() : null;
+    }
+    if (!pool || pool.length === 0) return false;
+
     let randIdx = Math.floor(Math.random() * pool.length);
-    if (pool.length > 1 && randIdx === currentQueueIdx && pool === currentQueue) randIdx = (randIdx + 1) % pool.length;
-    if (pool === currentQueue) playTrackAt(randIdx);
-    else if (window.XMLibrary && window.XMLibrary.playTrackDirect) window.XMLibrary.playTrackDirect(pool[randIdx], pool, randIdx);
+    if (pool.length > 1 && randIdx === currentQueueIdx && pool === currentQueue) {
+      randIdx = (randIdx + 1) % pool.length;
+    }
+    if (pool === currentQueue) {
+      playTrackAt(randIdx);
+      return true;
+    }
+    if (window.XMLibrary && window.XMLibrary.playTrackDirect) {
+      window.XMLibrary.playTrackDirect(pool[randIdx], pool, randIdx);
+      return true;
+    }
+    return false;
   }
 
   function toggleLoop() {

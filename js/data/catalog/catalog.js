@@ -7,6 +7,53 @@
   let remoteCatalog = [];
   let customCatalog = [];
 
+  const FALLBACK_DEMO_TRACKS = [
+    {
+      id: 'demo_chipsounds',
+      title: 'Chipsounds',
+      artist: 'Dubmood',
+      ext: 'MOD',
+      path: 'tunes/chipsounds.mod',
+      url: 'https://deskjet.github.io/chiptune2.js/tunes/chipsounds.mod',
+      repoId: 'repo_default',
+      repoName: 'Default Repository',
+      folder: 'Demoscene'
+    },
+    {
+      id: 'demo_mysterysterium',
+      title: 'Mysterysterium',
+      artist: 'Maktone',
+      ext: 'MOD',
+      path: 'tunes/mysterysterium.mod',
+      url: 'https://deskjet.github.io/chiptune2.js/tunes/mysterysterium.mod',
+      repoId: 'repo_default',
+      repoName: 'Default Repository',
+      folder: 'Demoscene'
+    },
+    {
+      id: 'demo_cydonian_sky',
+      title: 'Cydonian Sky',
+      artist: 'Dubmood',
+      ext: 'MOD',
+      path: 'tunes/cydonian_sky.mod',
+      url: 'https://deskjet.github.io/chiptune2.js/tunes/cydonian_sky.mod',
+      repoId: 'repo_default',
+      repoName: 'Default Repository',
+      folder: 'Demoscene'
+    },
+    {
+      id: 'demo_rf_chip',
+      title: 'RF Chip #001',
+      artist: 'Dubmood & Bliss',
+      ext: 'MOD',
+      path: 'tunes/rf_chip_001.mod',
+      url: 'https://deskjet.github.io/chiptune2.js/tunes/rf_chip_001.mod',
+      repoId: 'repo_default',
+      repoName: 'Default Repository',
+      folder: 'Demoscene'
+    }
+  ];
+
   function indexTrack(track) {
     if (!track._search) {
       const a = (track.artist || '').toLowerCase();
@@ -48,7 +95,8 @@
     } catch (e) {
       customCatalog = [];
     }
-    fullCatalog = sortAlphabetical([...customCatalog, ...remoteCatalog]);
+    const combined = [...customCatalog, ...remoteCatalog];
+    fullCatalog = sortAlphabetical(combined.length > 0 ? combined : [...FALLBACK_DEMO_TRACKS]);
     displayCatalog = fullCatalog;
     return displayCatalog;
   }
