@@ -79,6 +79,13 @@ Powered by `libopenmpt` compiled to WebAssembly, XM-Studio provides sample-accur
 * **Interactive Scrubber & Hardware Fader:** Timeline progress slider with elapsed/total time readouts, and master volume fader with mute toggle.
 * **Drag-and-Drop Ingestion:** Drop tracker files or audio tracks directly onto the deck chassis.
 
+### Multi-Source Catalog & Directory Mounting
+
+* **Multi-Repository Streaming:** Stream and aggregate tracker modules from multiple online repositories simultaneously, featuring native support for primary and mirrored backup sources (`XM-Music`, `XM-Archive`).
+* **Independent Source & Folder Toggling:** Instantly toggle individual remote repositories and mounted local folder sources on or off via dedicated controls to isolate collections without deleting catalog data.
+* **Local Directory Ingestion:** Mount entire local folder trees recursively using the directory picker, mapping nested folder hierarchies and caching binary blobs directly in IndexedDB with on-demand retrieval.
+* **Fault-Tolerant Offline Fallback:** Automatically activates verified demoscene modules when remote repositories are unreachable or offline, guaranteeing continuous workstation functionality without an active internet connection.
+
 ---
 
 ## Supported Formats
