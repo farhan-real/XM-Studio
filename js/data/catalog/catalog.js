@@ -1,5 +1,5 @@
 /**
- * js/data/catalog.js - Catalog indexing, sorting, remote repository fetching, and search index.
+ * js/data/catalog/catalog.js - Catalog indexing, sorting, remote repository fetching, and search index.
  */
 (function(window) {
   let fullCatalog = [];
@@ -91,7 +91,15 @@
 
   async function syncFullCatalog() {
     try {
-      customCatalog = window.XMCustom ? await window.XMCustom.getTracks() : [];
+      const allCustom = window.XMCustom ? await window.XMCustom.getTracks() : [];
+      const disabledFolders = new Set(
+        (window.XMSources && window.XMSources.getFolderSources)
+          ? window.XMSources.getFolderSources().filter(f => f.enabled === false).map(f => f.id)
+          : []
+      );
+      customCatalog = disabledFolders.size > 0
+        ? allCustom.filter(t => !t.folderSourceId || !disabledFolders.has(t.folderSourceId))
+        : allCustom;
     } catch (e) {
       customCatalog = [];
     }

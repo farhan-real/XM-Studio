@@ -99,6 +99,12 @@ XM-Studio decouples the audio library from the player chassis to keep deployment
 
 By default, XM-Studio connects to **[XM-Music](https://github.com/farhan-real/XM-Music)** (`https://farhan-real.github.io/XM-Music/`), streaming thousands of indexed chiptunes and demoscene tracker modules directly through GitHub Pages.
 
+### Backup Repository: `XM-Archive`
+
+XM-Studio includes **XM-Archive** (`https://xm-archive.pages.dev/`) as a built-in secondary backup repository (toggled off by default). Enable it under the **Source** tab to stream additional demoscene modules and mirrored chiptune releases.
+
+---
+
 ---
 
 ### How to Set Up Another Music Repository
