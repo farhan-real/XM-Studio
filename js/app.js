@@ -66,12 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
     panelLeft.classList.remove('mobile-hide');
     dropZone.classList.remove('mobile-hide');
     dropZone.classList.add('mobile-mini');
-    if (window.XMLibrary && window.XMLibrary.refreshScroller) {
-      window.XMLibrary.refreshScroller();
-    }
-    if (window.XMVisualizer && window.XMVisualizer.sleep) {
-      window.XMVisualizer.sleep();
-    }
+    if (window.XMLibrary && window.XMLibrary.refreshScroller) window.XMLibrary.refreshScroller();
+    if (window.XMVisualizer) window.XMVisualizer.sleep();
   }
 
   function showMobilePlayerView() {
@@ -92,9 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (readoutPanel) {
     readoutPanel.addEventListener('click', () => {
-      if (window.innerWidth <= 900 && dropZone.classList.contains('mobile-mini')) {
-        showMobilePlayerView();
-      }
+      if (window.innerWidth <= 900 && dropZone.classList.contains('mobile-mini')) showMobilePlayerView();
     });
   }
 
@@ -129,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function startProgressLoop() {
-    if (!progressTimerId) {
+    if (!progressTimerId && !document.hidden) {
       tickProgress();
       progressTimerId = setInterval(tickProgress, 200);
     }
@@ -146,14 +140,28 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isPlaying) {
       svgPlay.classList.add('hide');
       svgPause.classList.remove('hide');
-      startProgressLoop();
-      if (window.XMVisualizer) window.XMVisualizer.wake(player);
+      if (!document.hidden) {
+        startProgressLoop();
+        if (window.XMVisualizer) window.XMVisualizer.wake(player);
+      }
     } else {
       svgPlay.classList.remove('hide');
       svgPause.classList.add('hide');
       stopProgressLoop();
+      if (window.XMVisualizer) window.XMVisualizer.sleep();
     }
   }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopProgressLoop();
+      if (window.XMVisualizer) window.XMVisualizer.sleep();
+    } else if (window.XMAudio && window.XMAudio.isPlaying()) {
+      startProgressLoop();
+      tickProgress();
+      if (window.XMVisualizer) window.XMVisualizer.wake(player);
+    }
+  });
 
   function setStatus(state) {
     statusBadge.className = 'badge status-badge';
@@ -308,7 +316,11 @@ document.addEventListener('DOMContentLoaded', () => {
     onForegroundResume: function() {
       const playing = window.XMAudio.isPlaying();
       setPlayingState(playing);
-      if (playing) tickProgress();
+      if (playing) {
+        startProgressLoop();
+        tickProgress();
+        if (window.XMVisualizer) window.XMVisualizer.wake(player);
+      }
     },
     updateTrackUI: function(title, artist, engine, channelCount, isNative, trackNum) {
       const isError = (engine === 'ERROR');

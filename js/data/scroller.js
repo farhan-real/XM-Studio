@@ -179,7 +179,7 @@
       if (maxScroll <= 0 || Math.abs(touchVelocity) < 0.08) return;
       let v = touchVelocity * 16;
       function momentum() {
-        if (Math.abs(v) < 0.35) { touchAnimId = null; return; }
+        if (Math.abs(v) < 0.35 || document.hidden) { touchAnimId = null; return; }
         setScroll(scrollTop + v, false);
         v *= 0.94;
         touchAnimId = requestAnimationFrame(momentum);
@@ -200,6 +200,13 @@
         suppressNextClick = false;
       }
     }, true);
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && touchAnimId) {
+        cancelAnimationFrame(touchAnimId);
+        touchAnimId = null;
+      }
+    });
 
     viewport.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowDown') { e.preventDefault(); setScroll(scrollTop + itemHeight, false); }

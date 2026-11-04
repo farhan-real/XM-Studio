@@ -1,5 +1,5 @@
 /**
- * js/engine/visualizer.js - Adaptive high-performance visualizer with mobile pacing and zero-lag caching.
+ * js/engine/visualizer.js - Adaptive visualizer with full background sleep and zero-overhead audio isolation.
  */
 (function(window) {
   const canvas = document.getElementById('visualizer');
@@ -11,7 +11,6 @@
   const smoothedValues = new Float32Array(TOTAL_BARS);
   const frameBars = new Uint8Array(TOTAL_BARS);
 
-  // Precompute static frequency bin mapping (eliminates 28 Math.pow calls per frame)
   const BIN_MAP = new Uint8Array(TOTAL_BARS);
   for (let i = 0; i < TOTAL_BARS; i++) {
     BIN_MAP[i] = Math.min(58, Math.floor(1 + Math.pow(i / (TOTAL_BARS - 1), 1.35) * 54));
@@ -19,10 +18,10 @@
 
   let activePlayer = null;
   let isLoopRunning = false;
+  let rafId = null;
   let lastFrameTime = 0;
   let cachedDpr = 1;
 
-  // Cached layout metrics to avoid layout thrashing and per-frame divisions
   let cachedWidth = 0;
   let cachedHeight = 0;
   let cachedMaxBarH = 0;
@@ -30,7 +29,6 @@
   let cachedBarWidth = 0;
   let cachedStep = 0;
 
-  // Precalculated visualizer spectrum data for compiled tracks (0% CPU, zero FFT overhead)
   let cachedVisData = null;
   let cachedVisFps = 60;
 
@@ -85,14 +83,23 @@
 
   function sleep() {
     isLoopRunning = false;
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
   }
 
   function wake(player) {
     if (player) activePlayer = player;
-    if (!isLoopRunning && isCanvasVisible() && window.XMAudio && window.XMAudio.isPlaying()) {
+    if (document.hidden || !isCanvasVisible()) {
+      sleep();
+      return;
+    }
+    if (!isLoopRunning && window.XMAudio && window.XMAudio.isPlaying()) {
       isLoopRunning = true;
       lastFrameTime = performance.now();
-      requestAnimationFrame(renderFrame);
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(renderFrame);
     }
   }
 
@@ -100,26 +107,29 @@
   window.addEventListener('resize', resizeCanvas, { passive: true });
 
   document.addEventListener('visibilitychange', () => {
-    if (isCanvasVisible() && window.XMAudio && window.XMAudio.isPlaying()) wake(activePlayer);
-    else sleep();
+    if (document.hidden) {
+      sleep();
+    } else if (isCanvasVisible() && window.XMAudio && window.XMAudio.isPlaying()) {
+      wake(activePlayer);
+    }
   });
+  window.addEventListener('pagehide', sleep, { passive: true });
 
   function renderFrame(now) {
     const isLive = window.XMAudio ? window.XMAudio.isPlaying() : false;
-    if (!isLive || !isCanvasVisible()) {
+    if (!isLive || document.hidden || !isCanvasVisible()) {
       if (!isLive) {
         smoothedValues.fill(0);
         drawIdleBackground();
       }
-      isLoopRunning = false;
+      sleep();
       return;
     }
 
-    // Adaptive frame pacing: ~31 FPS on mobile to prevent main-thread/audio starvation, ~62 FPS on desktop
     const targetInterval = isMobileDevice() ? 32 : 16;
     const elapsed = now - lastFrameTime;
     if (elapsed < targetInterval) {
-      if (isLoopRunning) requestAnimationFrame(renderFrame);
+      if (isLoopRunning) rafId = requestAnimationFrame(renderFrame);
       return;
     }
 
@@ -128,7 +138,6 @@
     if (canvas.width === 0 || canvas.height === 0) resizeCanvas();
     drawIdleBackground();
 
-    // Fast O(1) spectrum retrieval: Precomputed cache if compiled, or live WebAudio analyser
     let hasData = false;
     if (cachedVisData && cachedVisData.length > 0) {
       const pos = window.XMAudio.getPosition();
@@ -175,21 +184,21 @@
         if (val < 2 || barHeight <= cachedMinBarH) {
           targetStyle = '#1e293b';
         } else if (val > 238) {
-          targetStyle = '#f97316'; // Flame Orange
+          targetStyle = '#f97316';
         } else if (val > 210) {
-          targetStyle = '#fde047'; // Bright Yellow
+          targetStyle = '#fde047';
         } else if (val > 175) {
-          targetStyle = '#22c55e'; // Green
+          targetStyle = '#22c55e';
         } else if (val > 140) {
-          targetStyle = '#a855f7'; // Purple
+          targetStyle = '#a855f7';
         } else if (val > 105) {
-          targetStyle = '#ef4444'; // Red
+          targetStyle = '#ef4444';
         } else if (val > 70) {
-          targetStyle = '#3b82f6'; // Blue
+          targetStyle = '#3b82f6';
         } else if (val > 35) {
-          targetStyle = '#ec4899'; // Pink
+          targetStyle = '#ec4899';
         } else {
-          targetStyle = '#52525b'; // Slate Gray
+          targetStyle = '#52525b';
         }
 
         if (targetStyle !== currentStyle) {
@@ -200,7 +209,7 @@
       }
     }
 
-    if (isLoopRunning) requestAnimationFrame(renderFrame);
+    if (isLoopRunning) rafId = requestAnimationFrame(renderFrame);
   }
 
   window.XMVisualizer = {
