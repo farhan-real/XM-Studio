@@ -1,19 +1,20 @@
 /**
- * js/engine/visualizer.js - Crisp mobile visualizer with multi-tier spectrum palette (red/yellow/green/purple/orange/blue/pink/gray).
+ * js/engine/visualizer.js - High-refresh native VSync visualizer with anti-flicker temporal smoothing.
  */
 (function(window) {
   const canvas = document.getElementById('visualizer');
-  const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+  // Avoid desynchronized: true to eliminate canvas presentation tearing and black-flash flickering
+  const ctx = canvas.getContext('2d', { alpha: false });
   ctx.imageSmoothingEnabled = false;
 
   const dataArray = new Uint8Array(64);
+  const TOTAL_BARS = 28;
+  const smoothedValues = new Float32Array(TOTAL_BARS);
 
   let activePlayer = null;
   let isLoopRunning = false;
   let lastFrameTime = 0;
   let cachedDpr = 1;
-  const FRAME_INTERVAL = 30;
-  const TOTAL_BARS = 28;
 
   function resizeCanvas() {
     cachedDpr = Math.min(window.devicePixelRatio || 1, 1.5);
@@ -46,12 +47,17 @@
   function renderFrame(now) {
     const isLive = window.XMAudio ? window.XMAudio.isPlaying() : false;
     if (!isLive || document.hidden) {
-      if (!isLive) drawIdleBackground();
+      if (!isLive) {
+        smoothedValues.fill(0);
+        drawIdleBackground();
+      }
       isLoopRunning = false;
       return;
     }
 
-    if (now - lastFrameTime >= FRAME_INTERVAL) {
+    // High-refresh rate: allows full 60Hz, 90Hz, 120Hz, and 144Hz displays with frame pacing (>= 6ms)
+    const delta = now - lastFrameTime;
+    if (delta >= 6) {
       lastFrameTime = now;
 
       if (canvas.width === 0 || canvas.height === 0) resizeCanvas();
@@ -67,6 +73,11 @@
         const barWidth = Math.max(1, Math.floor((canvas.width - totalSpacing) / TOTAL_BARS));
         const step = barWidth + spacing;
 
+        // Frame-rate independent scaling (normalized to standard 60Hz / 16.67ms baseline)
+        const timeScale = Math.min(2.5, Math.max(0.2, delta / 16.67));
+        const riseFactor = Math.min(1, 0.72 * timeScale);
+        const decayFactor = Math.min(1, 0.18 * timeScale);
+
         let currentStyle = '';
         for (let i = 0; i < TOTAL_BARS; i++) {
           // Perceptually map 28 bars across bins 1 to 58, skipping Bin 0 (0 Hz DC offset)
@@ -79,8 +90,16 @@
           // Noise gate to suppress sub-audible digital noise
           if (raw < 10) raw = 0;
 
-          const barHeight = raw > 0
-            ? Math.max(minBarH, Math.round((raw / 255) * maxBarH))
+          // Anti-flicker temporal smoothing: instant attack with exponential analog decay
+          if (raw > smoothedValues[i]) {
+            smoothedValues[i] += (raw - smoothedValues[i]) * riseFactor;
+          } else {
+            smoothedValues[i] += (raw - smoothedValues[i]) * decayFactor;
+          }
+
+          const val = smoothedValues[i];
+          const barHeight = val > 1
+            ? Math.max(minBarH, Math.round((val / 255) * maxBarH))
             : minBarH;
 
           // Multi-tier spectrum color hierarchy:
@@ -91,24 +110,24 @@
           // High-mid tier (> 140): neon purple
           // Mid tier (> 105): vivid red
           // Low-mid tier (> 70): electric blue
-          // Subtle low tier (> 35): neon pink 
+          // Subtle low tier (> 35): neon pink
           // Baseline (> 0): muted zinc gray
           let targetStyle;
-          if (raw === 0 || barHeight <= minBarH) {
+          if (val < 2 || barHeight <= minBarH) {
             targetStyle = '#1e293b';
-          } else if (raw > 238) {
+          } else if (val > 238) {
             targetStyle = '#f97316'; // Flame Orange
-          } else if (raw > 210) {
+          } else if (val > 210) {
             targetStyle = '#fde047'; // Bright Yellow
-          } else if (raw > 175) {
+          } else if (val > 175) {
             targetStyle = '#22c55e'; // Green
-          } else if (raw > 140) {
+          } else if (val > 140) {
             targetStyle = '#a855f7'; // Purple
-          } else if (raw > 105) {
+          } else if (val > 105) {
             targetStyle = '#ef4444'; // Red
-          } else if (raw > 70) {
+          } else if (val > 70) {
             targetStyle = '#3b82f6'; // Blue
-          } else if (raw > 35) {
+          } else if (val > 35) {
             targetStyle = '#ec4899'; // Pink
           } else {
             targetStyle = '#52525b'; // Slate Gray
