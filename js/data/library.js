@@ -159,6 +159,9 @@
   });
 
   async function playTrack(track, queue, idx) {
+    if (window.XMAudio && window.XMAudio.player) {
+      window.XMAudio.player.unlock();
+    }
     currentlyPlayingId = track.id;
     updateActiveCards();
     if (track.isCustom || track.isFolderTrack) {
@@ -173,11 +176,11 @@
   }
 
   function updateActiveCards() {
-    const prev = tableBody.querySelector('.track-card.active-playing');
-    if (prev && prev.getAttribute('data-track-id') !== currentlyPlayingId) prev.classList.remove('active-playing');
-    if (currentlyPlayingId) {
-      const cur = tableBody.querySelector(`.track-card[data-track-id="${CSS.escape(currentlyPlayingId)}"]`);
-      if (cur) cur.classList.add('active-playing');
+    const children = tableBody.children;
+    for (let i = 0; i < children.length; i++) {
+      const el = children[i];
+      const id = el.getAttribute('data-track-id');
+      if (id) el.classList.toggle('active-playing', id === currentlyPlayingId);
     }
   }
 
@@ -391,9 +394,14 @@
   });
 
   async function syncFullCatalog() {
-    customCatalog = window.XMCustom ? await window.XMCustom.getTracks() : [];
+    try {
+      customCatalog = window.XMCustom ? await window.XMCustom.getTracks() : [];
+    } catch (e) {
+      customCatalog = [];
+    }
     fullCatalog = sortAlphabetical([...customCatalog, ...remoteCatalog]);
     displayCatalog = fullCatalog;
+    renderedTab = 'archive';
     if (activeTab === 'archive') renderTrackList(displayCatalog, true);
   }
 
@@ -401,7 +409,6 @@
     tableBody.innerHTML = `<div class="library-empty-msg">Syncing active repository catalogs...</div>`;
     remoteCatalog = window.XMSources ? await window.XMSources.fetchRemoteCatalogs() : [];
     await syncFullCatalog();
-    switchTab('archive');
   }
 
   loadAllCatalogs();
@@ -409,6 +416,7 @@
   window.XMLibrary = {
     notifyPlaying: (trackId) => { currentlyPlayingId = trackId; updateActiveCards(); },
     renderCurrentTab: () => switchTab(activeTab),
+    refreshScroller: () => { if (scroller) scroller.refresh(); },
     refreshArchive: async () => {
       remoteCatalog = window.XMSources ? await window.XMSources.fetchRemoteCatalogs() : [];
       await syncFullCatalog();

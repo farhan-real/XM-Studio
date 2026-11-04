@@ -63,6 +63,9 @@ document.addEventListener('DOMContentLoaded', () => {
       btnToggleRight.classList.remove('active');
       panelLeft.classList.remove('mobile-hide');
       dropZone.classList.add('mobile-hide');
+      if (window.XMLibrary && window.XMLibrary.refreshScroller) {
+        window.XMLibrary.refreshScroller();
+      }
     });
     btnToggleRight.addEventListener('click', () => {
       btnToggleRight.classList.add('active');

@@ -1,23 +1,24 @@
 /* css/tracks.css - Virtual list viewport, card styling, and precision custom scrollbar */
 .track-list-wrap {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: row;
   position: relative;
   user-select: none;
   -webkit-user-select: none;
-  contain: strict;
 }
 
 .track-viewport {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   height: 100%;
   position: relative;
   overflow: hidden;
   outline: none;
-  contain: strict;
+  touch-action: none;
 }
 
 .track-cards-list {
@@ -46,8 +47,9 @@
 
 .playlist-items-wrap {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  contain: layout style;
+  -webkit-overflow-scrolling: touch;
 }
 
 .playlist-items-wrap .track-card {
@@ -64,8 +66,6 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  content-visibility: auto;
-  contain-intrinsic-size: 0 54px;
 }
 
 .custom-scrollbar-track {
@@ -77,7 +77,6 @@
   flex-shrink: 0;
   cursor: pointer;
   touch-action: none;
-  contain: layout style paint;
 }
 
 .custom-scrollbar-thumb {
@@ -269,4 +268,4 @@
 
 .km-btn-icon.active {
   color: var(--col-gold);
-}   
+}

@@ -1,5 +1,5 @@
 /**
- * js/data/scroller.js - Zero-reflow custom scrollbar and virtual windowing coordinator.
+ * js/data/scroller.js - Mobile-resilient custom scrollbar and virtual windowing coordinator.
  */
 (function(window) {
   function createScroller(options) {
@@ -15,12 +15,15 @@
     let maxScroll = 0;
     let thumbHeight = 28;
     let maxTravel = 0;
-    let cachedVh = 500;
-    let cachedTh = 500;
+    let cachedVh = 430;
+    let cachedTh = 430;
     let isDragging = false;
     let dragStartPointerY = 0;
     let dragStartScrollTop = 0;
 
+    let isTouching = false;
+    let isTouchDragging = false;
+    let suppressNextClick = false;
     let touchStartY = 0;
     let touchLastY = 0;
     let touchLastTime = 0;
@@ -135,37 +138,67 @@
     }, { passive: false });
 
     viewport.addEventListener('touchstart', (e) => {
-      if (e.touches.length !== 1 || maxScroll <= 0) return;
+      if (e.touches.length !== 1) return;
       if (touchAnimId) { cancelAnimationFrame(touchAnimId); touchAnimId = null; }
+      if (maxScroll <= 0) updateMetrics();
+      isTouching = true;
+      isTouchDragging = false;
       touchStartY = e.touches[0].clientY;
       touchLastY = touchStartY;
       touchLastTime = performance.now();
       touchVelocity = 0;
     }, { passive: true });
 
-    viewport.addEventListener('touchmove', (e) => {
-      if (e.touches.length !== 1 || maxScroll <= 0) return;
+    window.addEventListener('touchmove', (e) => {
+      if (!isTouching || e.touches.length !== 1 || maxScroll <= 0) return;
       const currentY = e.touches[0].clientY;
+      if (!isTouchDragging) {
+        if (Math.abs(currentY - touchStartY) < 6) return;
+        isTouchDragging = true;
+        touchLastY = currentY;
+        touchLastTime = performance.now();
+      }
       const deltaY = touchLastY - currentY;
       const now = performance.now();
       const dt = Math.max(1, now - touchLastTime);
-      touchVelocity = deltaY / dt;
+      touchVelocity = 0.7 * (deltaY / dt) + 0.3 * touchVelocity;
       touchLastY = currentY;
       touchLastTime = now;
       setScroll(scrollTop + deltaY, false);
     }, { passive: true });
 
-    viewport.addEventListener('touchend', () => {
-      if (maxScroll <= 0 || Math.abs(touchVelocity) < 0.15) return;
+    function onTouchEnd() {
+      if (!isTouching) return;
+      isTouching = false;
+      if (!isTouchDragging) return;
+      isTouchDragging = false;
+      suppressNextClick = true;
+      setTimeout(() => { suppressNextClick = false; }, 80);
+
+      if (maxScroll <= 0 || Math.abs(touchVelocity) < 0.12) return;
       let v = touchVelocity * 16;
       function momentum() {
         if (Math.abs(v) < 0.4) { touchAnimId = null; return; }
         setScroll(scrollTop + v, false);
-        v *= 0.92;
+        v *= 0.93;
         touchAnimId = requestAnimationFrame(momentum);
       }
       touchAnimId = requestAnimationFrame(momentum);
+    }
+
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', () => {
+      isTouching = false;
+      isTouchDragging = false;
     }, { passive: true });
+
+    viewport.addEventListener('click', (e) => {
+      if (suppressNextClick) {
+        e.stopPropagation();
+        e.preventDefault();
+        suppressNextClick = false;
+      }
+    }, true);
 
     viewport.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowDown') { e.preventDefault(); setScroll(scrollTop + itemHeight, false); }
@@ -176,11 +209,18 @@
       else if (e.key === 'End') { e.preventDefault(); setScroll(maxScroll, false); }
     });
 
-    window.addEventListener('resize', () => {
-      updateMetrics();
-      syncThumb();
-      emitRender(true);
-    }, { passive: true });
+    function handleResize() {
+      if (viewport.clientHeight > 0) {
+        updateMetrics();
+        syncThumb();
+        emitRender(true);
+      }
+    }
+
+    window.addEventListener('resize', handleResize, { passive: true });
+    if ('ResizeObserver' in window) {
+      new ResizeObserver(handleResize).observe(viewport);
+    }
 
     return {
       setTotal,

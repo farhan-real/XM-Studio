@@ -1,5 +1,5 @@
 /**
- * js/engine/audio.js - Master playback coordinator with zero-leak memory lifecycle.
+ * js/engine/audio.js - Master playback coordinator with synchronous mobile gesture unlock.
  */
 (function(window) {
   const player = new ChiptuneJsPlayer();
@@ -22,6 +22,12 @@
   let currentQueueIdx = -1;
 
   const NATIVE_STREAM_EXTS = new Set(['.mp3', '.ogg', '.wav', '.flac']);
+
+  function unlockOnFirstGesture() {
+    player.unlock();
+  }
+  document.addEventListener('touchend', unlockOnFirstGesture, { passive: true, once: true });
+  document.addEventListener('click', unlockOnFirstGesture, { passive: true, once: true });
 
   function revokeActiveObjectUrl() {
     if (activeObjectUrl) {
@@ -78,6 +84,7 @@
 
   async function playTrackAt(idx) {
     if (!currentQueue || idx < 0 || idx >= currentQueue.length) return;
+    player.unlock();
     const item = currentQueue[idx];
     if (item.isCustom || item.isFolderTrack) {
       let blob = item.blob;
@@ -180,6 +187,7 @@
     const ext = getFileExtension(fallbackName);
     currentExt = ext ? ext.replace('.', '').toLowerCase() : 'xm';
 
+    player.unlock();
     player.stop();
     audioEl.pause();
     revokeActiveObjectUrl();
@@ -212,7 +220,6 @@
 
     if (NATIVE_STREAM_EXTS.has(ext)) {
       isNativeStream = true;
-      player.unlock();
       if (fileOrUrl instanceof File || fileOrUrl instanceof Blob) {
         currentAudioBlob = fileOrUrl;
         activeObjectUrl = URL.createObjectURL(fileOrUrl);

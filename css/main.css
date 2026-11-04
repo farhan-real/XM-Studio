@@ -125,7 +125,6 @@ button {
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65);
-  contain: layout style paint;
 }
 
 .chassis {
@@ -141,7 +140,6 @@ button {
   flex-direction: column;
   gap: 16px;
   position: relative;
-  contain: layout style;
 }
 
 .chassis.drag-over {
@@ -163,11 +161,14 @@ button {
     align-items: center;
   }
   .panel-left {
+    flex: none;
+    min-width: 0;
     width: 100%;
     max-width: 480px;
     height: 520px;
   }
   .chassis {
+    flex: none;
     width: 100%;
     max-width: 480px;
   }
