@@ -1,5 +1,5 @@
 /**
- * js/data/library.js - Precision virtual list rendering, live search, and multi-source archive coordinator.
+ * js/data/library.js - GPU-translated virtual list, pre-indexed search, and archive coordinator.
  */
 (function(window) {
   let remoteCatalog = [];
@@ -14,17 +14,28 @@
   let activeRenderQueue = [];
   let searchDebounceTimer = null;
   let scroller = null;
+  let lastRenderStart = -1;
+  let lastRenderEnd = -1;
+
+  function indexTrack(t) {
+    if (!t._search) {
+      const a = (t.artist || '').toLowerCase();
+      const ti = (t.title || '').toLowerCase();
+      const f = (t.folder || '').toLowerCase();
+      t._sortArtist = a;
+      t._sortTitle = ti;
+      t._search = `${a}\0${ti}\0${f}`;
+    }
+    return t;
+  }
 
   function sortAlphabetical(tracks) {
+    for (let i = 0; i < tracks.length; i++) indexTrack(tracks[i]);
     return tracks.sort((a, b) => {
-      const aArt = (a.artist || '').toLowerCase();
-      const bArt = (b.artist || '').toLowerCase();
-      if (aArt < bArt) return -1;
-      if (aArt > bArt) return 1;
-      const aTit = (a.title || '').toLowerCase();
-      const bTit = (b.title || '').toLowerCase();
-      if (aTit < bTit) return -1;
-      if (aTit > bTit) return 1;
+      if (a._sortArtist < b._sortArtist) return -1;
+      if (a._sortArtist > b._sortArtist) return 1;
+      if (a._sortTitle < b._sortTitle) return -1;
+      if (a._sortTitle > b._sortTitle) return 1;
       return 0;
     });
   }
@@ -67,11 +78,12 @@
   const panePlaylists = document.getElementById('panePlaylists');
   const paneSource = document.getElementById('paneSource');
 
-  function buildCardHtml(track, idx, topOffset, isPlaying, isFav) {
+  function buildCardHtml(track, idx, relTop, isPlaying, isFav) {
     const fmtClass = getFormatBadgeClass(track.ext);
-    const isEven = (idx % 2 === 1);
-    const favIcon = `<svg viewBox="0 0 24 24" class="t-icon-xs" fill="${isFav ? 'var(--col-gold)' : 'none'}" stroke="${isFav ? 'var(--col-gold)' : 'currentColor'}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>`;
-    return `<div class="track-card ${isEven ? 'track-even' : ''} ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}" style="top:${topOffset}px" data-track-id="${track.id}"><span class="track-card-num">${idx + 1}</span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div><div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions"><button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite">${favIcon}</button><button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button></div></div></div></div>`;
+    const isEven = (idx & 1) === 1;
+    const favFill = isFav ? 'var(--col-gold)' : 'none';
+    const favStroke = isFav ? 'var(--col-gold)' : 'currentColor';
+    return `<div class="track-card ${isEven ? 'track-even' : ''} ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}" style="top:${relTop}px" data-track-id="${track.id}" data-idx="${idx}"><span class="track-card-num">${idx + 1}</span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div><div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions"><button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite"><svg viewBox="0 0 24 24" class="t-icon-xs" fill="${favFill}" stroke="${favStroke}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button><button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button></div></div></div></div>`;
   }
 
   function initScroller() {
@@ -80,20 +92,27 @@
       track: document.getElementById('customScrollbarTrack'),
       thumb: document.getElementById('customScrollbarThumb'),
       itemHeight: 54,
-      buffer: 8,
-      onRender: (start, end, st) => {
+      buffer: 6,
+      onRender: (start, end, st, forceRebuild) => {
         if (!activeRenderQueue || activeRenderQueue.length === 0) {
+          lastRenderStart = -1;
+          lastRenderEnd = -1;
+          tableBody.style.transform = 'translate3d(0,0,0)';
           tableBody.innerHTML = '<div class="library-empty-msg">No matching tracks found.</div>';
           return;
         }
-        const favSet = new Set((window.XMPlaylist ? window.XMPlaylist.getFavorites() : []).map(f => f.id));
+        tableBody.style.transform = `translate3d(0,${start * 54 - st}px,0)`;
+        if (!forceRebuild && start === lastRenderStart && end === lastRenderEnd) return;
+        lastRenderStart = start;
+        lastRenderEnd = end;
+
+        const isFavFn = window.XMPlaylist ? window.XMPlaylist.isFavorited : () => false;
         const count = end - start;
         const htmlParts = new Array(count);
         for (let i = 0; i < count; i++) {
           const idx = start + i;
           const track = activeRenderQueue[idx];
-          const topOffset = idx * 54 - st;
-          htmlParts[i] = buildCardHtml(track, idx, topOffset, currentlyPlayingId === track.id, favSet.has(track.id));
+          htmlParts[i] = buildCardHtml(track, idx, i * 54, currentlyPlayingId === track.id, isFavFn(track.id));
         }
         tableBody.innerHTML = htmlParts.join('');
       }
@@ -110,8 +129,8 @@
   tableBody.addEventListener('click', (e) => {
     const card = e.target.closest('.track-card');
     if (!card) return;
-    const trackId = card.getAttribute('data-track-id');
-    const track = activeRenderQueue.find(t => t.id === trackId);
+    const idx = parseInt(card.getAttribute('data-idx'), 10);
+    const track = activeRenderQueue[idx];
     if (!track) return;
     const actionBtn = e.target.closest('.km-btn-icon');
     if (actionBtn) {
@@ -120,7 +139,7 @@
       if (action === 'fav') {
         window.XMPlaylist.toggleFavorite(track);
         if (activeTab === 'favorites') {
-          renderTrackList(sortAlphabetical(window.XMPlaylist.getFavorites()), false);
+          renderTrackList(sortAlphabetical([...window.XMPlaylist.getFavorites()]), false);
         } else {
           const isFav = window.XMPlaylist.isFavorited(track.id);
           card.classList.toggle('is-favorite', isFav);
@@ -135,7 +154,7 @@
         window.XMPlaylist.openPlaylistPicker(track);
       }
     } else {
-      playTrack(track, activeRenderQueue, activeRenderQueue.indexOf(track));
+      playTrack(track, activeRenderQueue, idx);
     }
   });
 
@@ -155,11 +174,9 @@
 
   function updateActiveCards() {
     const prev = tableBody.querySelector('.track-card.active-playing');
-    if (prev && prev.getAttribute('data-track-id') !== currentlyPlayingId) {
-      prev.classList.remove('active-playing');
-    }
+    if (prev && prev.getAttribute('data-track-id') !== currentlyPlayingId) prev.classList.remove('active-playing');
     if (currentlyPlayingId) {
-      const cur = tableBody.querySelector(`.track-card[data-track-id="${currentlyPlayingId}"]`);
+      const cur = tableBody.querySelector(`.track-card[data-track-id="${CSS.escape(currentlyPlayingId)}"]`);
       if (cur) cur.classList.add('active-playing');
     }
   }
@@ -167,23 +184,13 @@
   function renderPlaylists() {
     playlistCreateRow.classList.remove('hide');
     playlistDetailToolbar.classList.add('hide');
-    playlistItemsWrap.innerHTML = '';
     const playlists = window.XMPlaylist.getPlaylists();
     countBadge.textContent = `${playlists.length} PLAYLISTS`;
     if (playlists.length === 0) {
       playlistItemsWrap.innerHTML = '<div class="library-empty-msg">No playlists created yet. Enter a name above to create one.</div>';
       return;
     }
-    playlists.forEach(pl => {
-      const card = document.createElement('div');
-      card.className = 'playlist-card';
-      card.innerHTML = `<div class="pl-card-info"><span class="pl-card-title">${pl.name}</span><span class="pl-card-meta">${pl.tracks.length} tracks</span></div><div class="pl-card-actions"><button class="km-btn-icon" data-action="export" title="Export (.json)"><svg viewBox="0 0 24 24" class="t-icon-xs"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button><button class="km-btn-icon" data-action="modify" title="Rename"><svg viewBox="0 0 24 24" class="t-icon-xs"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button><button class="km-btn-icon" data-action="delete" title="Delete"><svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div>`;
-      card.querySelector('.pl-card-info').addEventListener('click', () => viewPlaylist(pl.id));
-      card.querySelector('[data-action="export"]').addEventListener('click', (e) => { e.stopPropagation(); window.XMPlaylist.exportPlaylist(pl.id); });
-      card.querySelector('[data-action="modify"]').addEventListener('click', (e) => { e.stopPropagation(); window.XMPlaylist.showPrompt("RENAME PLAYLIST", pl.name, "New name...", (nn) => { pl.name = nn; window.XMPlaylist.savePlaylists(playlists); renderPlaylists(); }); });
-      card.querySelector('[data-action="delete"]').addEventListener('click', (e) => { e.stopPropagation(); window.XMPlaylist.showConfirm("DELETE PLAYLIST", `Delete "${pl.name}"?`, () => { window.XMPlaylist.savePlaylists(playlists.filter(p => p.id !== pl.id)); renderPlaylists(); }); });
-      playlistItemsWrap.appendChild(card);
-    });
+    playlistItemsWrap.innerHTML = playlists.map((pl, idx) => `<div class="playlist-card" data-pl-idx="${idx}"><div class="pl-card-info"><span class="pl-card-title">${pl.name}</span><span class="pl-card-meta">${pl.tracks.length} tracks</span></div><div class="pl-card-actions"><button class="km-btn-icon" data-action="export" title="Export (.json)"><svg viewBox="0 0 24 24" class="t-icon-xs"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button><button class="km-btn-icon" data-action="modify" title="Rename"><svg viewBox="0 0 24 24" class="t-icon-xs"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button><button class="km-btn-icon" data-action="delete" title="Delete"><svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div></div>`).join('');
   }
 
   function viewPlaylist(plId) {
@@ -193,29 +200,49 @@
     playlistCreateRow.classList.add('hide');
     playlistDetailToolbar.classList.remove('hide');
     playlistDetailTitle.textContent = pl.name;
-    playlistItemsWrap.innerHTML = '';
     if (pl.tracks.length === 0) {
       playlistItemsWrap.innerHTML = '<div class="library-empty-msg">Playlist is empty. Click "+ Add" above.</div>';
       return;
     }
-    const frag = document.createDocumentFragment();
-    pl.tracks.forEach((track, idx) => {
-      const card = document.createElement('div');
-      const isFav = window.XMPlaylist.isFavorited(track.id);
-      card.className = `track-card ${currentlyPlayingId === track.id ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}`;
-      card.setAttribute('data-track-id', track.id);
-      card.innerHTML = `<span class="track-card-num">${idx + 1}</span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${getFormatBadgeClass(track.ext)}">${track.ext || 'XM'}</span></div><div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions"><button class="km-btn-icon" data-action="remove-added" title="Remove"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div></div></div>`;
-      card.addEventListener('click', (e) => { if (!e.target.closest('.km-btn-icon')) playTrack(track, pl.tracks, idx); });
-      card.querySelector('[data-action="remove-added"]').addEventListener('click', (e) => {
-        e.stopPropagation();
-        const pls = window.XMPlaylist.getPlaylists();
-        const target = pls.find(p => p.id === plId);
-        if (target) { target.tracks.splice(idx, 1); window.XMPlaylist.savePlaylists(pls); viewPlaylist(plId); }
-      });
-      frag.appendChild(card);
-    });
-    playlistItemsWrap.appendChild(frag);
+    const isFavFn = window.XMPlaylist.isFavorited;
+    playlistItemsWrap.innerHTML = pl.tracks.map((track, idx) => `<div class="track-card ${currentlyPlayingId === track.id ? 'active-playing' : ''} ${isFavFn(track.id) ? 'is-favorite' : ''}" data-pl-track-idx="${idx}" data-track-id="${track.id}"><span class="track-card-num">${idx + 1}</span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${getFormatBadgeClass(track.ext)}">${track.ext || 'XM'}</span></div><div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions"><button class="km-btn-icon" data-action="remove-added" title="Remove"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div></div></div></div>`).join('');
   }
+
+  playlistItemsWrap.addEventListener('click', (e) => {
+    const plCard = e.target.closest('.playlist-card');
+    if (plCard) {
+      const playlists = window.XMPlaylist.getPlaylists();
+      const pl = playlists[parseInt(plCard.getAttribute('data-pl-idx'), 10)];
+      if (!pl) return;
+      const btn = e.target.closest('.km-btn-icon');
+      if (btn) {
+        e.stopPropagation();
+        const act = btn.getAttribute('data-action');
+        if (act === 'export') window.XMPlaylist.exportPlaylist(pl.id);
+        else if (act === 'modify') window.XMPlaylist.showPrompt("RENAME PLAYLIST", pl.name, "New name...", (nn) => { pl.name = nn; window.XMPlaylist.savePlaylists(playlists); renderPlaylists(); });
+        else if (act === 'delete') window.XMPlaylist.showConfirm("DELETE PLAYLIST", `Delete "${pl.name}"?`, () => { window.XMPlaylist.savePlaylists(playlists.filter(p => p.id !== pl.id)); renderPlaylists(); });
+      } else {
+        viewPlaylist(pl.id);
+      }
+      return;
+    }
+
+    const trCard = e.target.closest('.track-card');
+    if (trCard && currentPlaylistId) {
+      const idx = parseInt(trCard.getAttribute('data-pl-track-idx'), 10);
+      const pls = window.XMPlaylist.getPlaylists();
+      const pl = pls.find(p => p.id === currentPlaylistId);
+      if (!pl || !pl.tracks[idx]) return;
+      if (e.target.closest('[data-action="remove-added"]')) {
+        e.stopPropagation();
+        pl.tracks.splice(idx, 1);
+        window.XMPlaylist.savePlaylists(pls);
+        viewPlaylist(currentPlaylistId);
+      } else {
+        playTrack(pl.tracks[idx], pl.tracks, idx);
+      }
+    }
+  });
 
   function openAddFromCollectionModal() {
     if (!currentPlaylistId) return;
@@ -230,31 +257,32 @@
 
     const colList = document.getElementById('modalColList');
     const colSearch = document.getElementById('modalColSearch');
+    let currentModalItems = [];
+
     function renderModalItems(items) {
-      colList.innerHTML = '';
-      const frag = document.createDocumentFragment();
-      items.forEach(t => {
-        const item = document.createElement('div');
-        item.className = 'modal-collection-item';
-        item.innerHTML = `<div style="flex:1;min-width:0;"><div style="font-size:0.78rem;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.title}</div><div style="font-size:0.70rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.artist}</div></div><button class="action-btn" data-add-id="${t.id}" style="padding:4px 8px;font-size:0.65rem;flex:none;"><span>+ Add</span></button>`;
-        item.querySelector('[data-add-id]').addEventListener('click', () => {
-          const allPls = window.XMPlaylist.getPlaylists();
-          const target = allPls.find(p => p.id === currentPlaylistId);
-          if (target && !target.tracks.some(tr => tr.id === t.id)) {
-            target.tracks.push(t);
-            window.XMPlaylist.savePlaylists(allPls);
-            item.querySelector('span').textContent = 'Added';
-            viewPlaylist(currentPlaylistId);
-          }
-        });
-        frag.appendChild(item);
-      });
-      colList.appendChild(frag);
+      currentModalItems = items.slice(0, 120);
+      colList.innerHTML = currentModalItems.map((t, i) => `<div class="modal-collection-item"><div style="flex:1;min-width:0;"><div style="font-size:0.78rem;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.title}</div><div style="font-size:0.70rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.artist}</div></div><button class="action-btn" data-modal-idx="${i}" style="padding:4px 8px;font-size:0.65rem;flex:none;"><span>+ Add</span></button></div>`).join('');
     }
+
+    colList.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-modal-idx]');
+      if (!btn) return;
+      const t = currentModalItems[parseInt(btn.getAttribute('data-modal-idx'), 10)];
+      if (!t) return;
+      const allPls = window.XMPlaylist.getPlaylists();
+      const target = allPls.find(p => p.id === currentPlaylistId);
+      if (target && !target.tracks.some(tr => tr.id === t.id)) {
+        target.tracks.push(t);
+        window.XMPlaylist.savePlaylists(allPls);
+        btn.querySelector('span').textContent = 'Added';
+        viewPlaylist(currentPlaylistId);
+      }
+    });
+
     renderModalItems(fullCatalog);
     colSearch.addEventListener('input', (e) => {
       const q = e.target.value.toLowerCase().trim();
-      renderModalItems(q ? fullCatalog.filter(t => (t.artist && t.artist.toLowerCase().includes(q)) || (t.title && t.title.toLowerCase().includes(q))) : fullCatalog);
+      renderModalItems(q ? fullCatalog.filter(t => t._search.includes(q)) : fullCatalog);
     });
   }
 
@@ -325,7 +353,7 @@
       searchBarWrap.classList.remove('hide');
       paneTable.classList.remove('hide');
       searchInput.placeholder = "Filter favorites...";
-      renderTrackList(sortAlphabetical(window.XMPlaylist.getFavorites()), true);
+      renderTrackList(sortAlphabetical([...window.XMPlaylist.getFavorites()]), true);
       renderedTab = 'favorites';
     } else if (tabId === 'playlists') {
       tabPlaylists.classList.add('active');
@@ -353,13 +381,13 @@
     searchDebounceTimer = setTimeout(() => {
       const q = e.target.value.toLowerCase().trim();
       if (activeTab === 'archive') {
-        displayCatalog = q ? fullCatalog.filter(t => (t.artist && t.artist.toLowerCase().includes(q)) || (t.title && t.title.toLowerCase().includes(q)) || (t.folder && t.folder.toLowerCase().includes(q))) : fullCatalog;
+        displayCatalog = q ? fullCatalog.filter(t => t._search.includes(q)) : fullCatalog;
         renderTrackList(displayCatalog, true);
       } else if (activeTab === 'favorites') {
-        const favs = window.XMPlaylist.getFavorites();
-        renderTrackList(q ? favs.filter(t => (t.artist && t.artist.toLowerCase().includes(q)) || (t.title && t.title.toLowerCase().includes(q))) : favs, true);
+        const favs = sortAlphabetical([...window.XMPlaylist.getFavorites()]);
+        renderTrackList(q ? favs.filter(t => t._search.includes(q)) : favs, true);
       }
-    }, 80);
+    }, 60);
   });
 
   async function syncFullCatalog() {

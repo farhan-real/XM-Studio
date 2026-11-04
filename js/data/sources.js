@@ -1,5 +1,5 @@
 /**
- * js/data/sources.js - Multi-repository aggregator and local folder directory source manager.
+ * js/data/sources.js - Multi-repository aggregator and batched local folder directory manager.
  */
 (function(window) {
   const DEFAULT_REPO = {
@@ -68,40 +68,31 @@
     const repos = getRepos();
     const activeCount = repos.filter(r => r.enabled).length;
     if (reposCountBadge) reposCountBadge.textContent = `${activeCount} ACTIVE`;
-    remoteReposList.innerHTML = '';
+    remoteReposList.innerHTML = repos.map(repo => `<div class="source-item-row"><label class="source-item-info" style="cursor:pointer;"><div class="source-item-title">${repo.name} ${repo.isDefault ? '<span class="badge" style="font-size:0.55rem;padding:1px 4px;">DEFAULT</span>' : ''}</div><div class="source-item-sub">${repo.url}</div></label><div class="source-item-actions"><input type="checkbox" class="source-toggle" data-toggle-repo="${repo.id}" ${repo.enabled ? 'checked' : ''} title="Toggle active status" />${!repo.isDefault ? `<button class="km-btn-icon btn-danger-text" data-del-repo="${repo.id}" title="Remove repository"><svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>` : ''}</div></div>`).join('');
+  }
 
-    repos.forEach(repo => {
-      const row = document.createElement('div');
-      row.className = 'source-item-row';
-      row.innerHTML = `
-        <label class="source-item-info" style="cursor:pointer;">
-          <div class="source-item-title">${repo.name} ${repo.isDefault ? '<span class="badge" style="font-size:0.55rem;padding:1px 4px;">DEFAULT</span>' : ''}</div>
-          <div class="source-item-sub">${repo.url}</div>
-        </label>
-        <div class="source-item-actions">
-          <input type="checkbox" class="source-toggle" data-toggle-repo="${repo.id}" ${repo.enabled ? 'checked' : ''} title="Toggle active status" />
-          ${!repo.isDefault ? `<button class="km-btn-icon btn-danger-text" data-del-repo="${repo.id}" title="Remove repository"><svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>` : ''}
-        </div>
-      `;
-
-      row.querySelector('[data-toggle-repo]').addEventListener('change', (e) => {
-        repo.enabled = e.target.checked;
+  if (remoteReposList) {
+    remoteReposList.addEventListener('change', (e) => {
+      const toggle = e.target.closest('[data-toggle-repo]');
+      if (!toggle) return;
+      const repos = getRepos();
+      const target = repos.find(r => r.id === toggle.getAttribute('data-toggle-repo'));
+      if (target) {
+        target.enabled = toggle.checked;
         saveRepos(repos);
         renderRemoteReposList();
         if (window.XMLibrary) window.XMLibrary.refreshArchive();
-      });
-
-      const delBtn = row.querySelector('[data-del-repo]');
-      if (delBtn) {
-        delBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const filtered = getRepos().filter(r => r.id !== repo.id);
-          saveRepos(filtered);
-          renderRemoteReposList();
-          if (window.XMLibrary) window.XMLibrary.refreshArchive();
-        });
       }
-      remoteReposList.appendChild(row);
+    });
+
+    remoteReposList.addEventListener('click', (e) => {
+      const delBtn = e.target.closest('[data-del-repo]');
+      if (!delBtn) return;
+      e.stopPropagation();
+      const id = delBtn.getAttribute('data-del-repo');
+      saveRepos(getRepos().filter(r => r.id !== id));
+      renderRemoteReposList();
+      if (window.XMLibrary) window.XMLibrary.refreshArchive();
     });
   }
 
@@ -109,40 +100,25 @@
     if (!folderSourcesList) return;
     const folders = getFolderSources();
     if (folderCountBadge) folderCountBadge.textContent = `${folders.length} FOLDERS`;
-    folderSourcesList.innerHTML = '';
-
     if (folders.length === 0) {
       folderSourcesList.innerHTML = '<div class="library-empty-msg" style="padding:14px 8px;">No local folders mounted. Click "+ Add Local Folder" to select a folder.</div>';
       return;
     }
+    folderSourcesList.innerHTML = folders.map(folder => `<div class="source-item-row"><div class="source-item-info"><div class="source-item-title">${folder.name}</div><div class="source-item-sub">${folder.trackCount} tracks &bull; ${new Date(folder.dateAdded).toLocaleDateString()}</div></div><div class="source-item-actions"><button class="km-btn-icon btn-danger-text" data-del-folder="${folder.id}" title="Unmount local folder"><svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div></div>`).join('');
+  }
 
-    folders.forEach(folder => {
-      const row = document.createElement('div');
-      row.className = 'source-item-row';
-      row.innerHTML = `
-        <div class="source-item-info">
-          <div class="source-item-title">${folder.name}</div>
-          <div class="source-item-sub">${folder.trackCount} tracks &bull; ${new Date(folder.dateAdded).toLocaleDateString()}</div>
-        </div>
-        <div class="source-item-actions">
-          <button class="km-btn-icon btn-danger-text" data-del-folder="${folder.id}" title="Unmount local folder">
-            <svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-          </button>
-        </div>
-      `;
-
-      row.querySelector('[data-del-folder]').addEventListener('click', async (e) => {
-        e.stopPropagation();
-        if (window.XMCustom && window.XMCustom.deleteTracksByFolder) {
-          await window.XMCustom.deleteTracksByFolder(folder.id);
-        }
-        const updated = getFolderSources().filter(f => f.id !== folder.id);
-        saveFolderSources(updated);
-        renderFolderSourcesList();
-        if (window.XMLibrary) window.XMLibrary.refreshArchive();
-      });
-
-      folderSourcesList.appendChild(row);
+  if (folderSourcesList) {
+    folderSourcesList.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-del-folder]');
+      if (!btn) return;
+      e.stopPropagation();
+      const folderId = btn.getAttribute('data-del-folder');
+      if (window.XMCustom && window.XMCustom.deleteTracksByFolder) {
+        await window.XMCustom.deleteTracksByFolder(folderId);
+      }
+      saveFolderSources(getFolderSources().filter(f => f.id !== folderId));
+      renderFolderSourcesList();
+      if (window.XMLibrary) window.XMLibrary.refreshArchive();
     });
   }
 
@@ -151,7 +127,7 @@
     const allTracks = [];
     let successCount = 0;
 
-    for (const repo of repos) {
+    await Promise.all(repos.map(async (repo) => {
       try {
         const url = `${repo.url.replace(/\/+$/, '')}/tracks.json`;
         const res = await fetch(url);
@@ -159,10 +135,11 @@
         const data = await res.json();
         if (Array.isArray(data)) {
           const cleanBase = repo.url.replace(/\/+$/, '') + '/';
-          data.forEach((t, i) => {
-            const extMatch = (t.path || '').match(/\.([a-z0-9]+)$/i);
-            const ext = t.ext || (extMatch ? extMatch[1].toUpperCase() : 'XM');
+          for (let i = 0; i < data.length; i++) {
+            const t = data[i];
             const cleanPath = (t.path || '').replace(/^\/+/, '');
+            const extMatch = cleanPath.match(/\.([a-z0-9]+)$/i);
+            const ext = t.ext || (extMatch ? extMatch[1].toUpperCase() : 'XM');
             allTracks.push({
               id: `${repo.id}_${cleanPath || i}`,
               title: (t.title || t.name || cleanPath.split('/').pop().replace(/\.[^.]+$/, '') || `Track ${i + 1}`).trim(),
@@ -174,14 +151,14 @@
               repoName: repo.name,
               folder: t.folder || cleanPath.split('/')[0] || repo.name
             });
-          });
+          }
           repo.trackCount = data.length;
           successCount++;
         }
       } catch (err) {
         repo.trackCount = 0;
       }
-    }
+    }));
 
     if (repoStatusMsg) {
       repoStatusMsg.textContent = `Synced ${successCount}/${repos.length} active repos (${allTracks.length} tracks).`;
@@ -218,16 +195,15 @@
 
     if (folderStatusMsg) folderStatusMsg.textContent = `Importing ${valid.length} tracks from ${rootName}...`;
 
-    for (let i = 0; i < valid.length; i++) {
-      const file = valid[i];
+    const now = Date.now();
+    const batch = valid.map((file, i) => {
       const meta = parseFilename(file.name);
       let subfolder = rootName;
       if (file.webkitRelativePath) {
         const parts = file.webkitRelativePath.split('/');
         if (parts.length > 2) subfolder = parts.slice(0, -1).join('/');
       }
-
-      await window.XMCustom.saveTrack({
+      return {
         id: `fld_${folderId}_${i}`,
         title: meta.title,
         artist: meta.artist,
@@ -235,14 +211,16 @@
         blob: file,
         folder: subfolder,
         folderSourceId: folderId,
-        dateAdded: Date.now(),
+        dateAdded: now,
         isCustom: true,
         isFolderTrack: true
-      });
-    }
+      };
+    });
+
+    await window.XMCustom.saveTracksBatch(batch);
 
     const currentFolders = getFolderSources();
-    currentFolders.push({ id: folderId, name: rootName, trackCount: valid.length, dateAdded: Date.now() });
+    currentFolders.push({ id: folderId, name: rootName, trackCount: valid.length, dateAdded: now });
     saveFolderSources(currentFolders);
     renderFolderSourcesList();
 

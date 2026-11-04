@@ -1,5 +1,5 @@
 /**
- * js/data/backup.js - Structured ZIP workstation backup and restore engine.
+ * js/data/backup.js - Structured ZIP workstation backup and batched restore engine.
  */
 (function(window) {
   const btnExport = document.getElementById('btnExportData');
@@ -51,8 +51,7 @@
       const metaList = [];
 
       for (const t of customTracks) {
-        let blob = t.blob;
-        if (!blob && window.XMCustom) blob = await window.XMCustom.getTrackBlob(t.id);
+        const blob = window.XMCustom ? await window.XMCustom.getTrackBlob(t.id) : null;
         const ext = (t.ext || 'xm').toLowerCase();
         const safeFileName = `${t.id}.${ext}`;
         const zipPath = `custom_music/${safeFileName}`;
@@ -69,7 +68,7 @@
           ext: t.ext,
           folder: t.folder || '',
           folderSourceId: t.folderSourceId || '',
-          isFolderTrack: !!t.isFolderTrack,
+          isFolderTrack: Boolean(t.isFolderTrack),
           dateAdded: t.dateAdded || Date.now(),
           filename: zipPath,
           isCustom: true
@@ -128,23 +127,24 @@
         if (zipFiles.has('custom_music.json')) {
           const customMeta = JSON.parse(await zipFiles.get('custom_music.json').text());
           if (Array.isArray(customMeta) && window.XMCustom) {
+            const batch = [];
             for (const cm of customMeta) {
               const fileEntry = zipFiles.get(cm.filename);
-              let trackBlob = null;
-              if (fileEntry) trackBlob = await fileEntry.blob();
-              await window.XMCustom.saveTrack({
+              const trackBlob = fileEntry ? await fileEntry.blob() : null;
+              batch.push({
                 id: cm.id,
                 title: cm.title,
                 artist: cm.artist,
                 ext: cm.ext,
                 folder: cm.folder || '',
                 folderSourceId: cm.folderSourceId || '',
-                isFolderTrack: !!cm.isFolderTrack,
+                isFolderTrack: Boolean(cm.isFolderTrack),
                 blob: trackBlob,
                 dateAdded: cm.dateAdded || Date.now(),
                 isCustom: true
               });
             }
+            await window.XMCustom.saveTracksBatch(batch);
             await window.XMCustom.renderList();
           }
         }

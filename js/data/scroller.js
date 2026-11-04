@@ -1,5 +1,5 @@
 /**
- * js/data/scroller.js - Precision custom scrollbar and virtual windowing coordinator.
+ * js/data/scroller.js - Zero-reflow custom scrollbar and virtual windowing coordinator.
  */
 (function(window) {
   function createScroller(options) {
@@ -7,7 +7,7 @@
     const track = options.track;
     const thumb = options.thumb;
     const itemHeight = options.itemHeight || 54;
-    const buffer = options.buffer || 8;
+    const buffer = options.buffer || 6;
     const onRender = options.onRender;
 
     let totalItems = 0;
@@ -15,6 +15,8 @@
     let maxScroll = 0;
     let thumbHeight = 28;
     let maxTravel = 0;
+    let cachedVh = 500;
+    let cachedTh = 500;
     let isDragging = false;
     let dragStartPointerY = 0;
     let dragStartScrollTop = 0;
@@ -25,19 +27,18 @@
     let touchVelocity = 0;
     let touchAnimId = null;
 
-    function getViewportHeight() {
-      return viewport.clientHeight || 500;
-    }
-
-    function getTrackHeight() {
-      return track.clientHeight || getViewportHeight();
+    function measureDimensions() {
+      const vh = viewport.clientHeight;
+      const th = track.clientHeight;
+      if (vh > 0) cachedVh = vh;
+      if (th > 0) cachedTh = th;
+      else if (vh > 0) cachedTh = vh;
     }
 
     function updateMetrics() {
-      const vh = getViewportHeight();
-      const th = getTrackHeight();
+      measureDimensions();
       const totalH = totalItems * itemHeight;
-      maxScroll = Math.max(0, totalH - vh);
+      maxScroll = Math.max(0, totalH - cachedVh);
 
       if (maxScroll <= 0 || totalItems === 0) {
         track.classList.add('hide');
@@ -46,9 +47,10 @@
         scrollTop = 0;
       } else {
         track.classList.remove('hide');
-        const viewRatio = vh / totalH;
-        thumbHeight = Math.max(28, Math.min(th, Math.round(th * viewRatio)));
-        maxTravel = Math.max(1, th - thumbHeight);
+        measureDimensions();
+        const viewRatio = cachedVh / totalH;
+        thumbHeight = Math.max(28, Math.min(cachedTh, Math.round(cachedTh * viewRatio)));
+        maxTravel = Math.max(1, cachedTh - thumbHeight);
         thumb.style.height = `${thumbHeight}px`;
       }
     }
@@ -57,24 +59,25 @@
       if (maxTravel <= 0 || maxScroll <= 0) return;
       const fraction = Math.max(0, Math.min(1, scrollTop / maxScroll));
       const thumbTop = Math.round(fraction * maxTravel);
-      thumb.style.transform = `translateY(${thumbTop}px)`;
+      thumb.style.transform = `translate3d(0,${thumbTop}px,0)`;
     }
 
-    function emitRender() {
+    function emitRender(forceRebuild) {
       if (totalItems === 0) {
-        if (onRender) onRender(0, 0, 0);
+        if (onRender) onRender(0, 0, 0, true);
         return;
       }
-      const vh = getViewportHeight();
       const start = Math.max(0, Math.floor(scrollTop / itemHeight) - buffer);
-      const end = Math.min(totalItems, Math.ceil((scrollTop + vh) / itemHeight) + buffer);
-      if (onRender) onRender(start, end, scrollTop);
+      const end = Math.min(totalItems, Math.ceil((scrollTop + cachedVh) / itemHeight) + buffer);
+      if (onRender) onRender(start, end, scrollTop, Boolean(forceRebuild));
     }
 
-    function setScroll(targetTop) {
-      scrollTop = Math.max(0, Math.min(maxScroll, targetTop));
+    function setScroll(targetTop, forceRebuild) {
+      const clamped = Math.max(0, Math.min(maxScroll, targetTop));
+      if (clamped === scrollTop && !forceRebuild) return;
+      scrollTop = clamped;
       syncThumb();
-      emitRender();
+      emitRender(forceRebuild);
     }
 
     function setTotal(count, forceReset = false) {
@@ -83,7 +86,7 @@
       updateMetrics();
       if (scrollTop > maxScroll) scrollTop = maxScroll;
       syncThumb();
-      emitRender();
+      emitRender(true);
     }
 
     thumb.addEventListener('pointerdown', (e) => {
@@ -100,7 +103,7 @@
       if (!isDragging || maxTravel <= 0) return;
       const deltaY = e.clientY - dragStartPointerY;
       const scrollDelta = (deltaY / maxTravel) * maxScroll;
-      setScroll(dragStartScrollTop + scrollDelta);
+      setScroll(dragStartScrollTop + scrollDelta, false);
     });
 
     function endThumbDrag(e) {
@@ -119,7 +122,7 @@
       const clickY = e.clientY - rect.top;
       const targetTravelPos = clickY - thumbHeight / 2;
       const fraction = Math.max(0, Math.min(1, targetTravelPos / maxTravel));
-      setScroll(fraction * maxScroll);
+      setScroll(fraction * maxScroll, false);
     });
 
     viewport.addEventListener('wheel', (e) => {
@@ -127,13 +130,13 @@
       e.preventDefault();
       let delta = e.deltaY;
       if (e.deltaMode === 1) delta *= 40;
-      else if (e.deltaMode === 2) delta *= getViewportHeight();
-      setScroll(scrollTop + delta);
+      else if (e.deltaMode === 2) delta *= cachedVh;
+      setScroll(scrollTop + delta, false);
     }, { passive: false });
 
     viewport.addEventListener('touchstart', (e) => {
       if (e.touches.length !== 1 || maxScroll <= 0) return;
-      if (touchAnimId) cancelAnimationFrame(touchAnimId);
+      if (touchAnimId) { cancelAnimationFrame(touchAnimId); touchAnimId = null; }
       touchStartY = e.touches[0].clientY;
       touchLastY = touchStartY;
       touchLastTime = performance.now();
@@ -149,15 +152,15 @@
       touchVelocity = deltaY / dt;
       touchLastY = currentY;
       touchLastTime = now;
-      setScroll(scrollTop + deltaY);
+      setScroll(scrollTop + deltaY, false);
     }, { passive: true });
 
     viewport.addEventListener('touchend', () => {
       if (maxScroll <= 0 || Math.abs(touchVelocity) < 0.15) return;
       let v = touchVelocity * 16;
       function momentum() {
-        if (Math.abs(v) < 0.4) return;
-        setScroll(scrollTop + v);
+        if (Math.abs(v) < 0.4) { touchAnimId = null; return; }
+        setScroll(scrollTop + v, false);
         v *= 0.92;
         touchAnimId = requestAnimationFrame(momentum);
       }
@@ -165,32 +168,30 @@
     }, { passive: true });
 
     viewport.addEventListener('keydown', (e) => {
-      const vh = getViewportHeight();
-      if (e.key === 'ArrowDown') { e.preventDefault(); setScroll(scrollTop + itemHeight); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); setScroll(scrollTop - itemHeight); }
-      else if (e.key === 'PageDown') { e.preventDefault(); setScroll(scrollTop + vh); }
-      else if (e.key === 'PageUp') { e.preventDefault(); setScroll(scrollTop - vh); }
-      else if (e.key === 'Home') { e.preventDefault(); setScroll(0); }
-      else if (e.key === 'End') { e.preventDefault(); setScroll(maxScroll); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); setScroll(scrollTop + itemHeight, false); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setScroll(scrollTop - itemHeight, false); }
+      else if (e.key === 'PageDown') { e.preventDefault(); setScroll(scrollTop + cachedVh, false); }
+      else if (e.key === 'PageUp') { e.preventDefault(); setScroll(scrollTop - cachedVh, false); }
+      else if (e.key === 'Home') { e.preventDefault(); setScroll(0, false); }
+      else if (e.key === 'End') { e.preventDefault(); setScroll(maxScroll, false); }
     });
 
     window.addEventListener('resize', () => {
       updateMetrics();
       syncThumb();
-      emitRender();
-    });
+      emitRender(true);
+    }, { passive: true });
 
     return {
       setTotal,
       setScroll,
       scrollToIndex: (idx) => {
-        const vh = getViewportHeight();
-        setScroll(idx * itemHeight - (vh - itemHeight) / 2);
+        setScroll(idx * itemHeight - (cachedVh - itemHeight) / 2, false);
       },
       refresh: () => {
         updateMetrics();
         syncThumb();
-        emitRender();
+        emitRender(true);
       },
       getScrollTop: () => scrollTop
     };

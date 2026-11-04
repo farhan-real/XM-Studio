@@ -1,21 +1,29 @@
 /**
- * js/engine/visualizer.js - Fast frequency spectrum analyzer with idle sleep and DPR throttling.
+ * js/engine/visualizer.js - Zero-allocation frequency spectrum analyzer with visibility & idle sleep.
  */
 (function(window) {
   const canvas = document.getElementById('visualizer');
-  const ctx = canvas.getContext('2d', { alpha: false });
+  const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
   const dataArray = new Uint8Array(32);
 
+  let activePlayer = null;
   let isLoopRunning = false;
   let lastFrameTime = 0;
-  const FRAME_INTERVAL = 28; // Capped to ~35fps to save mobile GPU/CPU overhead
+  let cachedDpr = 1;
+  const FRAME_INTERVAL = 30;
+  const TOTAL_BARS = 28;
 
   function resizeCanvas() {
-    // Cap devicePixelRatio at 1.5 to reduce fill-rate by up to 75% on 3x/4x mobile screens
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-    canvas.width = Math.floor(canvas.parentElement.clientWidth * dpr);
-    canvas.height = Math.floor(canvas.parentElement.clientHeight * dpr);
-    drawIdleBackground();
+    cachedDpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const parent = canvas.parentElement;
+    if (!parent) return;
+    const w = Math.floor(parent.clientWidth * cachedDpr);
+    const h = Math.floor(parent.clientHeight * cachedDpr);
+    if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
+      canvas.width = w;
+      canvas.height = h;
+      drawIdleBackground();
+    }
   }
 
   function drawIdleBackground() {
@@ -24,61 +32,69 @@
   }
 
   resizeCanvas();
-  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('resize', resizeCanvas, { passive: true });
 
-  function render(player, audioEl) {
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && window.XMAudio && window.XMAudio.isPlaying()) {
+      wake(activePlayer);
+    }
+  });
+
+  function renderFrame(now) {
     const isLive = window.XMAudio ? window.XMAudio.isPlaying() : false;
-
-    if (!isLive) {
-      drawIdleBackground();
+    if (!isLive || document.hidden) {
+      if (!isLive) drawIdleBackground();
       isLoopRunning = false;
-      return; // Sleep: pause requestAnimationFrame when audio is not playing
+      return;
     }
 
-    const now = performance.now();
     if (now - lastFrameTime >= FRAME_INTERVAL) {
       lastFrameTime = now;
 
+      if (canvas.width === 0 || canvas.height === 0) resizeCanvas();
       drawIdleBackground();
 
-      if (player.analyser) {
-        player.analyser.getByteFrequencyData(dataArray);
-        const totalBars = 28;
-        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-        const spacing = 3 * dpr;
-        const totalSpacing = spacing * (totalBars - 1);
-        const barWidth = (canvas.width - totalSpacing) / totalBars;
-        let x = 0;
+      if (activePlayer && activePlayer.analyser && canvas.width > 0) {
+        activePlayer.analyser.getByteFrequencyData(dataArray);
+        const cHeight = canvas.height;
+        const maxBarH = cHeight - 8;
+        const minBarH = 3 * cachedDpr;
+        const spacing = 3 * cachedDpr;
+        const barWidth = (canvas.width - spacing * (TOTAL_BARS - 1)) / TOTAL_BARS;
+        const step = barWidth + spacing;
 
-        for (let i = 0; i < totalBars; i++) {
-          const val = dataArray[i] / 255;
-          const barHeight = Math.max(3 * dpr, val * (canvas.height - 8));
-
-          if (val > 0.82) ctx.fillStyle = '#22c55e';
-          else if (val > 0.5) ctx.fillStyle = '#d4d4d8';
-          else ctx.fillStyle = '#52525b';
-
-          ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-          x += barWidth + spacing;
+        let currentStyle = '';
+        for (let i = 0; i < TOTAL_BARS; i++) {
+          const raw = dataArray[i];
+          const barHeight = Math.max(minBarH, (raw * 0.0039215686) * maxBarH);
+          const targetStyle = raw > 209 ? '#22c55e' : (raw > 127 ? '#d4d4d8' : '#52525b');
+          if (targetStyle !== currentStyle) {
+            currentStyle = targetStyle;
+            ctx.fillStyle = currentStyle;
+          }
+          ctx.fillRect(i * step, cHeight - barHeight, barWidth, barHeight);
         }
       }
     }
 
-    requestAnimationFrame(() => render(player, audioEl));
+    requestAnimationFrame(renderFrame);
   }
 
-  function wake(player, audioEl) {
-    if (!isLoopRunning) {
+  function wake(player) {
+    if (player) activePlayer = player;
+    if (!isLoopRunning && !document.hidden) {
       isLoopRunning = true;
       lastFrameTime = performance.now();
-      requestAnimationFrame(() => render(player, audioEl));
+      requestAnimationFrame(renderFrame);
     }
   }
 
   window.XMVisualizer = {
-    start: function(player, audioEl) {
-      wake(player, audioEl);
+    start: function(player) {
+      activePlayer = player;
+      wake(player);
     },
-    wake: wake
+    wake: wake,
+    resize: resizeCanvas
   };
 })(window);

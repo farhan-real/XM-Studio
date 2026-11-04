@@ -36,7 +36,6 @@
   -webkit-font-smoothing: antialiased;
 }
 
-/* Big, wide, high-contrast scrollbars for effortless scrolling */
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -125,7 +124,8 @@ button {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.75);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65);
+  contain: layout style paint;
 }
 
 .chassis {
@@ -136,16 +136,17 @@ button {
   border: 1px solid var(--border-strong);
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.65);
   display: flex;
   flex-direction: column;
   gap: 16px;
   position: relative;
+  contain: layout style;
 }
 
 .chassis.drag-over {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-dim), 0 24px 48px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 0 0 2px var(--accent-dim);
 }
 
 .hide {

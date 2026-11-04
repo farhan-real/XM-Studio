@@ -1,13 +1,15 @@
 /**
- * js/data/custom.js - IndexedDB storage & UI manager for user-added custom music.
+ * js/data/custom.js - Persistent IndexedDB connection & lightweight metadata-only RAM cache.
  */
 (function(window) {
   const DB_NAME = 'xm_studio_custom_db';
   const DB_VERSION = 1;
   const STORE_NAME = 'custom_tracks';
+  let dbPromise = null;
 
   function openDB() {
-    return new Promise((resolve, reject) => {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise((resolve, reject) => {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
@@ -16,16 +18,42 @@
         }
       };
       req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
+      req.onerror = () => {
+        dbPromise = null;
+        reject(req.error);
+      };
     });
+    return dbPromise;
+  }
+
+  function stripBlob(record) {
+    return {
+      id: record.id,
+      title: record.title,
+      artist: record.artist,
+      ext: record.ext,
+      folder: record.folder || '',
+      folderSourceId: record.folderSourceId || '',
+      dateAdded: record.dateAdded,
+      isCustom: Boolean(record.isCustom),
+      isFolderTrack: Boolean(record.isFolderTrack)
+    };
   }
 
   async function saveTrack(record) {
+    return saveTracksBatch([record]);
+  }
+
+  async function saveTracksBatch(records) {
+    if (!records || records.length === 0) return;
     const db = await openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
-      tx.objectStore(STORE_NAME).put(record);
-      tx.oncomplete = () => resolve(record);
+      const store = tx.objectStore(STORE_NAME);
+      for (let i = 0; i < records.length; i++) {
+        store.put(records[i]);
+      }
+      tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
   }
@@ -35,7 +63,12 @@
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const req = tx.objectStore(STORE_NAME).getAll();
-      req.onsuccess = () => resolve(req.result || []);
+      req.onsuccess = () => {
+        const raw = req.result || [];
+        const light = new Array(raw.length);
+        for (let i = 0; i < raw.length; i++) light[i] = stripBlob(raw[i]);
+        resolve(light);
+      };
       req.onerror = () => reject(req.error);
     });
   }
@@ -77,7 +110,7 @@
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      toDelete.forEach(t => store.delete(t.id));
+      for (let i = 0; i < toDelete.length; i++) store.delete(toDelete[i].id);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
@@ -90,7 +123,7 @@
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      toDelete.forEach(t => store.delete(t.id));
+      for (let i = 0; i < toDelete.length; i++) store.delete(toDelete[i].id);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
@@ -124,53 +157,37 @@
     const all = await getTracks();
     const tracks = all.filter(t => !t.isFolderTrack);
     if (customCountBadge) customCountBadge.textContent = `${tracks.length} ADDED`;
-    customTracksList.innerHTML = '';
 
     if (tracks.length === 0) {
       customTracksList.innerHTML = '<div class="library-empty-msg" style="padding:14px 8px;">No individual custom tracks uploaded yet. Click "+ Add Tracks" to upload.</div>';
       return;
     }
 
-    const frag = document.createDocumentFragment();
-    tracks.forEach(track => {
-      const row = document.createElement('div');
-      row.className = 'custom-track-item';
+    customTracksList.innerHTML = tracks.map(track => {
       const fmtClass = track.ext.toLowerCase() === 'flac' ? 'fmt-flac' : 'fmt-xm';
-      row.innerHTML = `
-        <div class="custom-track-meta">
-          <div class="custom-track-title">${track.title}</div>
-          <div class="custom-track-artist">${track.artist}</div>
-        </div>
-        <span class="fmt-badge ${fmtClass}">${track.ext}</span>
-        <button class="km-btn-icon btn-danger-text" data-del-id="${track.id}" title="Delete Custom Track">
-          <svg viewBox="0 0 24 24" class="t-icon-xs">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          </svg>
-        </button>
-      `;
+      return `<div class="custom-track-item"><div class="custom-track-meta"><div class="custom-track-title">${track.title}</div><div class="custom-track-artist">${track.artist}</div></div><span class="fmt-badge ${fmtClass}">${track.ext}</span><button class="km-btn-icon btn-danger-text" data-del-id="${track.id}" title="Delete Custom Track"><svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div>`;
+    }).join('');
+  }
 
-      row.querySelector('[data-del-id]').addEventListener('click', async (e) => {
-        e.stopPropagation();
-        await deleteTrack(track.id);
-        await renderCustomManagerList();
-        if (window.XMLibrary) window.XMLibrary.refreshArchive();
-      });
-
-      frag.appendChild(row);
+  if (customTracksList) {
+    customTracksList.addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-del-id]');
+      if (!btn) return;
+      e.stopPropagation();
+      await deleteTrack(btn.getAttribute('data-del-id'));
+      await renderCustomManagerList();
+      if (window.XMLibrary) window.XMLibrary.refreshArchive();
     });
-
-    customTracksList.appendChild(frag);
   }
 
   if (btnAddCustomFile && inputCustomFiles) {
     btnAddCustomFile.addEventListener('click', () => inputCustomFiles.click());
     inputCustomFiles.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files || []);
-      for (const file of files) {
+      const batch = files.map((file, i) => {
         const meta = parseFilename(file.name);
-        const record = {
-          id: `custom_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        return {
+          id: `custom_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`,
           title: meta.title,
           artist: meta.artist,
           ext: meta.ext,
@@ -179,8 +196,8 @@
           isCustom: true,
           isFolderTrack: false
         };
-        await saveTrack(record);
-      }
+      });
+      await saveTracksBatch(batch);
       inputCustomFiles.value = '';
       await renderCustomManagerList();
       if (window.XMLibrary) window.XMLibrary.refreshArchive();
@@ -192,9 +209,14 @@
       if (!window.XMPlaylist) return;
       window.XMPlaylist.showConfirm("CLEAR ALL CUSTOM MUSIC", "Remove all your custom added music from the Archive?", async () => {
         const all = await getTracks();
-        for (const t of all) {
-          if (!t.isFolderTrack) await deleteTrack(t.id);
-        }
+        const db = await openDB();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(STORE_NAME, 'readwrite');
+          const store = tx.objectStore(STORE_NAME);
+          all.forEach(t => { if (!t.isFolderTrack) store.delete(t.id); });
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        });
         await renderCustomManagerList();
         if (window.XMLibrary) window.XMLibrary.refreshArchive();
       });
@@ -205,6 +227,7 @@
 
   window.XMCustom = {
     saveTrack,
+    saveTracksBatch,
     getTracks,
     getTrackBlob,
     deleteTrack,

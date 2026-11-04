@@ -1,5 +1,5 @@
 /**
- * js/engine/audio.js - Master playback coordinator with exact track fidelity and raw tracker download.
+ * js/engine/audio.js - Master playback coordinator with zero-leak memory lifecycle.
  */
 (function(window) {
   const player = new ChiptuneJsPlayer();
@@ -8,6 +8,7 @@
   let currentRawBuffer = null;
   let currentAudioBlob = null;
   let currentAudioSrc = '';
+  let activeObjectUrl = null;
   let currentExt = 'xm';
   let isNativeStream = false;
   let nativeAudioSource = null;
@@ -20,7 +21,14 @@
   let currentQueue = null;
   let currentQueueIdx = -1;
 
-  const NATIVE_STREAM_EXTS = ['.mp3', '.ogg', '.wav', '.flac'];
+  const NATIVE_STREAM_EXTS = new Set(['.mp3', '.ogg', '.wav', '.flac']);
+
+  function revokeActiveObjectUrl() {
+    if (activeObjectUrl) {
+      URL.revokeObjectURL(activeObjectUrl);
+      activeObjectUrl = null;
+    }
+  }
 
   function routeNativeAudioToWebAudio() {
     if (!nativeAudioSource && player.context) {
@@ -65,9 +73,7 @@
     if (!item.path) return null;
     if (item.path.startsWith('http://') || item.path.startsWith('https://')) return item.path;
     const baseUrl = 'https://farhan-real.github.io/XM-Music/';
-    const cleanBase = baseUrl.replace(/\/+$/, '') + '/';
-    const cleanPath = item.path.replace(/^\/+/, '');
-    return cleanBase + encodeURI(cleanPath);
+    return baseUrl + encodeURI(item.path.replace(/^\/+/, ''));
   }
 
   async function playTrackAt(idx) {
@@ -114,7 +120,9 @@
     if (!currentQueue || currentQueue.length === 0) {
       if (window.XMLibrary && window.XMLibrary.getDisplayCatalog) {
         const cat = window.XMLibrary.getDisplayCatalog();
-        if (cat && cat.length > 0) playTrackAtQueue(cat, 0);
+        if (cat && cat.length > 0 && window.XMLibrary.playTrackDirect) {
+          window.XMLibrary.playTrackDirect(cat[0], cat, 0);
+        }
       }
       return;
     }
@@ -154,6 +162,19 @@
     }
   }
 
+  function unload() {
+    player.stop();
+    audioEl.pause();
+    audioEl.removeAttribute('src');
+    audioEl.load();
+    revokeActiveObjectUrl();
+    currentRawBuffer = null;
+    currentAudioBlob = null;
+    currentAudioSrc = '';
+    activeTitle = "No Module Loaded";
+    activeArtist = "";
+  }
+
   function loadTrack(fileOrUrl, fallbackName, trackItemRef, queue, queueIdx) {
     const loadId = ++currentLoadId;
     const ext = getFileExtension(fallbackName);
@@ -161,6 +182,7 @@
 
     player.stop();
     audioEl.pause();
+    revokeActiveObjectUrl();
     currentRawBuffer = null;
     currentAudioBlob = null;
     currentAudioSrc = (typeof fileOrUrl === 'string') ? fileOrUrl : '';
@@ -188,11 +210,13 @@
       } catch (e) {}
     }
 
-    if (NATIVE_STREAM_EXTS.includes(ext)) {
+    if (NATIVE_STREAM_EXTS.has(ext)) {
       isNativeStream = true;
+      player.unlock();
       if (fileOrUrl instanceof File || fileOrUrl instanceof Blob) {
         currentAudioBlob = fileOrUrl;
-        audioEl.src = URL.createObjectURL(fileOrUrl);
+        activeObjectUrl = URL.createObjectURL(fileOrUrl);
+        audioEl.src = activeObjectUrl;
       } else {
         audioEl.src = fileOrUrl;
       }
@@ -207,12 +231,16 @@
     player.load(fileOrUrl, (buf) => {
       if (loadId !== currentLoadId) return;
       currentRawBuffer = buf;
-      const meta = player.readMetadata(buf) || {};
-      const engineName = (meta.type_long || currentExt || "FT2").toUpperCase();
       player.setRepeat(isLooping);
-      player.play(buf);
+      const node = player.play(buf);
+      if (!node) {
+        if (window.XMApp) window.XMApp.updateTrackUI(targetTitle + " (Load Failed)", targetArtist, "ERROR", "--", false);
+        return;
+      }
+      const meta = player.currentMetadata || {};
+      const engineName = (meta.type_long || currentExt || "FT2").toUpperCase();
       if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, engineName, `${meta.channels || 8} CH`, false);
-    }, (err) => {
+    }, () => {
       if (loadId !== currentLoadId) return;
       if (window.XMApp) window.XMApp.updateTrackUI(targetTitle + " (Load Failed)", targetArtist, "ERROR", "--", false);
     });
@@ -224,12 +252,13 @@
   window.XMAudio = {
     player,
     audioEl,
+    unload,
     get isNativeStream() { return isNativeStream; },
     get currentRawBuffer() { return currentRawBuffer; },
     get currentAudioBlob() { return currentAudioBlob; },
     get currentAudioSrc() { return currentAudioSrc; },
     getCurrentExtension: () => currentExt,
-    isPlaying: () => isNativeStream ? !audioEl.paused : (player.currentPlayingNode && !player.currentPlayingNode.paused),
+    isPlaying: () => isNativeStream ? !audioEl.paused : Boolean(player.currentPlayingNode && !player.currentPlayingNode.paused),
     loadTrack,
     playNextTrack,
     playPrevTrack,

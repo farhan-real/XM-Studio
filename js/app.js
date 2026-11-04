@@ -1,5 +1,5 @@
 /**
- * js/app.js - Main workstation controller, drag-drop ingestion, format target, and transport.
+ * js/app.js - Main workstation controller with zero-idle polling and immediate memory release.
  */
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
@@ -7,12 +7,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const { player, audioEl } = window.XMAudio;
-  window.XMVisualizer.start(player, audioEl);
+  window.XMVisualizer.start(player);
 
   let activeFormat = 'mp3';
   let isSeeking = false;
   let prevVolume = 0.85;
   let lastReportedSec = -1;
+  let lastReportedTotalSec = -1;
+  let progressTimerId = null;
 
   const btnPlayPause = document.getElementById('btnPlayPause');
   const svgPlay = document.getElementById('svgPlay');
@@ -67,33 +69,15 @@ document.addEventListener('DOMContentLoaded', () => {
       btnToggleLeft.classList.remove('active');
       dropZone.classList.remove('mobile-hide');
       panelLeft.classList.add('mobile-hide');
+      if (window.XMVisualizer) window.XMVisualizer.resize();
     });
   }
 
   function formatTime(sec) {
     if (!sec || isNaN(sec)) return "00:00";
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  }
-
-  function setPlayingState(isPlaying) {
-    if (isPlaying) {
-      svgPlay.classList.add('hide');
-      svgPause.classList.remove('hide');
-      if (window.XMVisualizer) window.XMVisualizer.wake(player, audioEl);
-    } else {
-      svgPlay.classList.remove('hide');
-      svgPause.classList.add('hide');
-    }
-  }
-
-  function setStatus(state) {
-    statusBadge.className = 'badge status-badge';
-    if (state === 'idle') { statusBadge.classList.add('status-idle'); statusBadge.textContent = 'STATUS: IDLE'; }
-    else if (state === 'compiling') { statusBadge.classList.add('status-compiling'); statusBadge.textContent = 'STATUS: COMPILING'; }
-    else if (state === 'ready') { statusBadge.classList.add('status-ready'); statusBadge.textContent = 'STATUS: READY'; }
-    else if (state === 'error') { statusBadge.classList.add('status-error'); statusBadge.textContent = 'STATUS: ERROR'; }
+    const m = (sec / 60) | 0;
+    const s = (sec % 60) | 0;
+    return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
   function getTrackDuration() {
@@ -106,20 +90,63 @@ document.addEventListener('DOMContentLoaded', () => {
     return player.currentPlayingNode ? player.getPosition() : 0;
   }
 
-  setInterval(() => {
+  function tickProgress() {
     if (isSeeking) return;
+    if (!window.XMAudio.isPlaying()) {
+      stopProgressLoop();
+      return;
+    }
     const dur = getTrackDuration();
     const cur = getTrackCurrentTime();
     if (dur > 0) {
       progressBar.value = (cur / dur) * 100;
-      const currentSec = Math.floor(cur);
+      const currentSec = cur | 0;
+      const totalSec = dur | 0;
       if (currentSec !== lastReportedSec) {
         lastReportedSec = currentSec;
         timeCurrent.textContent = formatTime(cur);
+      }
+      if (totalSec !== lastReportedTotalSec) {
+        lastReportedTotalSec = totalSec;
         timeTotal.textContent = formatTime(dur);
       }
     }
-  }, 100);
+  }
+
+  function startProgressLoop() {
+    if (!progressTimerId) {
+      tickProgress();
+      progressTimerId = setInterval(tickProgress, 200);
+    }
+  }
+
+  function stopProgressLoop() {
+    if (progressTimerId) {
+      clearInterval(progressTimerId);
+      progressTimerId = null;
+    }
+  }
+
+  function setPlayingState(isPlaying) {
+    if (isPlaying) {
+      svgPlay.classList.add('hide');
+      svgPause.classList.remove('hide');
+      startProgressLoop();
+      if (window.XMVisualizer) window.XMVisualizer.wake(player);
+    } else {
+      svgPlay.classList.remove('hide');
+      svgPause.classList.add('hide');
+      stopProgressLoop();
+    }
+  }
+
+  function setStatus(state) {
+    statusBadge.className = 'badge status-badge';
+    if (state === 'idle') { statusBadge.classList.add('status-idle'); statusBadge.textContent = 'STATUS: IDLE'; }
+    else if (state === 'compiling') { statusBadge.classList.add('status-compiling'); statusBadge.textContent = 'STATUS: COMPILING'; }
+    else if (state === 'ready') { statusBadge.classList.add('status-ready'); statusBadge.textContent = 'STATUS: READY'; }
+    else if (state === 'error') { statusBadge.classList.add('status-error'); statusBadge.textContent = 'STATUS: ERROR'; }
+  }
 
   btnPlayPause.addEventListener('click', () => {
     player.unlock();
@@ -154,9 +181,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnPlayRandom) btnPlayRandom.addEventListener('click', () => window.XMAudio.playRandomTrack());
 
   btnUnload.addEventListener('click', () => {
-    player.stop();
-    audioEl.pause();
-    audioEl.currentTime = 0;
+    window.XMAudio.unload();
     songTitle.textContent = "No Module Loaded";
     songArtist.textContent = "Ready for FastTracker II / Audio input";
     modType.textContent = "NONE";
@@ -167,6 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
     timeCurrent.textContent = "00:00";
     timeTotal.textContent = "00:00";
     lastReportedSec = -1;
+    lastReportedTotalSec = -1;
     btnDownload.disabled = true;
     setStatus('idle');
     setPlayingState(false);
@@ -178,7 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (audioEl.duration && !isNaN(audioEl.duration)) audioEl.currentTime = targetSec;
     } else player.seek(targetSec);
     timeCurrent.textContent = formatTime(targetSec);
-    lastReportedSec = Math.floor(targetSec);
+    lastReportedSec = targetSec | 0;
   }
 
   progressBar.addEventListener('input', () => {
@@ -287,8 +313,10 @@ document.addEventListener('DOMContentLoaded', () => {
       rateBadge.textContent = isError ? "--" : "48 KHZ";
       progressBar.disabled = isError;
       btnDownload.disabled = isError;
+      lastReportedSec = -1;
+      lastReportedTotalSec = -1;
       setStatus(isError ? 'error' : 'ready');
-      if (!isError) setPlayingState(true);
+      setPlayingState(!isError);
     },
     onTrackEnded: function() {
       setPlayingState(false);
