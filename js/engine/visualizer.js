@@ -1,5 +1,5 @@
 /**
- * js/engine/visualizer.js - Ultra-high refresh rate VSync visualizer with precomputed visualizer caching.
+ * js/engine/visualizer.js - Adaptive high-performance visualizer with mobile pacing and zero-lag caching.
  */
 (function(window) {
   const canvas = document.getElementById('visualizer');
@@ -11,25 +11,60 @@
   const smoothedValues = new Float32Array(TOTAL_BARS);
   const frameBars = new Uint8Array(TOTAL_BARS);
 
+  // Precompute static frequency bin mapping (eliminates 28 Math.pow calls per frame)
+  const BIN_MAP = new Uint8Array(TOTAL_BARS);
+  for (let i = 0; i < TOTAL_BARS; i++) {
+    BIN_MAP[i] = Math.min(58, Math.floor(1 + Math.pow(i / (TOTAL_BARS - 1), 1.35) * 54));
+  }
+
   let activePlayer = null;
   let isLoopRunning = false;
   let lastFrameTime = 0;
   let cachedDpr = 1;
 
-  // Cached visualizer spectrum data for compiled tracks (0% CPU, zero FFT overhead)
+  // Cached layout metrics to avoid layout thrashing and per-frame divisions
+  let cachedWidth = 0;
+  let cachedHeight = 0;
+  let cachedMaxBarH = 0;
+  let cachedMinBarH = 0;
+  let cachedBarWidth = 0;
+  let cachedStep = 0;
+
+  // Precalculated visualizer spectrum data for compiled tracks (0% CPU, zero FFT overhead)
   let cachedVisData = null;
   let cachedVisFps = 60;
 
+  function isMobileDevice() {
+    return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (window.innerWidth <= 900);
+  }
+
+  function isCanvasVisible() {
+    return !document.hidden && canvas.offsetWidth > 0 && canvas.offsetHeight > 0;
+  }
+
   function resizeCanvas() {
-    cachedDpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const isMob = isMobileDevice();
+    cachedDpr = Math.min(window.devicePixelRatio || 1, isMob ? 1.25 : 1.5);
     const parent = canvas.parentElement;
     if (!parent) return;
+
     const w = Math.floor(parent.clientWidth * cachedDpr);
     const h = Math.floor(parent.clientHeight * cachedDpr);
+
     if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
       canvas.width = w;
       canvas.height = h;
+      cachedWidth = w;
+      cachedHeight = h;
       ctx.imageSmoothingEnabled = false;
+
+      cachedMaxBarH = cachedHeight - Math.round(8 * cachedDpr);
+      cachedMinBarH = Math.max(2, Math.round(2 * cachedDpr));
+      const spacing = Math.max(1, Math.round(3 * cachedDpr));
+      const totalSpacing = spacing * (TOTAL_BARS - 1);
+      cachedBarWidth = Math.max(1, Math.floor((cachedWidth - totalSpacing) / TOTAL_BARS));
+      cachedStep = cachedBarWidth + spacing;
+
       drawIdleBackground();
     }
   }
@@ -48,18 +83,30 @@
     cachedVisData = null;
   }
 
+  function sleep() {
+    isLoopRunning = false;
+  }
+
+  function wake(player) {
+    if (player) activePlayer = player;
+    if (!isLoopRunning && isCanvasVisible() && window.XMAudio && window.XMAudio.isPlaying()) {
+      isLoopRunning = true;
+      lastFrameTime = performance.now();
+      requestAnimationFrame(renderFrame);
+    }
+  }
+
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas, { passive: true });
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && window.XMAudio && window.XMAudio.isPlaying()) {
-      wake(activePlayer);
-    }
+    if (isCanvasVisible() && window.XMAudio && window.XMAudio.isPlaying()) wake(activePlayer);
+    else sleep();
   });
 
   function renderFrame(now) {
     const isLive = window.XMAudio ? window.XMAudio.isPlaying() : false;
-    if (!isLive || document.hidden) {
+    if (!isLive || !isCanvasVisible()) {
       if (!isLive) {
         smoothedValues.fill(0);
         drawIdleBackground();
@@ -68,25 +115,23 @@
       return;
     }
 
-    // Uncapped native VSync refresh rate (60Hz, 90Hz, 120Hz, 144Hz+)
-    const delta = Math.min(60, Math.max(1, now - lastFrameTime || 16.67));
+    // Adaptive frame pacing: ~31 FPS on mobile to prevent main-thread/audio starvation, ~62 FPS on desktop
+    const targetInterval = isMobileDevice() ? 32 : 16;
+    const elapsed = now - lastFrameTime;
+    if (elapsed < targetInterval) {
+      if (isLoopRunning) requestAnimationFrame(renderFrame);
+      return;
+    }
+
     lastFrameTime = now;
 
     if (canvas.width === 0 || canvas.height === 0) resizeCanvas();
     drawIdleBackground();
 
-    const cHeight = canvas.height;
-    const maxBarH = cHeight - (8 * cachedDpr);
-    const minBarH = Math.max(2, Math.round(2 * cachedDpr));
-    const spacing = Math.max(1, Math.round(3 * cachedDpr));
-    const totalSpacing = spacing * (TOTAL_BARS - 1);
-    const barWidth = Math.max(1, Math.floor((canvas.width - totalSpacing) / TOTAL_BARS));
-    const step = barWidth + spacing;
-
-    // Retrieve spectrum values: Instant O(1) cached lookup if compiled, or live WebAudio FFT
+    // Fast O(1) spectrum retrieval: Precomputed cache if compiled, or live WebAudio analyser
     let hasData = false;
     if (cachedVisData && cachedVisData.length > 0) {
-      const pos = window.XMAudio ? window.XMAudio.getPosition() : 0;
+      const pos = window.XMAudio.getPosition();
       const fIdx = Math.floor(pos * cachedVisFps);
       const offset = fIdx * TOTAL_BARS;
       if (offset >= 0 && offset + TOTAL_BARS <= cachedVisData.length) {
@@ -98,7 +143,7 @@
     if (!hasData && activePlayer && activePlayer.analyser) {
       activePlayer.analyser.getByteFrequencyData(dataArray);
       for (let i = 0; i < TOTAL_BARS; i++) {
-        const binIdx = Math.min(58, Math.floor(1 + Math.pow(i / (TOTAL_BARS - 1), 1.35) * 54));
+        const binIdx = BIN_MAP[i];
         let raw = dataArray[binIdx];
         if (binIdx + 1 < 64 && dataArray[binIdx + 1] > raw) raw = Math.max(raw, dataArray[binIdx + 1]);
         frameBars[i] = raw < 10 ? 0 : raw;
@@ -106,8 +151,8 @@
       hasData = true;
     }
 
-    if (hasData && canvas.width > 0) {
-      const timeScale = delta / 16.67;
+    if (hasData && cachedWidth > 0) {
+      const timeScale = Math.min(2.5, Math.max(0.5, elapsed / 16.67));
       const riseFactor = Math.min(1, 0.85 * timeScale);
       const decayFactor = Math.min(1, 0.22 * timeScale);
 
@@ -122,10 +167,12 @@
         }
 
         const val = smoothedValues[i];
-        const barHeight = val > 1 ? Math.max(minBarH, Math.round((val / 255) * maxBarH)) : minBarH;
+        const barHeight = val > 1
+          ? Math.max(cachedMinBarH, Math.round((val / 255) * cachedMaxBarH))
+          : cachedMinBarH;
 
         let targetStyle;
-        if (val < 2 || barHeight <= minBarH) {
+        if (val < 2 || barHeight <= cachedMinBarH) {
           targetStyle = '#1e293b';
         } else if (val > 238) {
           targetStyle = '#f97316'; // Flame Orange
@@ -149,20 +196,11 @@
           currentStyle = targetStyle;
           ctx.fillStyle = currentStyle;
         }
-        ctx.fillRect(Math.round(i * step), cHeight - barHeight, barWidth, barHeight);
+        ctx.fillRect(Math.round(i * cachedStep), cachedHeight - barHeight, cachedBarWidth, barHeight);
       }
     }
 
-    requestAnimationFrame(renderFrame);
-  }
-
-  function wake(player) {
-    if (player) activePlayer = player;
-    if (!isLoopRunning && !document.hidden) {
-      isLoopRunning = true;
-      lastFrameTime = performance.now();
-      requestAnimationFrame(renderFrame);
-    }
+    if (isLoopRunning) requestAnimationFrame(renderFrame);
   }
 
   window.XMVisualizer = {
@@ -171,6 +209,7 @@
       wake(player);
     },
     wake,
+    sleep,
     resize: resizeCanvas,
     setVisualizerCache,
     clearVisualizerCache

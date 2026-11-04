@@ -1,5 +1,5 @@
 /**
- * js/app.js - Main workstation controller with visualizer pre-caching and zero-idle polling.
+ * js/app.js - Main workstation controller with visualizer sleep state management.
  */
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
@@ -69,6 +69,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.XMLibrary && window.XMLibrary.refreshScroller) {
       window.XMLibrary.refreshScroller();
     }
+    if (window.XMVisualizer && window.XMVisualizer.sleep) {
+      window.XMVisualizer.sleep();
+    }
   }
 
   function showMobilePlayerView() {
@@ -76,7 +79,10 @@ document.addEventListener('DOMContentLoaded', () => {
     btnToggleLeft.classList.remove('active');
     panelLeft.classList.add('mobile-hide');
     dropZone.classList.remove('mobile-hide', 'mobile-mini');
-    if (window.XMVisualizer) window.XMVisualizer.resize();
+    if (window.XMVisualizer) {
+      window.XMVisualizer.resize();
+      window.XMVisualizer.wake();
+    }
   }
 
   if (btnToggleLeft && btnToggleRight) {
