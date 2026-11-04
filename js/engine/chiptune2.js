@@ -13,11 +13,19 @@
     }
     this.sampleRate = this.context.sampleRate || 48000;
     this.gainNode = this.context.createGain();
+
+    // 25 Hz highpass filter removes DC bias and sub-audible infrasound from tracker instruments
+    this.dcFilter = this.context.createBiquadFilter();
+    this.dcFilter.type = 'highpass';
+    this.dcFilter.frequency.value = 25;
+    this.dcFilter.Q.value = 0.707;
+
     this.analyser = this.context.createAnalyser();
-    this.analyser.fftSize = 64;
+    this.analyser.fftSize = 128;
     this.analyser.smoothingTimeConstant = 0.82;
 
-    this.gainNode.connect(this.analyser);
+    this.gainNode.connect(this.dcFilter);
+    this.dcFilter.connect(this.analyser);
     this.analyser.connect(this.context.destination);
 
     this.currentPlayingNode = null;

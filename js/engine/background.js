@@ -31,10 +31,7 @@
     writeStr(36, 'data');
     view.setUint32(40, dataBytes, true);
 
-    for (let i = 0; i < numSamples; i++) {
-      view.setInt16(44 + i * 2, (i & 1) ? 1 : -1, true);
-    }
-
+    // Pure zeros: completely silent, no DC offset, no 4kHz tone, zero harmonics
     return new Blob([buffer], { type: 'audio/wav' });
   }
 
