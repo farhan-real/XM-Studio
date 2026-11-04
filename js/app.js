@@ -243,6 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const info = window.XMAudio.getCurrentInfo();
     const ext = window.XMAudio.getCurrentExtension ? window.XMAudio.getCurrentExtension() : 'xm';
     const safeName = `${info.artist} - ${info.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
+    const targetTrackId = (window.XMAudio.currentTrackItem && window.XMAudio.currentTrackItem.id) || window.XMAudio.currentAudioSrc || info.title;
 
     if (activeFormat === 'raw') {
       let blob = window.XMAudio.currentAudioBlob;
@@ -280,7 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
       if (window.XMAudio && window.XMAudio.handoffToCompiled) {
-        window.XMAudio.handoffToCompiled(blob, activeFormat);
+        window.XMAudio.handoffToCompiled(blob, activeFormat, targetTrackId);
       }
     }, () => {
       readoutProgressTrack.classList.add('hide');

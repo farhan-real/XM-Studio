@@ -235,11 +235,12 @@
       for (var i = 0; i < actual; i++) {
         var sL = heapF32[baseL + i];
         var sR = heapF32[baseR + i];
-        if (sL > 1.0) sL = 1.0 - 0.25 / (sL + 0.5);
-        else if (sL < -1.0) sL = -1.0 + 0.25 / (-sL + 0.5);
 
-        if (sR > 1.0) sR = 1.0 - 0.25 / (sR + 0.5);
-        else if (sR < -1.0) sR = -1.0 + 0.25 / (-sR + 0.5);
+        if (sL > 1.0) sL = 1.0;
+        else if (sL < -1.0) sL = -1.0;
+
+        if (sR > 1.0) sR = 1.0;
+        else if (sR < -1.0) sR = -1.0;
 
         outL[i] = sL;
         outR[i] = sR;

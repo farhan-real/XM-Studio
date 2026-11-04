@@ -13,7 +13,6 @@
     self.isCompiling = true;
 
     try {
-      // Multithreading: run heavy OpenMPT rendering and LAME encoding in a background Worker
       self.worker = new Worker('js/engine/worker.js');
 
       self.worker.onmessage = function(e) {
@@ -39,12 +38,16 @@
         if (onError) onError(err);
       };
 
-      // Transfer ArrayBuffer ownership to worker (zero-copy memory transfer)
+      const targetSampleRate = (window.XMAudio && window.XMAudio.player && window.XMAudio.player.context)
+        ? window.XMAudio.player.context.sampleRate
+        : 48000;
+
       const copy = buffer.slice(0);
       self.worker.postMessage({
         type: 'compile',
         buffer: copy,
-        format: format || 'mp3'
+        format: format || 'mp3',
+        sampleRate: targetSampleRate
       }, [copy]);
     } catch (e) {
       self.isCompiling = false;
@@ -66,4 +69,4 @@
   };
 
   window.AudioCompiler = new AudioCompiler();
-})(window);
+})(window); 

@@ -60,21 +60,22 @@ self.onmessage = function(e) {
       return;
     }
 
-    libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 8]);
+    // Cubic spline interpolation (4) prevents sinc ringing; volume ramping (5) prevents transient clicks
+    libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 4]);
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 2, 100]);
+    libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [modulePtr, 0]);
 
     const duration = libopenmpt._openmpt_module_get_duration_seconds(modulePtr) || 180;
-    const sampleRate = 48000;
+    const sampleRate = data.sampleRate || 48000;
     const totalFrames = Math.ceil(duration * sampleRate);
     const format = data.format || 'mp3';
     const isMp3 = (format === 'mp3');
 
-    const mp3encoder = isMp3 ? new lamejs.Mp3Encoder(2, sampleRate, 320) : null;
-    const encodedChunks = [];
-    let totalPcmBytes = 0;
+    // MP3 frames strictly require 1152 samples per frame. Read in exact multiples of 1152.
+    const BLOCK_SIZE = 1152;
+    const chunkSize = BLOCK_SIZE * 4; // 4608 stereo frames
 
-    const chunkSize = 16384;
     const leftBufferPtr = libopenmpt._malloc(4 * chunkSize);
     const rightBufferPtr = libopenmpt._malloc(4 * chunkSize);
     const baseL = leftBufferPtr >> 2;
@@ -83,6 +84,10 @@ self.onmessage = function(e) {
     const leftInt16 = isMp3 ? new Int16Array(chunkSize) : null;
     const rightInt16 = isMp3 ? new Int16Array(chunkSize) : null;
     const interleavedPcm = !isMp3 ? new Int16Array(chunkSize * 2) : null;
+
+    const mp3encoder = isMp3 ? new lamejs.Mp3Encoder(2, sampleRate, 320) : null;
+    const encodedChunks = [];
+    let totalPcmBytes = 0;
 
     let framesRendered = 0;
     let lastReportedPct = -1;
@@ -105,27 +110,38 @@ self.onmessage = function(e) {
         for (let i = 0; i < actual; i++) {
           let sL = heapF32[baseL + i];
           let sR = heapF32[baseR + i];
-          if (sL > 1.0) sL = 1.0 - 0.25 / (sL + 0.5);
-          else if (sL < -1.0) sL = -1.0 + 0.25 / (-sL + 0.5);
-          if (sR > 1.0) sR = 1.0 - 0.25 / (sR + 0.5);
-          else if (sR < -1.0) sR = -1.0 + 0.25 / (-sR + 0.5);
+
+          // Clean, continuous peak limiting: eliminates waveform step drops and crackling
+          if (sL > 1.0) sL = 1.0;
+          else if (sL < -1.0) sL = -1.0;
+
+          if (sR > 1.0) sR = 1.0;
+          else if (sR < -1.0) sR = -1.0;
 
           leftInt16[i] = (sL < 0 ? sL * 32768 : sL * 32767) | 0;
           rightInt16[i] = (sR < 0 ? sR * 32768 : sR * 32767) | 0;
         }
-        const mp3buf = mp3encoder.encodeBuffer(
-          actual === chunkSize ? leftInt16 : leftInt16.subarray(0, actual),
-          actual === chunkSize ? rightInt16 : rightInt16.subarray(0, actual)
-        );
-        if (mp3buf.length > 0) encodedChunks.push(new Int8Array(mp3buf));
+
+        // Encode in exact 1152-sample MP3 frames to prevent bit-reservoir desync and stuttering
+        for (let i = 0; i < actual; i += BLOCK_SIZE) {
+          const end = Math.min(i + BLOCK_SIZE, actual);
+          const leftChunk = (i === 0 && end === chunkSize) ? leftInt16 : leftInt16.subarray(i, end);
+          const rightChunk = (i === 0 && end === chunkSize) ? rightInt16 : rightInt16.subarray(i, end);
+          const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+          if (mp3buf && mp3buf.length > 0) {
+            encodedChunks.push(new Uint8Array(mp3buf));
+          }
+        }
       } else {
         for (let i = 0; i < actual; i++) {
           let sL = heapF32[baseL + i];
           let sR = heapF32[baseR + i];
-          if (sL > 1.0) sL = 1.0 - 0.25 / (sL + 0.5);
-          else if (sL < -1.0) sL = -1.0 + 0.25 / (-sL + 0.5);
-          if (sR > 1.0) sR = 1.0 - 0.25 / (sR + 0.5);
-          else if (sR < -1.0) sR = -1.0 + 0.25 / (-sR + 0.5);
+
+          if (sL > 1.0) sL = 1.0;
+          else if (sL < -1.0) sL = -1.0;
+
+          if (sR > 1.0) sR = 1.0;
+          else if (sR < -1.0) sR = -1.0;
 
           const idx = i << 1;
           interleavedPcm[idx] = (sL < 0 ? sL * 32768 : sL * 32767) | 0;
@@ -151,8 +167,10 @@ self.onmessage = function(e) {
     let finalBlob = null;
     if (isMp3) {
       const endBuf = mp3encoder.flush();
-      if (endBuf.length > 0) encodedChunks.push(new Int8Array(endBuf));
-      finalBlob = new Blob(encodedChunks, { type: 'audio/mp3' });
+      if (endBuf && endBuf.length > 0) {
+        encodedChunks.push(new Uint8Array(endBuf));
+      }
+      finalBlob = new Blob(encodedChunks, { type: 'audio/mpeg' });
     } else {
       finalBlob = createWavBlob(encodedChunks, totalPcmBytes, sampleRate);
     }
