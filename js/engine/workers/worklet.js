@@ -1,5 +1,5 @@
 /**
- * js/engine/worklet.js - High-performance FIFO ring-buffer AudioWorkletProcessor.
+ * js/engine/workers/worklet.js - High-performance jitter-buffered AudioWorkletProcessor.
  * Runs directly on the browser's native audio rendering thread.
  */
 class XMAudioWorkletProcessor extends AudioWorkletProcessor {
@@ -65,6 +65,11 @@ class XMAudioWorkletProcessor extends AudioWorkletProcessor {
     if (this.isPaused || this.leftQueue.length === 0) {
       outL.fill(0);
       outR.fill(0);
+
+      // If playing but starved, proactively signal emergency refill
+      if (!this.isPaused && this.directPort) {
+        this.directPort.postMessage({ type: 'pull', count: 8 });
+      }
       return true;
     }
 
@@ -75,8 +80,11 @@ class XMAudioWorkletProcessor extends AudioWorkletProcessor {
       const available = curL.length - this.readOffset;
       const toCopy = Math.min(available, framesNeeded - framesWritten);
 
-      outL.set(curL.subarray(this.readOffset, this.readOffset + toCopy), framesWritten);
-      outR.set(curR.subarray(this.readOffset, this.readOffset + toCopy), framesWritten);
+      // Direct loop copy avoids GC allocation in the real-time audio thread
+      for (let i = 0; i < toCopy; i++) {
+        outL[framesWritten + i] = curL[this.readOffset + i];
+        outR[framesWritten + i] = curR[this.readOffset + i];
+      }
 
       this.readOffset += toCopy;
       framesWritten += toCopy;
@@ -86,10 +94,17 @@ class XMAudioWorkletProcessor extends AudioWorkletProcessor {
         this.rightQueue.shift();
         this.readOffset = 0;
 
+        // Keep buffer topped up as chunks are consumed
         if (this.directPort) {
-          this.directPort.postMessage({ type: 'pull' });
+          const needed = this.leftQueue.length < 8 ? 4 : 1;
+          this.directPort.postMessage({ type: 'pull', count: needed });
         }
       }
+    }
+
+    // Proactive low-watermark refill request before queue drops to zero
+    if (this.leftQueue.length < 6 && this.directPort && !this.isPaused) {
+      this.directPort.postMessage({ type: 'pull', count: 4 });
     }
 
     if (framesWritten < framesNeeded) {

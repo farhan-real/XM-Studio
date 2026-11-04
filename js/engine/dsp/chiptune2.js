@@ -38,6 +38,7 @@
     this.currentPosition = 0;
     this.repeatCount = -1;
     this.handlers = {};
+    this.pendingLoadCallback = null;
 
     this.initPipeline();
   }
@@ -89,6 +90,11 @@
       if (data.type === 'metadata') {
         this.currentMetadata = data.meta;
         this.cachedDuration = data.meta.duration || 180;
+        if (typeof this.pendingLoadCallback === 'function') {
+          const cb = this.pendingLoadCallback;
+          this.pendingLoadCallback = null;
+          cb();
+        }
       } else if (data.type === 'position') {
         this.currentPosition = data.position;
       } else if (data.type === 'ended') {
@@ -124,7 +130,18 @@
 
     const finishLoad = (buf) => {
       this.initPipeline()
-        .then(() => callback(buf))
+        .then(() => {
+          this.pendingLoadCallback = () => callback(buf);
+          const copy = buf.slice(0);
+          this.dspWorker.postMessage(
+            {
+              action: 'load',
+              buffer: copy,
+              repeatCount: this.repeatCount
+            },
+            [copy]
+          );
+        })
         .catch((err) => {
           if (errback) errback(err);
           this.fireEvent('onError', err);
@@ -156,23 +173,13 @@
   };
 
   ChiptuneJsPlayer.prototype.play = function(buffer) {
-    this.stop();
     this.unlock();
 
-    if (!this.isPipelineReady || !this.dspWorker) {
+    if (!this.isPipelineReady || !this.dspWorker || !this.workletNode) {
       return null;
     }
 
-    const copy = buffer.slice(0);
-    this.dspWorker.postMessage(
-      {
-        action: 'load',
-        buffer: copy,
-        repeatCount: this.repeatCount
-      },
-      [copy]
-    );
-
+    this.workletNode.port.postMessage({ type: 'flush' });
     this.dspWorker.postMessage({ action: 'play' });
     this.workletNode.port.postMessage({ type: 'resume' });
 

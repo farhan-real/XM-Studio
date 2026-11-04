@@ -25,13 +25,19 @@ let repeatCount = -1;
 let leftBufferPtr = 0;
 let rightBufferPtr = 0;
 
-const CHUNK_FRAMES = 2048;
+const CHUNK_FRAMES = 4096;
+
+function isEngineReady() {
+  return typeof libopenmpt !== 'undefined' &&
+    Boolean(libopenmpt._openmpt_module_create_from_memory) &&
+    Boolean(libopenmpt.HEAPU8);
+}
 
 function ensureScratchBuffers() {
-  if (!leftBufferPtr) {
+  if (!leftBufferPtr && isEngineReady()) {
     leftBufferPtr = libopenmpt._malloc(4 * CHUNK_FRAMES);
   }
-  if (!rightBufferPtr) {
+  if (!rightBufferPtr && isEngineReady()) {
     rightBufferPtr = libopenmpt._malloc(4 * CHUNK_FRAMES);
   }
 }
@@ -63,7 +69,7 @@ function extractMetadata(mod) {
 }
 
 function renderAndSendChunk() {
-  if (!isPlaying || !modulePtr || !directPort) {
+  if (!isPlaying || !modulePtr || !directPort || !isEngineReady()) {
     return;
   }
 
@@ -90,8 +96,16 @@ function renderAndSendChunk() {
   const leftArray = new Float32Array(actual);
   const rightArray = new Float32Array(actual);
 
-  leftArray.set(heapF32.subarray(baseL, baseL + actual));
-  rightArray.set(heapF32.subarray(baseR, baseR + actual));
+  for (let i = 0; i < actual; i++) {
+    let sL = heapF32[baseL + i];
+    let sR = heapF32[baseR + i];
+    if (sL > 1.0) sL = 1.0;
+    else if (sL < -1.0) sL = -1.0;
+    if (sR > 1.0) sR = 1.0;
+    else if (sR < -1.0) sR = -1.0;
+    leftArray[i] = sL;
+    rightArray[i] = sR;
+  }
 
   directPort.postMessage(
     {
@@ -103,8 +117,18 @@ function renderAndSendChunk() {
   );
 }
 
-function postPosition() {
-  if (!isPlaying || !modulePtr) {
+function renderBatch(count) {
+  const num = Math.min(16, Math.max(1, count || 1));
+  for (let i = 0; i < num; i++) {
+    if (!isPlaying || !modulePtr) {
+      break;
+    }
+    renderAndSendChunk();
+  }
+}
+
+function reportPosition() {
+  if (!isPlaying || !modulePtr || !isEngineReady()) {
     return;
   }
   const pos = libopenmpt._openmpt_module_get_position_seconds
@@ -114,7 +138,16 @@ function postPosition() {
   self.postMessage({ type: 'position', position: pos || 0 });
 }
 
-setInterval(postPosition, 200);
+function waitForEngine(callback, errback, attempts) {
+  const tries = attempts || 0;
+  if (isEngineReady()) {
+    callback();
+  } else if (tries < 100) {
+    setTimeout(() => waitForEngine(callback, errback, tries + 1), 50);
+  } else if (errback) {
+    errback(new Error('DSP engine timed out in worker.'));
+  }
+}
 
 self.onmessage = function(e) {
   const data = e.data;
@@ -126,43 +159,50 @@ self.onmessage = function(e) {
     directPort = data.port;
     sampleRate = data.sampleRate || 48000;
     directPort.onmessage = (msgEvent) => {
-      if (msgEvent.data && msgEvent.data.type === 'pull') {
-        renderAndSendChunk();
+      if (!msgEvent.data) {
+        return;
+      }
+      if (msgEvent.data.type === 'pull') {
+        renderBatch(msgEvent.data.count || 1);
+        reportPosition();
       }
     };
   } else if (data.action === 'load') {
     freeModule();
 
-    try {
-      const byteArray = new Uint8Array(data.buffer);
-      ptrToFile = libopenmpt._malloc(byteArray.byteLength);
-      libopenmpt.HEAPU8.set(byteArray, ptrToFile);
+    waitForEngine(() => {
+      try {
+        const byteArray = new Uint8Array(data.buffer);
+        ptrToFile = libopenmpt._malloc(byteArray.byteLength);
+        libopenmpt.HEAPU8.set(byteArray, ptrToFile);
 
-      modulePtr = libopenmpt._openmpt_module_create_from_memory(ptrToFile, byteArray.byteLength, 0, 0, 0);
-      if (!modulePtr) {
-        self.postMessage({ type: 'error', message: 'Could not parse module.' });
-        return;
+        modulePtr = libopenmpt._openmpt_module_create_from_memory(ptrToFile, byteArray.byteLength, 0, 0, 0);
+        if (!modulePtr) {
+          self.postMessage({ type: 'error', message: 'Could not parse tracker module.' });
+          return;
+        }
+
+        repeatCount = (data.repeatCount !== undefined) ? data.repeatCount : -1;
+        libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 4]);
+        libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
+        libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 2, 100]);
+        libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [modulePtr, repeatCount]);
+
+        const meta = extractMetadata(modulePtr);
+        self.postMessage({ type: 'metadata', meta: meta });
+      } catch (err) {
+        self.postMessage({ type: 'error', message: err.message });
       }
-
-      repeatCount = (data.repeatCount !== undefined) ? data.repeatCount : -1;
-      libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 4]);
-      libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
-      libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 2, 100]);
-      libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [modulePtr, repeatCount]);
-
-      const meta = extractMetadata(modulePtr);
-      self.postMessage({ type: 'metadata', meta: meta });
-    } catch (err) {
+    }, (err) => {
       self.postMessage({ type: 'error', message: err.message });
-    }
+    });
   } else if (data.action === 'play') {
     if (!modulePtr) {
       return;
     }
     isPlaying = true;
-    for (let i = 0; i < 4; i++) {
-      renderAndSendChunk();
-    }
+    // Prime the worklet with a healthy 1.2-second buffer (14 chunks of 4096 frames)
+    renderBatch(14);
   } else if (data.action === 'pause') {
     isPlaying = false;
   } else if (data.action === 'seek') {
@@ -172,10 +212,9 @@ self.onmessage = function(e) {
         directPort.postMessage({ type: 'flush' });
       }
       if (isPlaying) {
-        for (let i = 0; i < 4; i++) {
-          renderAndSendChunk();
-        }
+        renderBatch(14);
       }
+      reportPosition();
     }
   } else if (data.action === 'repeat') {
     repeatCount = data.repeatCount;
