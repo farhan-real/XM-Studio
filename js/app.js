@@ -368,7 +368,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const isError = (engine === 'ERROR');
       songTitle.textContent = title;
       songArtist.textContent = artist;
-      if (miniTrackNum) miniTrackNum.textContent = (!isError && trackNum > 0) ? `${trackNum}` : '--';
+      if (miniTrackNum) {
+        miniTrackNum.textContent = (!isError && trackNum > 0) ? (trackNum < 10 ? `0${trackNum}` : `${trackNum}`) : '--';
+      }
       modType.textContent = engine;
       if (badgeEngine) { badgeEngine.classList.remove('engine-none'); badgeEngine.classList.toggle('engine-error', isError); }
       channels.textContent = channelCount;

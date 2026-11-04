@@ -11,7 +11,7 @@
   function setQueue(queue, idx) {
     currentQueue = queue || null;
     currentQueueIdx = (idx !== undefined) ? idx : -1;
-    currentTrackNum = (typeof idx === 'number' && idx >= 0) ? (idx + 1) : 1;
+    currentTrackNum = (typeof idx === 'number' && idx >= 0) ? (idx + 1) : 0;
   }
 
   function getQueue() { return currentQueue; }
@@ -29,6 +29,7 @@
     if (!currentQueue || idx < 0 || idx >= currentQueue.length) return;
     if (window.XMAudio && window.XMAudio.player) window.XMAudio.player.unlock();
     const item = currentQueue[idx];
+    currentTrackNum = idx + 1;
     if (item.isCustom || item.isFolderTrack) {
       let blob = item.blob;
       if (!blob && window.XMCustom) blob = await window.XMCustom.getTrackBlob(item.id);
