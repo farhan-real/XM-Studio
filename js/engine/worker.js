@@ -1,5 +1,5 @@
 /**
- * js/engine/worker.js - Dedicated Web Worker for OpenMPT rendering and LAME MP3 compilation.
+ * js/engine/worker.js - Dedicated Web Worker for OpenMPT rendering, MP3 compilation, and visualizer pre-caching.
  */
 /* global importScripts, libopenmpt, lamejs */
 self.libopenmpt = self.libopenmpt || {};
@@ -43,6 +43,59 @@ function createWavBlob(pcmChunks, totalPcmBytes, sampleRate) {
   return new Blob([buffer, ...pcmChunks], { type: 'audio/wav' });
 }
 
+// Lightweight 64-point Real FFT for pre-computing visualizer spectrum frames
+const FFT_SIZE = 64;
+const FFT_BARS = 28;
+const fftRe = new Float32Array(FFT_SIZE);
+const fftIm = new Float32Array(FFT_SIZE);
+const hannWindow = new Float32Array(FFT_SIZE);
+const cosTable = new Float32Array(FFT_SIZE / 2);
+const sinTable = new Float32Array(FFT_SIZE / 2);
+const bitRev = new Uint8Array(FFT_SIZE);
+
+for (let i = 0; i < FFT_SIZE; i++) {
+  hannWindow[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (FFT_SIZE - 1)));
+  let rev = 0;
+  for (let j = 0; j < 6; j++) rev = (rev << 1) | ((i >> j) & 1);
+  bitRev[i] = rev;
+}
+for (let i = 0; i < FFT_SIZE / 2; i++) {
+  cosTable[i] = Math.cos((-2 * Math.PI * i) / FFT_SIZE);
+  sinTable[i] = Math.sin((-2 * Math.PI * i) / FFT_SIZE);
+}
+
+function computeFftBars(inputSamples, outTarget, outOffset) {
+  for (let i = 0; i < FFT_SIZE; i++) {
+    const rev = bitRev[i];
+    fftRe[rev] = inputSamples[i] * hannWindow[i];
+    fftIm[rev] = 0;
+  }
+  for (let len = 2; len <= FFT_SIZE; len <<= 1) {
+    const halfLen = len >> 1;
+    const step = FFT_SIZE / len;
+    for (let i = 0; i < FFT_SIZE; i += len) {
+      for (let j = 0; j < halfLen; j++) {
+        const tIdx = j * step;
+        const c = cosTable[tIdx];
+        const s = sinTable[tIdx];
+        const tr = c * fftRe[i + j + halfLen] - s * fftIm[i + j + halfLen];
+        const ti = s * fftRe[i + j + halfLen] + c * fftIm[i + j + halfLen];
+        fftRe[i + j + halfLen] = fftRe[i + j] - tr;
+        fftIm[i + j + halfLen] = fftIm[i + j] - ti;
+        fftRe[i + j] += tr;
+        fftIm[i + j] += ti;
+      }
+    }
+  }
+  for (let b = 0; b < FFT_BARS; b++) {
+    const binIdx = Math.min(31, Math.floor(1 + Math.pow(b / (FFT_BARS - 1), 1.25) * 29));
+    const re = fftRe[binIdx];
+    const im = fftIm[binIdx];
+    const mag = Math.sqrt(re * re + im * im) * 8.0;
+    outTarget[outOffset + b] = mag > 0 ? Math.min(255, Math.round(Math.log10(1 + mag * 50) * 110)) : 0;
+  }
+}
+
 self.onmessage = function(e) {
   const data = e.data;
   if (!data || data.type !== 'compile') return;
@@ -60,7 +113,6 @@ self.onmessage = function(e) {
       return;
     }
 
-    // Cubic spline interpolation (4) prevents sinc ringing; volume ramping (5) prevents transient clicks
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 4]);
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 2, 100]);
@@ -72,9 +124,8 @@ self.onmessage = function(e) {
     const format = data.format || 'mp3';
     const isMp3 = (format === 'mp3');
 
-    // MP3 frames strictly require 1152 samples per frame. Read in exact multiples of 1152.
     const BLOCK_SIZE = 1152;
-    const chunkSize = BLOCK_SIZE * 4; // 4608 stereo frames
+    const chunkSize = BLOCK_SIZE * 4;
 
     const leftBufferPtr = libopenmpt._malloc(4 * chunkSize);
     const rightBufferPtr = libopenmpt._malloc(4 * chunkSize);
@@ -88,6 +139,16 @@ self.onmessage = function(e) {
     const mp3encoder = isMp3 ? new lamejs.Mp3Encoder(2, sampleRate, 320) : null;
     const encodedChunks = [];
     let totalPcmBytes = 0;
+
+    // Visualizer spectrum frame caching at 60 FPS
+    const VIS_FPS = 60;
+    const visStep = Math.round(sampleRate / VIS_FPS);
+    const totalVisFrames = Math.ceil(totalFrames / visStep) + 10;
+    const visBuffer = new Uint8Array(totalVisFrames * FFT_BARS);
+    let visFrameIndex = 0;
+    let samplesSinceLastVis = 0;
+    const fftWindowBuf = new Float32Array(FFT_SIZE);
+    let fftWindowPtr = 0;
 
     let framesRendered = 0;
     let lastReportedPct = -1;
@@ -106,47 +167,49 @@ self.onmessage = function(e) {
 
       const heapF32 = libopenmpt.HEAPF32;
 
-      if (isMp3) {
-        for (let i = 0; i < actual; i++) {
-          let sL = heapF32[baseL + i];
-          let sR = heapF32[baseR + i];
+      for (let i = 0; i < actual; i++) {
+        let sL = heapF32[baseL + i];
+        let sR = heapF32[baseR + i];
 
-          // Clean, continuous peak limiting: eliminates waveform step drops and crackling
-          if (sL > 1.0) sL = 1.0;
-          else if (sL < -1.0) sL = -1.0;
+        if (sL > 1.0) sL = 1.0;
+        else if (sL < -1.0) sL = -1.0;
 
-          if (sR > 1.0) sR = 1.0;
-          else if (sR < -1.0) sR = -1.0;
+        if (sR > 1.0) sR = 1.0;
+        else if (sR < -1.0) sR = -1.0;
 
-          leftInt16[i] = (sL < 0 ? sL * 32768 : sL * 32767) | 0;
-          rightInt16[i] = (sR < 0 ? sR * 32768 : sR * 32767) | 0;
+        fftWindowBuf[fftWindowPtr] = 0.5 * (sL + sR);
+        fftWindowPtr = (fftWindowPtr + 1) % FFT_SIZE;
+        samplesSinceLastVis++;
+
+        if (samplesSinceLastVis >= visStep) {
+          samplesSinceLastVis = 0;
+          if (visFrameIndex < totalVisFrames) {
+            const linBuf = new Float32Array(FFT_SIZE);
+            for (let k = 0; k < FFT_SIZE; k++) linBuf[k] = fftWindowBuf[(fftWindowPtr + k) % FFT_SIZE];
+            computeFftBars(linBuf, visBuffer, visFrameIndex * FFT_BARS);
+            visFrameIndex++;
+          }
         }
 
-        // Encode in exact 1152-sample MP3 frames to prevent bit-reservoir desync and stuttering
+        if (isMp3) {
+          leftInt16[i] = (sL < 0 ? sL * 32768 : sL * 32767) | 0;
+          rightInt16[i] = (sR < 0 ? sR * 32768 : sR * 32767) | 0;
+        } else {
+          const idx = i << 1;
+          interleavedPcm[idx] = (sL < 0 ? sL * 32768 : sL * 32767) | 0;
+          interleavedPcm[idx + 1] = (sR < 0 ? sR * 32768 : sR * 32767) | 0;
+        }
+      }
+
+      if (isMp3) {
         for (let i = 0; i < actual; i += BLOCK_SIZE) {
           const end = Math.min(i + BLOCK_SIZE, actual);
           const leftChunk = (i === 0 && end === chunkSize) ? leftInt16 : leftInt16.subarray(i, end);
           const rightChunk = (i === 0 && end === chunkSize) ? rightInt16 : rightInt16.subarray(i, end);
           const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
-          if (mp3buf && mp3buf.length > 0) {
-            encodedChunks.push(new Uint8Array(mp3buf));
-          }
+          if (mp3buf && mp3buf.length > 0) encodedChunks.push(new Uint8Array(mp3buf));
         }
       } else {
-        for (let i = 0; i < actual; i++) {
-          let sL = heapF32[baseL + i];
-          let sR = heapF32[baseR + i];
-
-          if (sL > 1.0) sL = 1.0;
-          else if (sL < -1.0) sL = -1.0;
-
-          if (sR > 1.0) sR = 1.0;
-          else if (sR < -1.0) sR = -1.0;
-
-          const idx = i << 1;
-          interleavedPcm[idx] = (sL < 0 ? sL * 32768 : sL * 32767) | 0;
-          interleavedPcm[idx + 1] = (sR < 0 ? sR * 32768 : sR * 32767) | 0;
-        }
         const pcmSlice = interleavedPcm.slice(0, actual * 2);
         encodedChunks.push(pcmSlice.buffer);
         totalPcmBytes += pcmSlice.byteLength;
@@ -167,15 +230,19 @@ self.onmessage = function(e) {
     let finalBlob = null;
     if (isMp3) {
       const endBuf = mp3encoder.flush();
-      if (endBuf && endBuf.length > 0) {
-        encodedChunks.push(new Uint8Array(endBuf));
-      }
+      if (endBuf && endBuf.length > 0) encodedChunks.push(new Uint8Array(endBuf));
       finalBlob = new Blob(encodedChunks, { type: 'audio/mpeg' });
     } else {
       finalBlob = createWavBlob(encodedChunks, totalPcmBytes, sampleRate);
     }
 
-    self.postMessage({ type: 'complete', blob: finalBlob });
+    const trimmedVisBuffer = visBuffer.slice(0, visFrameIndex * FFT_BARS);
+    self.postMessage({
+      type: 'complete',
+      blob: finalBlob,
+      visData: trimmedVisBuffer.buffer,
+      visFps: VIS_FPS
+    }, [trimmedVisBuffer.buffer]);
   } catch (err) {
     self.postMessage({ type: 'error', message: err.message });
   }

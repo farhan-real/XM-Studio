@@ -1,5 +1,5 @@
 /**
- * js/engine/compiler.js - Multithreaded background audio compiler via Web Worker.
+ * js/engine/compiler.js - Multithreaded background audio and visualizer compiler via Web Worker.
  */
 (function(window) {
   function AudioCompiler() {
@@ -24,7 +24,7 @@
         } else if (msg.type === 'complete') {
           self.isCompiling = false;
           self.cleanup();
-          if (onComplete) onComplete(msg.blob);
+          if (onComplete) onComplete(msg.blob, msg.visData, msg.visFps);
         } else if (msg.type === 'error') {
           self.isCompiling = false;
           self.cleanup();
@@ -69,4 +69,4 @@
   };
 
   window.AudioCompiler = new AudioCompiler();
-})(window); 
+})(window);

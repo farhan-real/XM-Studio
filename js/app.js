@@ -1,5 +1,5 @@
 /**
- * js/app.js - Main workstation controller with mobile miniplayer, background resume sync, and zero-idle polling.
+ * js/app.js - Main workstation controller with visualizer pre-caching and zero-idle polling.
  */
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
@@ -157,14 +157,8 @@ document.addEventListener('DOMContentLoaded', () => {
     else if (state === 'error') { statusBadge.classList.add('status-error'); statusBadge.textContent = 'STATUS: ERROR'; }
   }
 
-  btnPlayPause.addEventListener('click', () => {
-    window.XMAudio.togglePlayPause();
-  });
-
-  btnStop.addEventListener('click', () => {
-    window.XMAudio.stopPlayback();
-  });
-
+  btnPlayPause.addEventListener('click', () => { window.XMAudio.togglePlayPause(); });
+  btnStop.addEventListener('click', () => { window.XMAudio.stopPlayback(); });
   btnLoop.addEventListener('click', () => btnLoop.classList.toggle('active', window.XMAudio.toggleLoop()));
   btnShuffle.addEventListener('click', () => btnShuffle.classList.toggle('active', window.XMAudio.toggleShuffle()));
   if (btnPrev) btnPrev.addEventListener('click', () => window.XMAudio.playPrevTrack());
@@ -269,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.AudioCompiler.compile(raw, activeFormat, (p) => {
       readoutProgressBar.style.width = `${Math.round(p * 100)}%`;
-    }, (blob) => {
+    }, (blob, visData, visFps) => {
       readoutProgressTrack.classList.add('hide');
       setStatus('ready');
 
@@ -281,7 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
       if (window.XMAudio && window.XMAudio.handoffToCompiled) {
-        window.XMAudio.handoffToCompiled(blob, activeFormat, targetTrackId);
+        window.XMAudio.handoffToCompiled(blob, activeFormat, targetTrackId, visData, visFps);
       }
     }, () => {
       readoutProgressTrack.classList.add('hide');

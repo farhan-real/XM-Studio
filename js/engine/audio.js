@@ -1,5 +1,5 @@
 /**
- * js/engine/audio.js - Master playback coordinator with seamless native MP3 handoff and Chrome media visibility.
+ * js/engine/audio.js - Master playback coordinator with visualizer pre-caching and seamless native handoff.
  */
 (function(window) {
   const player = new ChiptuneJsPlayer();
@@ -118,19 +118,14 @@
     player.unlock();
     if (wantPaused) {
       audioEl.pause();
-      if (!isNativeStream && player.currentPlayingNode && !player.currentPlayingNode.paused) {
-        player.togglePause();
-      }
+      if (!isNativeStream && player.currentPlayingNode && !player.currentPlayingNode.paused) player.togglePause();
       notifyPlayState(false);
     } else {
       if (isNativeStream) {
         audioEl.play().then(() => notifyPlayState(true)).catch(() => notifyPlayState(false));
       } else {
-        if (!player.currentPlayingNode && currentRawBuffer) {
-          player.play(currentRawBuffer);
-        } else if (player.currentPlayingNode && player.currentPlayingNode.paused) {
-          player.togglePause();
-        }
+        if (!player.currentPlayingNode && currentRawBuffer) player.play(currentRawBuffer);
+        else if (player.currentPlayingNode && player.currentPlayingNode.paused) player.togglePause();
         audioEl.play().catch(() => {});
         notifyPlayState(true);
       }
@@ -225,6 +220,7 @@
     audioEl.removeAttribute('src');
     audioEl.load();
     if (window.XMBackground) window.XMBackground.releaseCarrier();
+    if (window.XMVisualizer) window.XMVisualizer.clearVisualizerCache();
     disconnectNativeSource();
     revokeActiveObjectUrl();
     currentRawBuffer = null;
@@ -237,11 +233,11 @@
     notifyPlayState(false);
   }
 
-  function handoffToCompiled(blob, format, targetTrackId) {
+  function handoffToCompiled(blob, format, targetTrackId, visData, visFps) {
     if (!blob) return;
     const currentId = (currentTrackItem && currentTrackItem.id) || currentAudioSrc || activeTitle;
     if (targetTrackId && targetTrackId !== currentId) {
-      compiledCache.set(targetTrackId, { blob, ext: (format || 'mp3').toLowerCase() });
+      compiledCache.set(targetTrackId, { blob, ext: (format || 'mp3').toLowerCase(), visData, visFps });
       return;
     }
 
@@ -260,22 +256,16 @@
     audioEl.loop = isLooping;
     connectNativeSource();
 
-    compiledCache.set(currentId, { blob, ext: currentExt, url: activeObjectUrl });
+    compiledCache.set(currentId, { blob, ext: currentExt, url: activeObjectUrl, visData, visFps });
+    if (visData && window.XMVisualizer) window.XMVisualizer.setVisualizerCache(visData, visFps);
 
-    // Wait until audio data is ready (canplay) before stopping tracker DSP to prevent buffer stalls
     const onCanPlay = () => {
       const livePos = (player.currentPlayingNode && !player.currentPlayingNode.paused) ? player.getPosition() : curPos;
       if (livePos > 0 && isFinite(livePos)) {
         try { audioEl.currentTime = Math.min(livePos, audioEl.duration || livePos); } catch (e) {}
       }
       if (wasPlaying) {
-        audioEl.play().then(() => {
-          player.stop();
-          notifyPlayState(true);
-        }).catch(() => {
-          player.stop();
-          notifyPlayState(false);
-        });
+        audioEl.play().then(() => { player.stop(); notifyPlayState(true); }).catch(() => { player.stop(); notifyPlayState(false); });
       } else {
         player.stop();
         notifyPlayState(false);
@@ -300,6 +290,7 @@
     player.stop();
     audioEl.pause();
     if (window.XMBackground) window.XMBackground.releaseCarrier();
+    if (window.XMVisualizer) window.XMVisualizer.clearVisualizerCache();
     disconnectNativeSource();
     revokeActiveObjectUrl();
 
@@ -335,6 +326,7 @@
       audioEl.src = activeObjectUrl;
       audioEl.loop = isLooping;
       connectNativeSource();
+      if (cached.visData && window.XMVisualizer) window.XMVisualizer.setVisualizerCache(cached.visData, cached.visFps);
       audioEl.play().then(() => notifyPlayState(true)).catch(() => notifyPlayState(false));
       if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2 CH', true, currentTrackNum);
       return;
@@ -342,13 +334,9 @@
 
     if (NATIVE_STREAM_EXTS.has(ext)) {
       isNativeStream = true;
-      if (fileOrUrl instanceof File || fileOrUrl instanceof Blob) {
-        currentAudioBlob = fileOrUrl;
-        activeObjectUrl = URL.createObjectURL(fileOrUrl);
-        audioEl.src = activeObjectUrl;
-      } else {
-        audioEl.src = fileOrUrl;
-      }
+      currentAudioBlob = (fileOrUrl instanceof File || fileOrUrl instanceof Blob) ? fileOrUrl : null;
+      activeObjectUrl = currentAudioBlob ? URL.createObjectURL(currentAudioBlob) : null;
+      audioEl.src = activeObjectUrl || fileOrUrl;
       audioEl.loop = isLooping;
       connectNativeSource();
       audioEl.play().then(() => notifyPlayState(true)).catch(() => notifyPlayState(false));
@@ -369,9 +357,7 @@
       }
       const meta = player.currentMetadata || {};
       const engineName = (meta.type_long || currentExt || "FT2").toUpperCase();
-      if (window.XMBackground) {
-        window.XMBackground.mountCarrier(meta.duration || 180, 0, true);
-      }
+      if (window.XMBackground) window.XMBackground.mountCarrier(meta.duration || 180, 0, true);
       notifyPlayState(true);
       if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, engineName, `${meta.channels || 8} CH`, false, currentTrackNum);
     }, () => {
@@ -381,15 +367,9 @@
     });
   }
 
-  audioEl.addEventListener('loadedmetadata', () => {
-    if (window.XMBackground) window.XMBackground.updatePositionState();
-  });
-  audioEl.addEventListener('ended', () => {
-    if (isNativeStream) playNextTrack(false);
-  });
-  player.on('onEnded', () => {
-    if (!isNativeStream) playNextTrack(false);
-  });
+  audioEl.addEventListener('loadedmetadata', () => { if (window.XMBackground) window.XMBackground.updatePositionState(); });
+  audioEl.addEventListener('ended', () => { if (isNativeStream) playNextTrack(false); });
+  player.on('onEnded', () => { if (!isNativeStream) playNextTrack(false); });
 
   window.XMAudio = {
     player,
@@ -419,10 +399,7 @@
       player.setRepeat(isLooping);
       return isLooping;
     },
-    toggleShuffle: () => {
-      isShuffle = !isShuffle;
-      return isShuffle;
-    },
+    toggleShuffle: () => { isShuffle = !isShuffle; return isShuffle; },
     get isLooping() { return isLooping; },
     get isShuffle() { return isShuffle; },
     getCurrentInfo: () => ({ title: activeTitle, artist: activeArtist, trackNum: currentTrackNum })
