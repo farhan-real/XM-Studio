@@ -205,7 +205,17 @@ document.addEventListener('DOMContentLoaded', () => {
   btnShuffle.addEventListener('click', () => btnShuffle.classList.toggle('active', window.XMAudio.toggleShuffle()));
   if (btnPrev) btnPrev.addEventListener('click', () => window.XMAudio.playPrevTrack());
   if (btnNext) btnNext.addEventListener('click', () => window.XMAudio.playNextTrack(true));
-  if (btnPlayRandom) btnPlayRandom.addEventListener('click', () => window.XMAudio.playRandomTrack());
+
+  if (btnPlayRandom) {
+    btnPlayRandom.addEventListener('click', () => {
+      if (window.innerWidth <= 900) showMobileArchiveView();
+      if (window.XMLibrary && window.XMLibrary.playRandomArchiveTrack) {
+        window.XMLibrary.playRandomArchiveTrack();
+      } else {
+        window.XMAudio.playRandomTrack();
+      }
+    });
+  }
 
   btnUnload.addEventListener('click', () => {
     window.XMAudio.unload();
@@ -343,6 +353,8 @@ document.addEventListener('DOMContentLoaded', () => {
   window.XMApp = {
     setPlayingState,
     updateDeckFav: updateDeckFavState,
+    showMobileArchiveView,
+    showMobilePlayerView,
     onForegroundResume: function() {
       const playing = window.XMAudio.isPlaying();
       setPlayingState(playing);

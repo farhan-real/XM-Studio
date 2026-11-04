@@ -229,7 +229,11 @@
     return {
       setTotal,
       setScroll,
-      scrollToIndex: (idx) => { setScroll(idx * itemHeight - (cachedVh - itemHeight) / 2, false); },
+      scrollToIndex: (idx) => {
+        measureDimensions();
+        updateMetrics();
+        setScroll(idx * itemHeight - (cachedVh - itemHeight) / 2, true);
+      },
       refresh: () => { updateMetrics(); scheduleSync(true); },
       getScrollTop: () => scrollTop
     };

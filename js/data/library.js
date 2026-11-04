@@ -209,6 +209,42 @@
     }
   }
 
+  function jumpToArchiveTrack(trackId) {
+    if (!trackId) return;
+    if (activeTab !== 'archive') switchTab('archive');
+    if (searchInput && searchInput.value) {
+      searchInput.value = '';
+      displayCatalog = fullCatalog;
+      renderTrackList(displayCatalog, false);
+    }
+    const idx = activeRenderQueue.findIndex(t => t.id === trackId);
+    if (idx >= 0 && scroller) {
+      requestAnimationFrame(() => scroller.scrollToIndex(idx));
+    }
+  }
+
+  function playRandomArchiveTrack() {
+    const catalog = (displayCatalog && displayCatalog.length > 0) ? displayCatalog : fullCatalog;
+    if (!catalog || catalog.length === 0) return;
+    let randIdx = Math.floor(Math.random() * catalog.length);
+    if (catalog.length > 1 && currentlyPlayingId) {
+      const curIdx = catalog.findIndex(t => t.id === currentlyPlayingId);
+      if (curIdx === randIdx) randIdx = (randIdx + 1) % catalog.length;
+    }
+    const track = catalog[randIdx];
+    if (!track) return;
+    if (activeTab !== 'archive') switchTab('archive');
+    if (searchInput && searchInput.value) {
+      searchInput.value = '';
+      displayCatalog = fullCatalog;
+      renderTrackList(displayCatalog, false);
+      randIdx = activeRenderQueue.findIndex(t => t.id === track.id);
+    }
+    playTrack(track, activeRenderQueue, randIdx);
+    if (scroller) requestAnimationFrame(() => scroller.scrollToIndex(randIdx));
+    return track;
+  }
+
   function switchTab(tabId) {
     activeTab = tabId;
     [tabArchive, tabPlaylists, tabFavs, tabSource].forEach(t => t.classList.remove('active'));
@@ -292,6 +328,8 @@
     getDisplayCatalog: () => (activeRenderQueue && activeRenderQueue.length > 0) ? activeRenderQueue : displayCatalog,
     getFullCatalog: () => fullCatalog,
     playTrackDirect: playTrack,
+    playRandomArchiveTrack,
+    jumpToArchiveTrack,
     getFormatBadgeClass
   };
 })(window);

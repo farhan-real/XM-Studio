@@ -75,6 +75,10 @@
   }
 
   function playRandomTrack() {
+    if (window.XMLibrary && window.XMLibrary.playRandomArchiveTrack) {
+      window.XMLibrary.playRandomArchiveTrack();
+      return;
+    }
     let pool = currentQueue || (window.XMLibrary && window.XMLibrary.getDisplayCatalog ? window.XMLibrary.getDisplayCatalog() : null);
     if (!pool || pool.length === 0) return;
     let randIdx = Math.floor(Math.random() * pool.length);
