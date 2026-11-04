@@ -1,9 +1,9 @@
 /**
- * js/engine/chiptune2.js - Low-latency, zero-allocation real-time Chiptune2 DSP player engine.
+ * js/engine/chiptune2.js - Mobile-optimized low-latency real-time Chiptune2 DSP player engine.
  */
 (function(window) {
   var ChiptuneAudioContext = window.AudioContext || window.webkitAudioContext;
-  var BUFFER_FRAMES = 2048;
+  var BUFFER_FRAMES = 4096;
 
   function ChiptuneJsPlayer() {
     try {

@@ -1,9 +1,11 @@
 /**
- * js/engine/visualizer.js - Zero-allocation frequency spectrum analyzer with visibility & idle sleep.
+ * js/engine/visualizer.js - Crisp mobile visualizer with sub-pixel artifact prevention.
  */
 (function(window) {
   const canvas = document.getElementById('visualizer');
   const ctx = canvas.getContext('2d', { alpha: false, desynchronized: true });
+  ctx.imageSmoothingEnabled = false;
+
   const dataArray = new Uint8Array(32);
 
   let activePlayer = null;
@@ -22,6 +24,7 @@
     if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
       canvas.width = w;
       canvas.height = h;
+      ctx.imageSmoothingEnabled = false;
       drawIdleBackground();
     }
   }
@@ -57,22 +60,23 @@
       if (activePlayer && activePlayer.analyser && canvas.width > 0) {
         activePlayer.analyser.getByteFrequencyData(dataArray);
         const cHeight = canvas.height;
-        const maxBarH = cHeight - 8;
-        const minBarH = 3 * cachedDpr;
-        const spacing = 3 * cachedDpr;
-        const barWidth = (canvas.width - spacing * (TOTAL_BARS - 1)) / TOTAL_BARS;
+        const maxBarH = cHeight - (8 * cachedDpr);
+        const minBarH = Math.max(2, Math.round(3 * cachedDpr));
+        const spacing = Math.max(1, Math.round(3 * cachedDpr));
+        const totalSpacing = spacing * (TOTAL_BARS - 1);
+        const barWidth = Math.max(1, Math.floor((canvas.width - totalSpacing) / TOTAL_BARS));
         const step = barWidth + spacing;
 
         let currentStyle = '';
         for (let i = 0; i < TOTAL_BARS; i++) {
           const raw = dataArray[i];
-          const barHeight = Math.max(minBarH, (raw * 0.0039215686) * maxBarH);
+          const barHeight = Math.max(minBarH, Math.round((raw * 0.0039215686) * maxBarH));
           const targetStyle = raw > 209 ? '#22c55e' : (raw > 127 ? '#d4d4d8' : '#52525b');
           if (targetStyle !== currentStyle) {
             currentStyle = targetStyle;
             ctx.fillStyle = currentStyle;
           }
-          ctx.fillRect(i * step, cHeight - barHeight, barWidth, barHeight);
+          ctx.fillRect(Math.round(i * step), cHeight - barHeight, barWidth, barHeight);
         }
       }
     }
