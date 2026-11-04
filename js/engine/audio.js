@@ -18,12 +18,6 @@
   let currentTrackItem = null;
   let currentLoadId = 0;
 
-  let isLooping = true;
-  let isShuffle = false;
-  let currentQueue = null;
-  let currentQueueIdx = -1;
-  let currentTrackNum = 0;
-
   const NATIVE_STREAM_EXTS = new Set(['.mp3', '.ogg', '.wav', '.flac']);
 
   function unlockOnGesture() {
@@ -34,10 +28,7 @@
   document.addEventListener('click', unlockOnGesture, { passive: true });
 
   function revokeActiveObjectUrl() {
-    if (activeObjectUrl) {
-      URL.revokeObjectURL(activeObjectUrl);
-      activeObjectUrl = null;
-    }
+    if (activeObjectUrl) { URL.revokeObjectURL(activeObjectUrl); activeObjectUrl = null; }
   }
 
   function connectNativeSource() {
@@ -52,9 +43,7 @@
   }
 
   function disconnectNativeSource() {
-    if (nativeAudioSource) {
-      try { nativeAudioSource.disconnect(); } catch (e) {}
-    }
+    if (nativeAudioSource) { try { nativeAudioSource.disconnect(); } catch (e) {} }
   }
 
   function updateDocumentTitle(playing) {
@@ -69,11 +58,6 @@
     }
   }
 
-  function getFileExtension(filename) {
-    const match = (filename || '').toLowerCase().match(/\.[a-z0-9]+$/);
-    return match ? match[0] : '';
-  }
-
   function parseTrackInfo(filename, internalMeta) {
     internalMeta = internalMeta || {};
     let base = (filename || '').replace(/\.[a-z0-9]+$/i, '').trim();
@@ -85,13 +69,6 @@
       title: (match ? match[2].trim() : (internalMeta.title || '').trim()) || base || 'Untitled Track',
       artist: (match ? match[1].trim() : (internalMeta.artist || '').trim()) || (internalMeta.type_long || 'FastTracker II')
     };
-  }
-
-  function resolveTrackUrl(item) {
-    if (item.url) return item.url;
-    if (!item.path) return null;
-    if (item.path.startsWith('http://') || item.path.startsWith('https://')) return item.path;
-    return 'https://farhan-real.github.io/XM-Music/' + encodeURI(item.path.replace(/^\/+/, ''));
   }
 
   function getDuration() {
@@ -132,10 +109,7 @@
     }
   }
 
-  function togglePlayPause() {
-    setPaused(isPlaying());
-  }
-
+  function togglePlayPause() { setPaused(isPlaying()); }
   function stopPlayback() {
     audioEl.pause();
     try { audioEl.currentTime = 0; } catch (e) {}
@@ -156,64 +130,6 @@
     if (window.XMBackground) window.XMBackground.updatePositionState();
   }
 
-  async function playTrackAt(idx) {
-    if (!currentQueue || idx < 0 || idx >= currentQueue.length) return;
-    player.unlock();
-    const item = currentQueue[idx];
-    if (item.isCustom || item.isFolderTrack) {
-      let blob = item.blob;
-      if (!blob && window.XMCustom) blob = await window.XMCustom.getTrackBlob(item.id);
-      if (blob) {
-        loadTrack(blob, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, currentQueue, idx);
-        return;
-      }
-    }
-    loadTrack(resolveTrackUrl(item), `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, currentQueue, idx);
-  }
-
-  function playNextTrack(force) {
-    if (isLooping && !force) return;
-    if ((!currentQueue || currentQueue.length === 0) && window.XMLibrary && window.XMLibrary.getDisplayCatalog) {
-      const cat = window.XMLibrary.getDisplayCatalog();
-      if (cat && cat.length > 0 && window.XMLibrary.playTrackDirect) {
-        window.XMLibrary.playTrackDirect(cat[0], cat, 0);
-        return;
-      }
-    }
-    if (currentQueue && currentQueue.length > 0) {
-      if (isShuffle) {
-        let randIdx = Math.floor(Math.random() * currentQueue.length);
-        if (currentQueue.length > 1 && randIdx === currentQueueIdx) randIdx = (randIdx + 1) % currentQueue.length;
-        playTrackAt(randIdx);
-        return;
-      }
-      playTrackAt(currentQueueIdx >= 0 && currentQueueIdx + 1 < currentQueue.length ? currentQueueIdx + 1 : 0);
-      return;
-    }
-    notifyPlayState(false);
-    if (window.XMApp) window.XMApp.onTrackEnded();
-  }
-
-  function playPrevTrack() {
-    if (!currentQueue || currentQueue.length === 0) return;
-    if (isShuffle) {
-      let randIdx = Math.floor(Math.random() * currentQueue.length);
-      if (currentQueue.length > 1 && randIdx === currentQueueIdx) randIdx = (randIdx + currentQueue.length - 1) % currentQueue.length;
-      playTrackAt(randIdx);
-      return;
-    }
-    playTrackAt(currentQueueIdx > 0 ? currentQueueIdx - 1 : currentQueue.length - 1);
-  }
-
-  function playRandomTrack() {
-    let pool = currentQueue || (window.XMLibrary && window.XMLibrary.getDisplayCatalog ? window.XMLibrary.getDisplayCatalog() : null);
-    if (!pool || pool.length === 0) return;
-    let randIdx = Math.floor(Math.random() * pool.length);
-    if (pool.length > 1 && randIdx === currentQueueIdx && pool === currentQueue) randIdx = (randIdx + 1) % pool.length;
-    if (pool === currentQueue) playTrackAt(randIdx);
-    else if (window.XMLibrary && window.XMLibrary.playTrackDirect) window.XMLibrary.playTrackDirect(pool[randIdx], pool, randIdx);
-  }
-
   function unload() {
     player.stop();
     audioEl.pause();
@@ -227,9 +143,9 @@
     currentAudioBlob = null;
     currentAudioSrc = '';
     currentTrackItem = null;
-    currentTrackNum = 0;
     activeTitle = "No Module Loaded";
     activeArtist = "";
+    if (window.XMQueue) window.XMQueue.setQueue(null, -1);
     notifyPlayState(false);
   }
 
@@ -253,7 +169,7 @@
     revokeActiveObjectUrl();
     activeObjectUrl = URL.createObjectURL(blob);
     audioEl.src = activeObjectUrl;
-    audioEl.loop = isLooping;
+    audioEl.loop = window.XMQueue ? window.XMQueue.isLooping : true;
     connectNativeSource();
 
     compiledCache.set(currentId, { blob, ext: currentExt, url: activeObjectUrl, visData, visFps });
@@ -276,14 +192,16 @@
     if (audioEl.readyState >= 3) onCanPlay();
     else audioEl.addEventListener('canplay', onCanPlay, { once: true });
 
+    const trackNum = window.XMQueue ? window.XMQueue.getTrackNum() : 1;
     if (window.XMApp && window.XMApp.updateTrackUI) {
-      window.XMApp.updateTrackUI(activeTitle, activeArtist, currentExt.toUpperCase(), '2 CH', true, currentTrackNum);
+      window.XMApp.updateTrackUI(activeTitle, activeArtist, currentExt.toUpperCase(), '2 CH', true, trackNum);
     }
   }
 
   function loadTrack(fileOrUrl, fallbackName, trackItemRef, queue, queueIdx) {
     const loadId = ++currentLoadId;
-    const ext = getFileExtension(fallbackName);
+    const extMatch = (fallbackName || '').toLowerCase().match(/\.[a-z0-9]+$/);
+    const ext = extMatch ? extMatch[0] : '';
     currentExt = ext ? ext.replace('.', '').toLowerCase() : 'xm';
 
     player.unlock();
@@ -298,10 +216,9 @@
     currentAudioBlob = null;
     currentAudioSrc = (typeof fileOrUrl === 'string') ? fileOrUrl : '';
     currentTrackItem = trackItemRef || null;
-    currentQueue = queue || null;
-    currentQueueIdx = (queueIdx !== undefined) ? queueIdx : -1;
-    currentTrackNum = (typeof queueIdx === 'number' && queueIdx >= 0) ? (queueIdx + 1) : 1;
+    if (window.XMQueue) window.XMQueue.setQueue(queue, queueIdx);
 
+    const trackNum = window.XMQueue ? window.XMQueue.getTrackNum() : 1;
     let targetTitle = (trackItemRef && trackItemRef.title) ? trackItemRef.title.trim() : '';
     let targetArtist = (trackItemRef && trackItemRef.artist) ? trackItemRef.artist.trim() : '';
     if (!targetTitle) {
@@ -313,7 +230,7 @@
     activeArtist = targetArtist;
 
     if (window.XMBackground) window.XMBackground.updateMetadata(targetTitle, targetArtist);
-    if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase() || 'AUDIO', '--', false, currentTrackNum);
+    if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase() || 'AUDIO', '--', false, trackNum);
     if (window.XMLibrary && trackItemRef) window.XMLibrary.notifyPlaying(trackItemRef.id);
 
     const cacheKey = (trackItemRef && trackItemRef.id) || currentAudioSrc || targetTitle;
@@ -324,11 +241,11 @@
       currentExt = cached.ext;
       activeObjectUrl = cached.url || URL.createObjectURL(cached.blob);
       audioEl.src = activeObjectUrl;
-      audioEl.loop = isLooping;
+      audioEl.loop = window.XMQueue ? window.XMQueue.isLooping : true;
       connectNativeSource();
       if (cached.visData && window.XMVisualizer) window.XMVisualizer.setVisualizerCache(cached.visData, cached.visFps);
       audioEl.play().then(() => notifyPlayState(true)).catch(() => notifyPlayState(false));
-      if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2 CH', true, currentTrackNum);
+      if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2 CH', true, trackNum);
       return;
     }
 
@@ -337,10 +254,10 @@
       currentAudioBlob = (fileOrUrl instanceof File || fileOrUrl instanceof Blob) ? fileOrUrl : null;
       activeObjectUrl = currentAudioBlob ? URL.createObjectURL(currentAudioBlob) : null;
       audioEl.src = activeObjectUrl || fileOrUrl;
-      audioEl.loop = isLooping;
+      audioEl.loop = window.XMQueue ? window.XMQueue.isLooping : true;
       connectNativeSource();
       audioEl.play().then(() => notifyPlayState(true)).catch(() => notifyPlayState(false));
-      if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2 CH', true, currentTrackNum);
+      if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2 CH', true, trackNum);
       return;
     }
 
@@ -348,7 +265,7 @@
     player.load(fileOrUrl, (buf) => {
       if (loadId !== currentLoadId) return;
       currentRawBuffer = buf;
-      player.setRepeat(isLooping);
+      player.setRepeat(window.XMQueue ? window.XMQueue.isLooping : true);
       const node = player.play(buf);
       if (!node) {
         notifyPlayState(false);
@@ -359,7 +276,7 @@
       const engineName = (meta.type_long || currentExt || "FT2").toUpperCase();
       if (window.XMBackground) window.XMBackground.mountCarrier(meta.duration || 180, 0, true);
       notifyPlayState(true);
-      if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, engineName, `${meta.channels || 8} CH`, false, currentTrackNum);
+      if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, engineName, `${meta.channels || 8} CH`, false, trackNum);
     }, () => {
       if (loadId !== currentLoadId) return;
       notifyPlayState(false);
@@ -368,8 +285,8 @@
   }
 
   audioEl.addEventListener('loadedmetadata', () => { if (window.XMBackground) window.XMBackground.updatePositionState(); });
-  audioEl.addEventListener('ended', () => { if (isNativeStream) playNextTrack(false); });
-  player.on('onEnded', () => { if (!isNativeStream) playNextTrack(false); });
+  audioEl.addEventListener('ended', () => { if (isNativeStream && window.XMQueue) window.XMQueue.playNextTrack(false); });
+  player.on('onEnded', () => { if (!isNativeStream && window.XMQueue) window.XMQueue.playNextTrack(false); });
 
   window.XMAudio = {
     player,
@@ -382,6 +299,7 @@
     getDuration,
     getPosition,
     isPlaying,
+    notifyPlayState,
     get isNativeStream() { return isNativeStream; },
     get currentRawBuffer() { return currentRawBuffer; },
     get currentAudioBlob() { return currentAudioBlob; },
@@ -390,18 +308,13 @@
     getCurrentExtension: () => currentExt,
     loadTrack,
     handoffToCompiled,
-    playNextTrack,
-    playPrevTrack,
-    playRandomTrack,
-    toggleLoop: () => {
-      isLooping = !isLooping;
-      audioEl.loop = isLooping;
-      player.setRepeat(isLooping);
-      return isLooping;
-    },
-    toggleShuffle: () => { isShuffle = !isShuffle; return isShuffle; },
-    get isLooping() { return isLooping; },
-    get isShuffle() { return isShuffle; },
-    getCurrentInfo: () => ({ title: activeTitle, artist: activeArtist, trackNum: currentTrackNum })
+    playNextTrack: (f) => window.XMQueue && window.XMQueue.playNextTrack(f),
+    playPrevTrack: () => window.XMQueue && window.XMQueue.playPrevTrack(),
+    playRandomTrack: () => window.XMQueue && window.XMQueue.playRandomTrack(),
+    toggleLoop: () => window.XMQueue && window.XMQueue.toggleLoop(),
+    toggleShuffle: () => window.XMQueue && window.XMQueue.toggleShuffle(),
+    get isLooping() { return window.XMQueue ? window.XMQueue.isLooping : true; },
+    get isShuffle() { return window.XMQueue ? window.XMQueue.isShuffle : false; },
+    getCurrentInfo: () => ({ title: activeTitle, artist: activeArtist, trackNum: window.XMQueue ? window.XMQueue.getTrackNum() : 1 })
   };
 })(window);

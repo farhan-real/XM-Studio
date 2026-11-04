@@ -2,14 +2,15 @@
  * js/engine/background.js - Mobile background audio keep-alive and Chrome MediaSession coordinator.
  */
 (function(window) {
+  let staticCarrierBlob = null;
   let activeCarrierUrl = null;
   let isActive = false;
 
-  function createCarrierWavBlob(durationSec) {
-    const dur = Math.max(10, Math.ceil(durationSec || 180));
+  function getStaticCarrierBlob() {
+    if (staticCarrierBlob) return staticCarrierBlob;
+    const dur = 2;
     const sampleRate = 8000;
-    const numSamples = dur * sampleRate;
-    const dataBytes = numSamples * 2;
+    const dataBytes = dur * sampleRate * 2;
     const buffer = new ArrayBuffer(44 + dataBytes);
     const view = new DataView(buffer);
 
@@ -31,59 +32,41 @@
     writeStr(36, 'data');
     view.setUint32(40, dataBytes, true);
 
-    // Pure zeros: completely silent, no DC offset, no 4kHz tone, zero harmonics
-    return new Blob([buffer], { type: 'audio/wav' });
+    staticCarrierBlob = new Blob([buffer], { type: 'audio/wav' });
+    return staticCarrierBlob;
   }
 
-  function getAudioElement() {
-    return document.getElementById('nativeAudio');
-  }
+  function getAudioElement() { return document.getElementById('nativeAudio'); }
 
   function mountCarrier(durationSec, positionSec, shouldPlay) {
     const audioEl = getAudioElement();
     if (!audioEl) return;
 
-    if (activeCarrierUrl) {
-      URL.revokeObjectURL(activeCarrierUrl);
-      activeCarrierUrl = null;
+    if (!activeCarrierUrl) {
+      activeCarrierUrl = URL.createObjectURL(getStaticCarrierBlob());
     }
 
-    const carrierBlob = createCarrierWavBlob(durationSec);
-    activeCarrierUrl = URL.createObjectURL(carrierBlob);
-    audioEl.src = activeCarrierUrl;
-    audioEl.loop = true;
+    if (audioEl.src !== activeCarrierUrl) {
+      audioEl.src = activeCarrierUrl;
+      audioEl.loop = true;
+    }
 
-    const onReady = () => {
-      if (positionSec > 0 && isFinite(positionSec)) {
-        try { audioEl.currentTime = Math.min(positionSec, audioEl.duration || positionSec); } catch (e) {}
-      }
-      if (shouldPlay) {
-        audioEl.play().catch(() => {});
-      }
-    };
-
-    if (audioEl.readyState >= 1) {
-      onReady();
-    } else {
-      audioEl.addEventListener('loadedmetadata', onReady, { once: true });
+    if (shouldPlay && audioEl.paused) {
+      audioEl.play().catch(() => {});
     }
   }
 
   function releaseCarrier() {
-    if (activeCarrierUrl) {
-      URL.revokeObjectURL(activeCarrierUrl);
-      activeCarrierUrl = null;
+    const audioEl = getAudioElement();
+    if (audioEl && activeCarrierUrl && audioEl.src === activeCarrierUrl) {
+      audioEl.removeAttribute('src');
     }
   }
 
   function unlock() {
     const audioEl = getAudioElement();
-    if (audioEl && isActive && audioEl.paused) {
-      audioEl.play().catch(() => {});
-    }
-    if (window.XMAudio && window.XMAudio.player) {
-      window.XMAudio.player.unlock();
-    }
+    if (audioEl && isActive && audioEl.paused) audioEl.play().catch(() => {});
+    if (window.XMAudio && window.XMAudio.player) window.XMAudio.player.unlock();
   }
 
   function setPlaybackState(playing) {
@@ -91,20 +74,14 @@
     const audioEl = getAudioElement();
 
     if (isActive) {
-      if (audioEl && audioEl.paused && audioEl.src) {
-        audioEl.play().catch(() => {});
-      }
-      if (window.XMAudio && window.XMAudio.player) {
-        window.XMAudio.player.unlock();
-      }
+      if (audioEl && audioEl.paused && audioEl.src) audioEl.play().catch(() => {});
+      if (window.XMAudio && window.XMAudio.player) window.XMAudio.player.unlock();
     } else if (audioEl && !audioEl.paused) {
       audioEl.pause();
     }
 
     if ('mediaSession' in navigator) {
-      try {
-        navigator.mediaSession.playbackState = isActive ? 'playing' : 'paused';
-      } catch (e) {}
+      try { navigator.mediaSession.playbackState = isActive ? 'playing' : 'paused'; } catch (e) {}
     }
     updatePositionState();
   }
@@ -173,16 +150,12 @@
     ];
 
     for (let i = 0; i < actions.length; i++) {
-      try {
-        navigator.mediaSession.setActionHandler(actions[i][0], actions[i][1]);
-      } catch (e) {}
+      try { navigator.mediaSession.setActionHandler(actions[i][0], actions[i][1]); } catch (e) {}
     }
   }
 
   document.addEventListener('visibilitychange', () => {
-    if (window.XMAudio && window.XMAudio.isPlaying()) {
-      unlock();
-    }
+    if (window.XMAudio && window.XMAudio.isPlaying()) unlock();
     if (!document.hidden && window.XMApp && window.XMApp.onForegroundResume) {
       window.XMApp.onForegroundResume();
     }

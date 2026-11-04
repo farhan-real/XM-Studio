@@ -7,18 +7,11 @@ self.libopenmpt.locateFile = function(f) {
   return self.USE_CDN ? 'https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/' + f : '../' + f;
 };
 
-try {
-  importScripts('../libopenmpt.js');
-} catch (e) {
-  self.USE_CDN = true;
-  importScripts('https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js');
-}
+try { importScripts('../libopenmpt.js'); }
+catch (e) { self.USE_CDN = true; importScripts('https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js'); }
 
-try {
-  importScripts('../lame.min.js');
-} catch (e) {
-  importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
-}
+try { importScripts('../lame.min.js'); }
+catch (e) { importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js'); }
 
 function createWavBlob(pcmChunks, totalPcmBytes, sampleRate) {
   const buffer = new ArrayBuffer(44);
@@ -43,7 +36,6 @@ function createWavBlob(pcmChunks, totalPcmBytes, sampleRate) {
   return new Blob([buffer, ...pcmChunks], { type: 'audio/wav' });
 }
 
-// Lightweight 64-point Real FFT for pre-computing visualizer spectrum frames
 const FFT_SIZE = 64;
 const FFT_BARS = 28;
 const fftRe = new Float32Array(FFT_SIZE);
@@ -52,6 +44,7 @@ const hannWindow = new Float32Array(FFT_SIZE);
 const cosTable = new Float32Array(FFT_SIZE / 2);
 const sinTable = new Float32Array(FFT_SIZE / 2);
 const bitRev = new Uint8Array(FFT_SIZE);
+const linFftBuf = new Float32Array(FFT_SIZE);
 
 for (let i = 0; i < FFT_SIZE; i++) {
   hannWindow[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (FFT_SIZE - 1)));
@@ -89,9 +82,7 @@ function computeFftBars(inputSamples, outTarget, outOffset) {
   }
   for (let b = 0; b < FFT_BARS; b++) {
     const binIdx = Math.min(31, Math.floor(1 + Math.pow(b / (FFT_BARS - 1), 1.25) * 29));
-    const re = fftRe[binIdx];
-    const im = fftIm[binIdx];
-    const mag = Math.sqrt(re * re + im * im) * 8.0;
+    const mag = Math.sqrt(fftRe[binIdx] * fftRe[binIdx] + fftIm[binIdx] * fftIm[binIdx]) * 8.0;
     outTarget[outOffset + b] = mag > 0 ? Math.min(255, Math.round(Math.log10(1 + mag * 50) * 110)) : 0;
   }
 }
@@ -107,11 +98,7 @@ self.onmessage = function(e) {
 
     const modulePtr = libopenmpt._openmpt_module_create_from_memory(ptrToFile, byteArray.byteLength, 0, 0, 0);
     libopenmpt._free(ptrToFile);
-
-    if (!modulePtr) {
-      self.postMessage({ type: 'error', message: 'Unable to parse module in worker.' });
-      return;
-    }
+    if (!modulePtr) { self.postMessage({ type: 'error', message: 'Unable to parse module.' }); return; }
 
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 4]);
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
@@ -126,7 +113,6 @@ self.onmessage = function(e) {
 
     const BLOCK_SIZE = 1152;
     const chunkSize = BLOCK_SIZE * 4;
-
     const leftBufferPtr = libopenmpt._malloc(4 * chunkSize);
     const rightBufferPtr = libopenmpt._malloc(4 * chunkSize);
     const baseL = leftBufferPtr >> 2;
@@ -140,7 +126,6 @@ self.onmessage = function(e) {
     const encodedChunks = [];
     let totalPcmBytes = 0;
 
-    // Visualizer spectrum frame caching at 60 FPS
     const VIS_FPS = 60;
     const visStep = Math.round(sampleRate / VIS_FPS);
     const totalVisFrames = Math.ceil(totalFrames / visStep) + 10;
@@ -155,27 +140,15 @@ self.onmessage = function(e) {
 
     while (framesRendered < totalFrames) {
       const framesToRead = Math.min(chunkSize, totalFrames - framesRendered);
-      const actual = libopenmpt._openmpt_module_read_float_stereo(
-        modulePtr,
-        sampleRate,
-        framesToRead,
-        leftBufferPtr,
-        rightBufferPtr
-      );
-
+      const actual = libopenmpt._openmpt_module_read_float_stereo(modulePtr, sampleRate, framesToRead, leftBufferPtr, rightBufferPtr);
       if (actual === 0) break;
 
       const heapF32 = libopenmpt.HEAPF32;
-
       for (let i = 0; i < actual; i++) {
         let sL = heapF32[baseL + i];
         let sR = heapF32[baseR + i];
-
-        if (sL > 1.0) sL = 1.0;
-        else if (sL < -1.0) sL = -1.0;
-
-        if (sR > 1.0) sR = 1.0;
-        else if (sR < -1.0) sR = -1.0;
+        if (sL > 1.0) sL = 1.0; else if (sL < -1.0) sL = -1.0;
+        if (sR > 1.0) sR = 1.0; else if (sR < -1.0) sR = -1.0;
 
         fftWindowBuf[fftWindowPtr] = 0.5 * (sL + sR);
         fftWindowPtr = (fftWindowPtr + 1) % FFT_SIZE;
@@ -184,9 +157,8 @@ self.onmessage = function(e) {
         if (samplesSinceLastVis >= visStep) {
           samplesSinceLastVis = 0;
           if (visFrameIndex < totalVisFrames) {
-            const linBuf = new Float32Array(FFT_SIZE);
-            for (let k = 0; k < FFT_SIZE; k++) linBuf[k] = fftWindowBuf[(fftWindowPtr + k) % FFT_SIZE];
-            computeFftBars(linBuf, visBuffer, visFrameIndex * FFT_BARS);
+            for (let k = 0; k < FFT_SIZE; k++) linFftBuf[k] = fftWindowBuf[(fftWindowPtr + k) % FFT_SIZE];
+            computeFftBars(linFftBuf, visBuffer, visFrameIndex * FFT_BARS);
             visFrameIndex++;
           }
         }

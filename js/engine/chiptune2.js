@@ -1,5 +1,5 @@
 /**
- * js/engine/chiptune2.js - Mobile-optimized low-latency real-time Chiptune2 DSP player engine.
+ * js/engine/chiptune2.js - Ultra-low-latency real-time Chiptune2 DSP player engine.
  */
 (function(window) {
   var ChiptuneAudioContext = window.AudioContext || window.webkitAudioContext;
@@ -14,14 +14,13 @@
     this.sampleRate = this.context.sampleRate || 48000;
     this.gainNode = this.context.createGain();
 
-    // 25 Hz highpass filter removes DC bias and sub-audible infrasound from tracker instruments
     this.dcFilter = this.context.createBiquadFilter();
     this.dcFilter.type = 'highpass';
     this.dcFilter.frequency.value = 25;
     this.dcFilter.Q.value = 0.707;
 
     this.analyser = this.context.createAnalyser();
-    this.analyser.fftSize = 128;
+    this.analyser.fftSize = 64;
     this.analyser.smoothingTimeConstant = 0.82;
 
     this.gainNode.connect(this.dcFilter);
@@ -46,40 +45,25 @@
     }
   }
 
-  ChiptuneJsPlayer.prototype.on = function(eventName, handler) {
-    this.handlers[eventName] = handler;
-  };
-
+  ChiptuneJsPlayer.prototype.on = function(eventName, handler) { this.handlers[eventName] = handler; };
   ChiptuneJsPlayer.prototype.fireEvent = function(eventName, arg) {
-    if (typeof this.handlers[eventName] === 'function') {
-      this.handlers[eventName](arg);
-    }
+    if (typeof this.handlers[eventName] === 'function') this.handlers[eventName](arg);
   };
 
   ChiptuneJsPlayer.prototype.unlock = function() {
-    if (this.context && this.context.state !== 'running') {
-      this.context.resume().catch(function() {});
-    }
+    if (this.context && this.context.state !== 'running') this.context.resume().catch(function() {});
   };
 
   ChiptuneJsPlayer.prototype.isEngineReady = function() {
-    return typeof libopenmpt !== 'undefined' &&
-      Boolean(libopenmpt._openmpt_module_create_from_memory) &&
-      Boolean(libopenmpt.HEAPU8);
+    return typeof libopenmpt !== 'undefined' && Boolean(libopenmpt._openmpt_module_create_from_memory) && Boolean(libopenmpt.HEAPU8);
   };
 
   ChiptuneJsPlayer.prototype.waitForEngine = function(callback, errback, attempts) {
     var player = this;
     var tries = attempts || 0;
-    if (player.isEngineReady()) {
-      callback();
-    } else if (tries < 100) {
-      setTimeout(function() {
-        player.waitForEngine(callback, errback, tries + 1);
-      }, 80);
-    } else if (errback) {
-      errback(new Error("DSP engine timed out."));
-    }
+    if (player.isEngineReady()) { callback(); }
+    else if (tries < 100) { setTimeout(function() { player.waitForEngine(callback, errback, tries + 1); }, 80); }
+    else if (errback) { errback(new Error("DSP engine timed out.")); }
   };
 
   ChiptuneJsPlayer.prototype.ensureScratchBuffers = function() {
@@ -108,9 +92,7 @@
     player.unlock();
 
     function finishLoad(buf) {
-      player.waitForEngine(function() {
-        callback(buf);
-      }, function(err) {
+      player.waitForEngine(function() { callback(buf); }, function(err) {
         if (errback) errback(err);
         player.fireEvent('onError', err);
       });
@@ -119,39 +101,17 @@
     if (input instanceof File || input instanceof Blob) {
       var reader = new FileReader();
       reader.onload = function() { finishLoad(reader.result); };
-      reader.onerror = function(err) {
-        if (errback) errback(err);
-        player.fireEvent('onError', err);
-      };
+      reader.onerror = function(err) { if (errback) errback(err); player.fireEvent('onError', err); };
       reader.readAsArrayBuffer(input);
     } else if (typeof input === 'string') {
-      fetch(input)
-        .then(function(res) {
-          if (!res.ok) throw new Error("HTTP " + res.status);
-          return res.arrayBuffer();
-        })
-        .then(finishLoad)
-        .catch(function(err) {
-          if (errback) errback(err);
-          player.fireEvent('onError', err);
-        });
-    } else if (input instanceof ArrayBuffer) {
-      finishLoad(input);
-    }
-  };
-
-  ChiptuneJsPlayer.prototype.readMetadata = function(buffer) {
-    if (this.currentMetadata) return this.currentMetadata;
-    if (!this.isEngineReady()) return null;
-    var byteArray = new Uint8Array(buffer);
-    var ptr = libopenmpt._malloc(byteArray.byteLength);
-    libopenmpt.HEAPU8.set(byteArray, ptr);
-    var mod = libopenmpt._openmpt_module_create_from_memory(ptr, byteArray.byteLength, 0, 0, 0);
-    libopenmpt._free(ptr);
-    if (!mod) return null;
-    var meta = this.extractModuleMeta(mod);
-    libopenmpt._openmpt_module_destroy(mod);
-    return meta;
+      fetch(input).then(function(res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.arrayBuffer();
+      }).then(finishLoad).catch(function(err) {
+        if (errback) errback(err);
+        player.fireEvent('onError', err);
+      });
+    } else if (input instanceof ArrayBuffer) { finishLoad(input); }
   };
 
   ChiptuneJsPlayer.prototype.play = function(buffer) {
@@ -194,14 +154,8 @@
     var rate = this.sampleRate;
 
     processNode.cleanup = function() {
-      if (this.modulePtr) {
-        libopenmpt._openmpt_module_destroy(this.modulePtr);
-        this.modulePtr = 0;
-      }
-      if (this.ptrToFile) {
-        libopenmpt._free(this.ptrToFile);
-        this.ptrToFile = 0;
-      }
+      if (this.modulePtr) { libopenmpt._openmpt_module_destroy(this.modulePtr); this.modulePtr = 0; }
+      if (this.ptrToFile) { libopenmpt._free(this.ptrToFile); this.ptrToFile = 0; }
     };
 
     processNode.onaudioprocess = function(e) {
@@ -215,21 +169,11 @@
         return;
       }
 
-      var actual = libopenmpt._openmpt_module_read_float_stereo(
-        this.modulePtr,
-        rate,
-        framesToRender,
-        leftPtr,
-        rightPtr
-      );
-
+      var actual = libopenmpt._openmpt_module_read_float_stereo(this.modulePtr, rate, framesToRender, leftPtr, rightPtr);
       if (actual === 0) {
         outL.fill(0);
         outR.fill(0);
-        if (this.isConnected) {
-          try { this.disconnect(); } catch (err) {}
-          this.isConnected = false;
-        }
+        if (this.isConnected) { try { this.disconnect(); } catch (err) {} this.isConnected = false; }
         this.cleanup();
         this.player.currentPlayingNode = null;
         this.player.fireEvent('onEnded');
@@ -240,27 +184,13 @@
       var baseL = leftPtr >> 2;
       var baseR = rightPtr >> 2;
 
-      for (var i = 0; i < actual; i++) {
-        var sL = heapF32[baseL + i];
-        var sR = heapF32[baseR + i];
-
-        if (sL > 1.0) sL = 1.0;
-        else if (sL < -1.0) sL = -1.0;
-
-        if (sR > 1.0) sR = 1.0;
-        else if (sR < -1.0) sR = -1.0;
-
-        outL[i] = sL;
-        outR[i] = sR;
-      }
+      outL.set(heapF32.subarray(baseL, baseL + actual));
+      outR.set(heapF32.subarray(baseR, baseR + actual));
 
       if (actual < framesToRender) {
-        outL.fill(0, actual);
-        outR.fill(0, actual);
-        if (this.isConnected) {
-          try { this.disconnect(); } catch (err) {}
-          this.isConnected = false;
-        }
+        outL.subarray(actual).fill(0);
+        outR.subarray(actual).fill(0);
+        if (this.isConnected) { try { this.disconnect(); } catch (err) {} this.isConnected = false; }
         this.cleanup();
         this.player.currentPlayingNode = null;
         this.player.fireEvent('onEnded');
@@ -293,15 +223,9 @@
     this.unlock();
     node.paused = !node.paused;
     if (node.paused) {
-      if (node.isConnected) {
-        try { node.disconnect(); } catch (e) {}
-        node.isConnected = false;
-      }
+      if (node.isConnected) { try { node.disconnect(); } catch (e) {} node.isConnected = false; }
     } else {
-      if (!node.isConnected) {
-        node.connect(this.gainNode);
-        node.isConnected = true;
-      }
+      if (!node.isConnected) { node.connect(this.gainNode); node.isConnected = true; }
     }
     return node.paused;
   };
@@ -314,22 +238,14 @@
 
   ChiptuneJsPlayer.prototype.getPosition = function() {
     if (this.currentPlayingNode && this.currentPlayingNode.modulePtr) {
-      if (libopenmpt._openmpt_module_get_position_seconds) {
-        return libopenmpt._openmpt_module_get_position_seconds(this.currentPlayingNode.modulePtr);
-      }
+      if (libopenmpt._openmpt_module_get_position_seconds) return libopenmpt._openmpt_module_get_position_seconds(this.currentPlayingNode.modulePtr);
       return libopenmpt.ccall('openmpt_module_get_position_seconds', 'number', ['number'], [this.currentPlayingNode.modulePtr]);
     }
     return 0;
   };
 
-  ChiptuneJsPlayer.prototype.duration = function() {
-    return this.cachedDuration || 0;
-  };
-
-  ChiptuneJsPlayer.prototype.setVolume = function(vol) {
-    this.gainNode.gain.setValueAtTime(vol, this.context.currentTime);
-  };
-
+  ChiptuneJsPlayer.prototype.duration = function() { return this.cachedDuration || 0; };
+  ChiptuneJsPlayer.prototype.setVolume = function(vol) { this.gainNode.gain.setValueAtTime(vol, this.context.currentTime); };
   ChiptuneJsPlayer.prototype.setRepeat = function(loop) {
     this.repeatCount = loop ? -1 : 0;
     if (this.currentPlayingNode && this.currentPlayingNode.modulePtr) {

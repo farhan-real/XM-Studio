@@ -1,5 +1,5 @@
 /**
- * js/data/library.js - Pooled DOM virtual list (non-destructive for touch targets), search, and archive coordinator.
+ * js/data/library.js - Pooled DOM virtual list, search index, and archive coordinator.
  */
 (function(window) {
   const POOL_SIZE = 32;
@@ -9,7 +9,6 @@
   let displayCatalog = [];
   let activeTab = 'archive';
   let renderedTab = null;
-  let currentPlaylistId = null;
   let currentlyPlayingId = null;
 
   let activeRenderQueue = [];
@@ -55,22 +54,6 @@
   const countBadge = document.getElementById('leftCountBadge');
   const searchInput = document.getElementById('leftSearchInput');
   const searchBarWrap = document.getElementById('searchBarWrap');
-  const playlistItemsWrap = document.getElementById('playlistItemsWrap');
-  const playlistCreateRow = document.getElementById('playlistCreateRow');
-  const playlistDetailToolbar = document.getElementById('playlistDetailToolbar');
-  const playlistDetailTitle = document.getElementById('playlistDetailTitle');
-  const btnBackPlaylists = document.getElementById('btnBackPlaylists');
-  const btnPlayAllPlaylist = document.getElementById('btnPlayAllPlaylist');
-  const btnShufflePlaylist = document.getElementById('btnShufflePlaylist');
-  const btnAddFromCollection = document.getElementById('btnAddFromCollection');
-  const btnExportCurPlaylist = document.getElementById('btnExportCurPlaylist');
-  const btnModifyPlaylist = document.getElementById('btnModifyPlaylist');
-  const btnDeletePlaylist = document.getElementById('btnDeletePlaylist');
-  const inputNewPlaylist = document.getElementById('inputNewPlaylist');
-  const btnCreatePlaylist = document.getElementById('btnCreatePlaylist');
-  const btnImportPlaylist = document.getElementById('btnImportPlaylist');
-  const inputImportPlaylist = document.getElementById('inputImportPlaylist');
-
   const tabArchive = document.getElementById('tabArchive');
   const tabPlaylists = document.getElementById('tabPlaylists');
   const tabFavs = document.getElementById('tabFavorites');
@@ -98,7 +81,6 @@
       el._fmt = el.querySelector('.fmt-badge');
       el._artist = el.querySelector('.track-card-artist');
       el._favBtn = el.querySelector('[data-action="fav"]');
-      el._favSvg = el._favBtn.querySelector('svg');
       el._renderedIdx = -1;
       el._trackId = '';
       cardPool.push(el);
@@ -110,19 +92,25 @@
   function updatePoolSlot(el, track, idx, isPlaying, isFav) {
     el._renderedIdx = idx;
     el._trackId = track.id;
-    el.setAttribute('data-idx', idx);
-    el.setAttribute('data-track-id', track.id);
+    el.dataset.idx = idx;
+    el.dataset.trackId = track.id;
     el.style.display = 'flex';
     el.style.transform = `translate3d(0,${idx * 54}px,0)`;
-    el.className = `track-card ${(idx & 1) ? 'track-even' : ''} ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}`;
-    el._num.textContent = idx + 1;
-    el._title.textContent = track.title;
-    el._fmt.className = `fmt-badge ${getFormatBadgeClass(track.ext)}`;
-    el._fmt.textContent = track.ext || 'XM';
-    el._artist.textContent = track.artist;
+
+    const targetClass = `track-card ${(idx & 1) ? 'track-even' : ''} ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}`;
+    if (el.className !== targetClass) el.className = targetClass;
+
+    const numStr = String(idx + 1);
+    if (el._num.textContent !== numStr) el._num.textContent = numStr;
+    if (el._title.textContent !== track.title) el._title.textContent = track.title;
+
+    const fmt = track.ext || 'XM';
+    if (el._fmt.textContent !== fmt) {
+      el._fmt.className = `fmt-badge ${getFormatBadgeClass(fmt)}`;
+      el._fmt.textContent = fmt;
+    }
+    if (el._artist.textContent !== track.artist) el._artist.textContent = track.artist;
     el._favBtn.classList.toggle('active', isFav);
-    el._favSvg.setAttribute('fill', isFav ? 'var(--col-gold)' : 'none');
-    el._favSvg.setAttribute('stroke', isFav ? 'var(--col-gold)' : 'currentColor');
   }
 
   function initScroller() {
@@ -137,10 +125,7 @@
         ensureDomPool();
         if (!activeRenderQueue || activeRenderQueue.length === 0) {
           tableBody.style.transform = 'translate3d(0,0,0)';
-          for (let i = 0; i < POOL_SIZE; i++) {
-            cardPool[i].style.display = 'none';
-            cardPool[i]._renderedIdx = -1;
-          }
+          for (let i = 0; i < POOL_SIZE; i++) { cardPool[i].style.display = 'none'; cardPool[i]._renderedIdx = -1; }
           emptyMsgEl.textContent = 'No matching tracks found.';
           emptyMsgEl.style.display = 'block';
           return;
@@ -177,7 +162,7 @@
   tableBody.addEventListener('click', (e) => {
     const card = e.target.closest('.track-card');
     if (!card) return;
-    const idx = parseInt(card.getAttribute('data-idx'), 10);
+    const idx = parseInt(card.dataset.idx, 10);
     const track = activeRenderQueue[idx];
     if (!track) return;
     const actionBtn = e.target.closest('.km-btn-icon');
@@ -189,11 +174,10 @@
         if (activeTab === 'favorites') {
           renderTrackList(sortAlphabetical([...window.XMPlaylist.getFavorites()]), false);
         } else {
-          const isFav = window.XMPlaylist.isFavorited(track.id);
-          updatePoolSlot(card, track, idx, currentlyPlayingId === track.id, isFav);
+          updatePoolSlot(card, track, idx, currentlyPlayingId === track.id, window.XMPlaylist.isFavorited(track.id));
         }
       } else if (action === 'add-pl') {
-        window.XMPlaylist.openPlaylistPicker(track);
+        window.XMPlaylistUI.openPlaylistPicker(track);
       }
     } else {
       playTrack(track, activeRenderQueue, idx);
@@ -224,157 +208,6 @@
     }
   }
 
-  function renderPlaylists() {
-    playlistCreateRow.classList.remove('hide');
-    playlistDetailToolbar.classList.add('hide');
-    const playlists = window.XMPlaylist.getPlaylists();
-    countBadge.textContent = `${playlists.length} PLAYLISTS`;
-    if (playlists.length === 0) {
-      playlistItemsWrap.innerHTML = '<div class="library-empty-msg">No playlists created yet. Enter a name above to create one.</div>';
-      return;
-    }
-    playlistItemsWrap.innerHTML = playlists.map((pl, idx) => `<div class="playlist-card" data-pl-idx="${idx}"><div class="pl-card-info"><span class="pl-card-title">${pl.name}</span><span class="pl-card-meta">${pl.tracks.length} tracks</span></div><div class="pl-card-actions"><button class="km-btn-icon" data-action="export" title="Export (.json)"><svg viewBox="0 0 24 24" class="t-icon-xs"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button><button class="km-btn-icon" data-action="modify" title="Rename"><svg viewBox="0 0 24 24" class="t-icon-xs"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></button><button class="km-btn-icon" data-action="delete" title="Delete"><svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div></div>`).join('');
-  }
-
-  function viewPlaylist(plId) {
-    currentPlaylistId = plId;
-    const pl = window.XMPlaylist.getPlaylists().find(p => p.id === plId);
-    if (!pl) return;
-    playlistCreateRow.classList.add('hide');
-    playlistDetailToolbar.classList.remove('hide');
-    playlistDetailTitle.textContent = pl.name;
-    if (pl.tracks.length === 0) {
-      playlistItemsWrap.innerHTML = '<div class="library-empty-msg">Playlist is empty. Click "+ Add" above.</div>';
-      return;
-    }
-    const isFavFn = window.XMPlaylist.isFavorited;
-    playlistItemsWrap.innerHTML = pl.tracks.map((track, idx) => `<div class="track-card ${currentlyPlayingId === track.id ? 'active-playing' : ''} ${isFavFn(track.id) ? 'is-favorite' : ''}" data-pl-track-idx="${idx}" data-track-id="${track.id}"><span class="track-card-num">${idx + 1}</span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${getFormatBadgeClass(track.ext)}">${track.ext || 'XM'}</span></div><div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions"><button class="km-btn-icon" data-action="remove-added" title="Remove"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div></div></div></div>`).join('');
-  }
-
-  playlistItemsWrap.addEventListener('click', (e) => {
-    const plCard = e.target.closest('.playlist-card');
-    if (plCard) {
-      const playlists = window.XMPlaylist.getPlaylists();
-      const pl = playlists[parseInt(plCard.getAttribute('data-pl-idx'), 10)];
-      if (!pl) return;
-      const btn = e.target.closest('.km-btn-icon');
-      if (btn) {
-        e.stopPropagation();
-        const act = btn.getAttribute('data-action');
-        if (act === 'export') window.XMPlaylist.exportPlaylist(pl.id);
-        else if (act === 'modify') window.XMPlaylist.showPrompt("RENAME PLAYLIST", pl.name, "New name...", (nn) => { pl.name = nn; window.XMPlaylist.savePlaylists(playlists); renderPlaylists(); });
-        else if (act === 'delete') window.XMPlaylist.showConfirm("DELETE PLAYLIST", `Delete "${pl.name}"?`, () => { window.XMPlaylist.savePlaylists(playlists.filter(p => p.id !== pl.id)); renderPlaylists(); });
-      } else viewPlaylist(pl.id);
-      return;
-    }
-
-    const trCard = e.target.closest('.track-card');
-    if (trCard && currentPlaylistId) {
-      const idx = parseInt(trCard.getAttribute('data-pl-track-idx'), 10);
-      const pls = window.XMPlaylist.getPlaylists();
-      const pl = pls.find(p => p.id === currentPlaylistId);
-      if (!pl || !pl.tracks[idx]) return;
-      if (e.target.closest('[data-action="remove-added"]')) {
-        e.stopPropagation();
-        pl.tracks.splice(idx, 1);
-        window.XMPlaylist.savePlaylists(pls);
-        viewPlaylist(currentPlaylistId);
-      } else playTrack(pl.tracks[idx], pl.tracks, idx);
-    }
-  });
-
-  function openAddFromCollectionModal() {
-    if (!currentPlaylistId) return;
-    const pl = window.XMPlaylist.getPlaylists().find(p => p.id === currentPlaylistId);
-    if (!pl) return;
-    const modalBackdrop = document.getElementById('studioModalBackdrop');
-    document.getElementById('studioModalTitle').textContent = `ADD TO ${pl.name.toUpperCase()}`;
-    document.getElementById('studioModalBody').innerHTML = `<input type="text" class="modal-input" id="modalColSearch" placeholder="Filter collection..." /><div class="modal-collection-list" id="modalColList"></div>`;
-    document.getElementById('studioModalFooter').innerHTML = '<button class="action-btn action-btn-secondary" id="btnModalCloseOnly"><span>Done</span></button>';
-    document.getElementById('btnModalCloseOnly').addEventListener('click', window.XMPlaylist.closeModal);
-    modalBackdrop.classList.remove('hide');
-
-    const colList = document.getElementById('modalColList');
-    const colSearch = document.getElementById('modalColSearch');
-    let currentModalItems = [];
-
-    function renderModalItems(items) {
-      currentModalItems = items.slice(0, 120);
-      colList.innerHTML = currentModalItems.map((t, i) => `<div class="modal-collection-item"><div style="flex:1;min-width:0;"><div style="font-size:0.78rem;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.title}</div><div style="font-size:0.70rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.artist}</div></div><button class="action-btn" data-modal-idx="${i}" style="padding:4px 8px;font-size:0.65rem;flex:none;"><span>+ Add</span></button></div>`).join('');
-    }
-
-    colList.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-modal-idx]');
-      if (!btn) return;
-      const t = currentModalItems[parseInt(btn.getAttribute('data-modal-idx'), 10)];
-      if (!t) return;
-      const allPls = window.XMPlaylist.getPlaylists();
-      const target = allPls.find(p => p.id === currentPlaylistId);
-      if (target && !target.tracks.some(tr => tr.id === t.id)) {
-        target.tracks.push(t);
-        window.XMPlaylist.savePlaylists(allPls);
-        btn.querySelector('span').textContent = 'Added';
-        viewPlaylist(currentPlaylistId);
-      }
-    });
-
-    renderModalItems(fullCatalog);
-    colSearch.addEventListener('input', (e) => {
-      const q = e.target.value.toLowerCase().trim();
-      renderModalItems(q ? fullCatalog.filter(t => t._search.includes(q)) : fullCatalog);
-    });
-  }
-
-  btnAddFromCollection.addEventListener('click', openAddFromCollectionModal);
-  if (btnExportCurPlaylist) btnExportCurPlaylist.addEventListener('click', () => { if (currentPlaylistId) window.XMPlaylist.exportPlaylist(currentPlaylistId); });
-  btnCreatePlaylist.addEventListener('click', () => {
-    const name = inputNewPlaylist.value.trim();
-    if (!name) return;
-    const pls = window.XMPlaylist.getPlaylists();
-    pls.push({ id: `pl_${Date.now()}`, name, tracks: [] });
-    window.XMPlaylist.savePlaylists(pls);
-    inputNewPlaylist.value = '';
-    renderPlaylists();
-  });
-  if (btnImportPlaylist && inputImportPlaylist) {
-    btnImportPlaylist.addEventListener('click', () => inputImportPlaylist.click());
-    inputImportPlaylist.addEventListener('change', (e) => {
-      if (e.target.files && e.target.files.length > 0) { window.XMPlaylist.importPlaylist(e.target.files[0]); inputImportPlaylist.value = ''; }
-    });
-  }
-  btnBackPlaylists.addEventListener('click', renderPlaylists);
-  btnPlayAllPlaylist.addEventListener('click', () => {
-    if (!currentPlaylistId) return;
-    const pl = window.XMPlaylist.getPlaylists().find(p => p.id === currentPlaylistId);
-    if (pl && pl.tracks.length > 0) playTrack(pl.tracks[0], pl.tracks, 0);
-  });
-  if (btnShufflePlaylist) {
-    btnShufflePlaylist.addEventListener('click', () => {
-      if (!currentPlaylistId) return;
-      const pl = window.XMPlaylist.getPlaylists().find(p => p.id === currentPlaylistId);
-      if (pl && pl.tracks.length > 0) {
-        if (window.XMAudio && !window.XMAudio.isShuffle) { window.XMAudio.toggleShuffle(); const b = document.getElementById('btnShuffle'); if (b) b.classList.add('active'); }
-        const s = Math.floor(Math.random() * pl.tracks.length);
-        playTrack(pl.tracks[s], pl.tracks, s);
-      }
-    });
-  }
-  btnModifyPlaylist.addEventListener('click', () => {
-    if (currentPlaylistId) {
-      const pls = window.XMPlaylist.getPlaylists();
-      const pl = pls.find(p => p.id === currentPlaylistId);
-      if (pl) window.XMPlaylist.showPrompt("RENAME PLAYLIST", pl.name, "New name...", (nn) => { pl.name = nn; window.XMPlaylist.savePlaylists(pls); viewPlaylist(currentPlaylistId); });
-    }
-  });
-  btnDeletePlaylist.addEventListener('click', () => {
-    if (currentPlaylistId) {
-      window.XMPlaylist.showConfirm("DELETE PLAYLIST", "Delete this playlist?", () => {
-        window.XMPlaylist.savePlaylists(window.XMPlaylist.getPlaylists().filter(p => p.id !== currentPlaylistId));
-        renderPlaylists();
-      });
-    }
-  });
-
   function switchTab(tabId) {
     activeTab = tabId;
     [tabArchive, tabPlaylists, tabFavs, tabSource].forEach(t => t.classList.remove('active'));
@@ -398,7 +231,7 @@
       tabPlaylists.classList.add('active');
       searchBarWrap.classList.add('hide');
       panePlaylists.classList.remove('hide');
-      renderPlaylists();
+      if (window.XMPlaylistUI) window.XMPlaylistUI.renderPlaylists();
       renderedTab = 'playlists';
     } else if (tabId === 'source') {
       tabSource.classList.add('active');
@@ -456,11 +289,8 @@
       await syncFullCatalog();
     },
     getDisplayCatalog: () => (activeRenderQueue && activeRenderQueue.length > 0) ? activeRenderQueue : displayCatalog,
+    getFullCatalog: () => fullCatalog,
     playTrackDirect: playTrack,
-    scrollToPlaying: () => {
-      if (!currentlyPlayingId || !scroller) return;
-      const idx = activeRenderQueue.findIndex(t => t.id === currentlyPlayingId);
-      if (idx >= 0) scroller.scrollToIndex(idx);
-    }
+    getFormatBadgeClass
   };
 })(window);

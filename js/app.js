@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function startProgressLoop() {
     if (!progressTimerId && !document.hidden) {
       tickProgress();
-      progressTimerId = setInterval(tickProgress, 200);
+      progressTimerId = setInterval(tickProgress, 250);
     }
   }
 

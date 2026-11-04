@@ -1,5 +1,5 @@
 /**
- * js/engine/visualizer.js - Ultra-lightweight 20 FPS visualizer with zero-lag CPU pacing and anti-stutter audio isolation.
+ * js/engine/visualizer.js - Adaptive 20 FPS visualizer with zero-lag CPU pacing and anti-stutter isolation.
  */
 (function(window) {
   const canvas = document.getElementById('visualizer');
@@ -7,20 +7,24 @@
   ctx.imageSmoothingEnabled = false;
 
   const TOTAL_BARS = 28;
-  const dataArray = new Uint8Array(64);
+  const dataArray = new Uint8Array(32);
   const smoothedValues = new Float32Array(TOTAL_BARS);
   const frameBars = new Uint8Array(TOTAL_BARS);
-
-  // Ultra-lightweight 20 FPS pacing (50ms per frame) minimizes CPU/GPU load and eliminates audio thread contention
   const FRAME_INTERVAL = 50;
 
   const BIN_MAP = new Uint8Array(TOTAL_BARS);
   for (let i = 0; i < TOTAL_BARS; i++) {
-    BIN_MAP[i] = Math.min(58, Math.floor(1 + Math.pow(i / (TOTAL_BARS - 1), 1.35) * 54));
+    BIN_MAP[i] = Math.min(30, Math.floor(1 + Math.pow(i / (TOTAL_BARS - 1), 1.35) * 28));
   }
+
+  const PALETTE = [
+    '#1e293b', '#52525b', '#ec4899', '#3b82f6', '#ef4444',
+    '#a855f7', '#22c55e', '#fde047', '#f97316'
+  ];
 
   let activePlayer = null;
   let isLoopRunning = false;
+  let isThrottled = false;
   let rafId = null;
   let lastFrameTime = 0;
   let cachedDpr = 1;
@@ -40,7 +44,6 @@
   }
 
   function resizeCanvas() {
-    // Cap DPR at 1.25x across all devices to drastically reduce GPU fill-rate overhead and memory bandwidth
     cachedDpr = Math.min(window.devicePixelRatio || 1, 1.25);
     const parent = canvas.parentElement;
     if (!parent) return;
@@ -61,7 +64,6 @@
       const totalSpacing = spacing * (TOTAL_BARS - 1);
       cachedBarWidth = Math.max(1, Math.floor((cachedWidth - totalSpacing) / TOTAL_BARS));
       cachedStep = cachedBarWidth + spacing;
-
       drawIdleBackground();
     }
   }
@@ -76,24 +78,16 @@
     cachedVisFps = fps || 60;
   }
 
-  function clearVisualizerCache() {
-    cachedVisData = null;
-  }
+  function clearVisualizerCache() { cachedVisData = null; }
 
   function sleep() {
     isLoopRunning = false;
-    if (rafId) {
-      cancelAnimationFrame(rafId);
-      rafId = null;
-    }
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
   }
 
   function wake(player) {
     if (player) activePlayer = player;
-    if (document.hidden || !isCanvasVisible()) {
-      sleep();
-      return;
-    }
+    if (document.hidden || !isCanvasVisible()) { sleep(); return; }
     if (!isLoopRunning && window.XMAudio && window.XMAudio.isPlaying()) {
       isLoopRunning = true;
       lastFrameTime = performance.now();
@@ -102,38 +96,33 @@
     }
   }
 
+  function setThrottled(throttled) { isThrottled = throttled; }
+
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas, { passive: true });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-      sleep();
-    } else if (isCanvasVisible() && window.XMAudio && window.XMAudio.isPlaying()) {
-      wake(activePlayer);
-    }
+    if (document.hidden) sleep();
+    else if (isCanvasVisible() && window.XMAudio && window.XMAudio.isPlaying()) wake(activePlayer);
   });
   window.addEventListener('pagehide', sleep, { passive: true });
 
   function renderFrame(now) {
     const isLive = window.XMAudio ? window.XMAudio.isPlaying() : false;
     if (!isLive || document.hidden || !isCanvasVisible()) {
-      if (!isLive) {
-        smoothedValues.fill(0);
-        drawIdleBackground();
-      }
+      if (!isLive) { smoothedValues.fill(0); drawIdleBackground(); }
       sleep();
       return;
     }
 
-    // Strict 20 FPS pacing (50ms) ensures smooth operation with 0% audio thread interference
+    const interval = isThrottled ? 100 : FRAME_INTERVAL;
     const elapsed = now - lastFrameTime;
-    if (elapsed < FRAME_INTERVAL) {
+    if (elapsed < interval) {
       if (isLoopRunning) rafId = requestAnimationFrame(renderFrame);
       return;
     }
 
-    lastFrameTime = now - (elapsed % FRAME_INTERVAL);
-
+    lastFrameTime = now - (elapsed % interval);
     if (canvas.width === 0 || canvas.height === 0) resizeCanvas();
     drawIdleBackground();
 
@@ -153,7 +142,7 @@
       for (let i = 0; i < TOTAL_BARS; i++) {
         const binIdx = BIN_MAP[i];
         let raw = dataArray[binIdx];
-        if (binIdx + 1 < 64 && dataArray[binIdx + 1] > raw) raw = Math.max(raw, dataArray[binIdx + 1]);
+        if (binIdx + 1 < 32 && dataArray[binIdx + 1] > raw) raw = Math.max(raw, dataArray[binIdx + 1]);
         frameBars[i] = raw < 10 ? 0 : raw;
       }
       hasData = true;
@@ -163,45 +152,28 @@
       let currentStyle = '';
       for (let i = 0; i < TOTAL_BARS; i++) {
         const raw = frameBars[i];
-
-        // Calibrated 20 FPS response: fast rise, smooth 50ms exponential decay
-        if (raw > smoothedValues[i]) {
-          smoothedValues[i] += (raw - smoothedValues[i]) * 0.9;
-        } else {
-          smoothedValues[i] += (raw - smoothedValues[i]) * 0.45;
-        }
+        if (raw > smoothedValues[i]) smoothedValues[i] += (raw - smoothedValues[i]) * 0.9;
+        else smoothedValues[i] += (raw - smoothedValues[i]) * 0.45;
 
         const val = smoothedValues[i];
-        const barHeight = val > 1
-          ? Math.max(cachedMinBarH, Math.round((val / 255) * cachedMaxBarH))
-          : cachedMinBarH;
+        const barHeight = val > 1 ? Math.max(cachedMinBarH, (val / 255 * cachedMaxBarH) | 0) : cachedMinBarH;
 
         let targetStyle;
-        if (val < 2 || barHeight <= cachedMinBarH) {
-          targetStyle = '#1e293b';
-        } else if (val > 238) {
-          targetStyle = '#f97316';
-        } else if (val > 210) {
-          targetStyle = '#fde047';
-        } else if (val > 175) {
-          targetStyle = '#22c55e';
-        } else if (val > 140) {
-          targetStyle = '#a855f7';
-        } else if (val > 105) {
-          targetStyle = '#ef4444';
-        } else if (val > 70) {
-          targetStyle = '#3b82f6';
-        } else if (val > 35) {
-          targetStyle = '#ec4899';
-        } else {
-          targetStyle = '#52525b';
-        }
+        if (val < 2 || barHeight <= cachedMinBarH) targetStyle = PALETTE[0];
+        else if (val > 238) targetStyle = PALETTE[8];
+        else if (val > 210) targetStyle = PALETTE[7];
+        else if (val > 175) targetStyle = PALETTE[6];
+        else if (val > 140) targetStyle = PALETTE[5];
+        else if (val > 105) targetStyle = PALETTE[4];
+        else if (val > 70) targetStyle = PALETTE[3];
+        else if (val > 35) targetStyle = PALETTE[2];
+        else targetStyle = PALETTE[1];
 
         if (targetStyle !== currentStyle) {
           currentStyle = targetStyle;
           ctx.fillStyle = currentStyle;
         }
-        ctx.fillRect(Math.round(i * cachedStep), cachedHeight - barHeight, cachedBarWidth, barHeight);
+        ctx.fillRect((i * cachedStep) | 0, cachedHeight - barHeight, cachedBarWidth, barHeight);
       }
     }
 
@@ -209,12 +181,10 @@
   }
 
   window.XMVisualizer = {
-    start: function(player) {
-      activePlayer = player;
-      wake(player);
-    },
+    start: function(player) { activePlayer = player; wake(player); },
     wake,
     sleep,
+    setThrottled,
     resize: resizeCanvas,
     setVisualizerCache,
     clearVisualizerCache

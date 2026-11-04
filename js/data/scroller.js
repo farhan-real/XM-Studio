@@ -1,5 +1,5 @@
 /**
- * js/data/scroller.js - Android-optimized custom scrollbar and virtual windowing coordinator.
+ * js/data/scroller.js - Android-optimized custom scrollbar and rAF windowing coordinator.
  */
 (function(window) {
   function createScroller(options) {
@@ -29,6 +29,9 @@
     let touchLastTime = 0;
     let touchVelocity = 0;
     let touchAnimId = null;
+
+    let rafPending = false;
+    let pendingRebuild = false;
 
     function measureDimensions() {
       const vh = viewport.clientHeight;
@@ -61,8 +64,7 @@
     function syncThumb() {
       if (maxTravel <= 0 || maxScroll <= 0) return;
       const fraction = Math.max(0, Math.min(1, scrollTop / maxScroll));
-      const thumbTop = Math.round(fraction * maxTravel);
-      thumb.style.transform = `translate3d(0,${thumbTop}px,0)`;
+      thumb.style.transform = `translate3d(0,${Math.round(fraction * maxTravel)}px,0)`;
     }
 
     function emitRender(forceRebuild) {
@@ -75,12 +77,24 @@
       if (onRender) onRender(start, end, scrollTop, Boolean(forceRebuild));
     }
 
+    function scheduleSync(forceRebuild) {
+      if (forceRebuild) pendingRebuild = true;
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        const force = pendingRebuild;
+        pendingRebuild = false;
+        syncThumb();
+        emitRender(force);
+      });
+    }
+
     function setScroll(targetTop, forceRebuild) {
       const clamped = Math.max(0, Math.min(maxScroll, targetTop));
       if (clamped === scrollTop && !forceRebuild) return;
       scrollTop = clamped;
-      syncThumb();
-      emitRender(forceRebuild);
+      scheduleSync(forceRebuild);
     }
 
     function setTotal(count, forceReset = false) {
@@ -88,8 +102,7 @@
       if (forceReset) scrollTop = 0;
       updateMetrics();
       if (scrollTop > maxScroll) scrollTop = maxScroll;
-      syncThumb();
-      emitRender(true);
+      scheduleSync(true);
     }
 
     thumb.addEventListener('pointerdown', (e) => {
@@ -100,6 +113,7 @@
       dragStartScrollTop = scrollTop;
       thumb.classList.add('dragging');
       thumb.setPointerCapture(e.pointerId);
+      if (window.XMVisualizer) window.XMVisualizer.setThrottled(true);
     });
 
     thumb.addEventListener('pointermove', (e) => {
@@ -114,6 +128,7 @@
       isDragging = false;
       thumb.classList.remove('dragging');
       try { thumb.releasePointerCapture(e.pointerId); } catch (err) {}
+      if (window.XMVisualizer) window.XMVisualizer.setThrottled(false);
     }
     thumb.addEventListener('pointerup', endThumbDrag);
     thumb.addEventListener('pointercancel', endThumbDrag);
@@ -147,6 +162,7 @@
       touchLastY = touchStartY;
       touchLastTime = performance.now();
       touchVelocity = 0;
+      if (window.XMVisualizer) window.XMVisualizer.setThrottled(true);
     }, { passive: true });
 
     viewport.addEventListener('touchmove', (e) => {
@@ -171,6 +187,7 @@
     function onTouchEnd() {
       if (!isTouching) return;
       isTouching = false;
+      if (window.XMVisualizer) window.XMVisualizer.setThrottled(false);
       if (!isTouchDragging) return;
       isTouchDragging = false;
       suppressNextClick = true;
@@ -191,6 +208,7 @@
     viewport.addEventListener('touchcancel', () => {
       isTouching = false;
       isTouchDragging = false;
+      if (window.XMVisualizer) window.XMVisualizer.setThrottled(false);
     }, { passive: true });
 
     viewport.addEventListener('click', (e) => {
@@ -208,39 +226,11 @@
       }
     });
 
-    viewport.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowDown') { e.preventDefault(); setScroll(scrollTop + itemHeight, false); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); setScroll(scrollTop - itemHeight, false); }
-      else if (e.key === 'PageDown') { e.preventDefault(); setScroll(scrollTop + cachedVh, false); }
-      else if (e.key === 'PageUp') { e.preventDefault(); setScroll(scrollTop - cachedVh, false); }
-      else if (e.key === 'Home') { e.preventDefault(); setScroll(0, false); }
-      else if (e.key === 'End') { e.preventDefault(); setScroll(maxScroll, false); }
-    });
-
-    function handleResize() {
-      if (viewport.clientHeight > 0) {
-        updateMetrics();
-        syncThumb();
-        emitRender(true);
-      }
-    }
-
-    window.addEventListener('resize', handleResize, { passive: true });
-    if ('ResizeObserver' in window) {
-      new ResizeObserver(handleResize).observe(viewport);
-    }
-
     return {
       setTotal,
       setScroll,
-      scrollToIndex: (idx) => {
-        setScroll(idx * itemHeight - (cachedVh - itemHeight) / 2, false);
-      },
-      refresh: () => {
-        updateMetrics();
-        syncThumb();
-        emitRender(true);
-      },
+      scrollToIndex: (idx) => { setScroll(idx * itemHeight - (cachedVh - itemHeight) / 2, false); },
+      refresh: () => { updateMetrics(); scheduleSync(true); },
       getScrollTop: () => scrollTop
     };
   }
