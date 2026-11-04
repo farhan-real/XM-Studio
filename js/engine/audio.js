@@ -42,10 +42,6 @@
     }
   }
 
-  function disconnectNativeSource() {
-    if (nativeAudioSource) { try { nativeAudioSource.disconnect(); } catch (e) {} }
-  }
-
   function updateDocumentTitle(playing) {
     if (playing && activeTitle && activeTitle !== 'No Module Loaded') {
       const art = activeArtist ? ` - ${activeArtist}` : '';
@@ -103,13 +99,13 @@
       } else {
         if (!player.currentPlayingNode && currentRawBuffer) player.play(currentRawBuffer);
         else if (player.currentPlayingNode && player.currentPlayingNode.paused) player.togglePause();
-        audioEl.play().catch(() => {});
-        notifyPlayState(true);
+        audioEl.play().then(() => notifyPlayState(true)).catch(() => notifyPlayState(true));
       }
     }
   }
 
   function togglePlayPause() { setPaused(isPlaying()); }
+
   function stopPlayback() {
     audioEl.pause();
     try { audioEl.currentTime = 0; } catch (e) {}
@@ -137,7 +133,6 @@
     audioEl.load();
     if (window.XMBackground) window.XMBackground.releaseCarrier();
     if (window.XMVisualizer) window.XMVisualizer.clearVisualizerCache();
-    disconnectNativeSource();
     revokeActiveObjectUrl();
     currentRawBuffer = null;
     currentAudioBlob = null;
@@ -159,8 +154,6 @@
 
     const wasPlaying = isPlaying();
     const curPos = getPosition();
-
-    if (window.XMBackground) window.XMBackground.releaseCarrier();
 
     isNativeStream = true;
     currentAudioBlob = blob;
@@ -186,7 +179,10 @@
         player.stop();
         notifyPlayState(false);
       }
-      if (window.XMBackground) window.XMBackground.updatePositionState();
+      if (window.XMBackground) {
+        window.XMBackground.updateMetadata(activeTitle, activeArtist);
+        window.XMBackground.updatePositionState();
+      }
     };
 
     if (audioEl.readyState >= 3) onCanPlay();
@@ -206,19 +202,7 @@
 
     player.unlock();
     player.stop();
-    audioEl.pause();
-    if (window.XMBackground) window.XMBackground.releaseCarrier();
-    if (window.XMVisualizer) window.XMVisualizer.clearVisualizerCache();
-    disconnectNativeSource();
-    revokeActiveObjectUrl();
 
-    currentRawBuffer = null;
-    currentAudioBlob = null;
-    currentAudioSrc = (typeof fileOrUrl === 'string') ? fileOrUrl : '';
-    currentTrackItem = trackItemRef || null;
-    if (window.XMQueue) window.XMQueue.setQueue(queue, queueIdx);
-
-    const trackNum = window.XMQueue ? window.XMQueue.getTrackNum() : 1;
     let targetTitle = (trackItemRef && trackItemRef.title) ? trackItemRef.title.trim() : '';
     let targetArtist = (trackItemRef && trackItemRef.artist) ? trackItemRef.artist.trim() : '';
     if (!targetTitle) {
@@ -229,9 +213,16 @@
     activeTitle = targetTitle;
     activeArtist = targetArtist;
 
-    if (window.XMBackground) window.XMBackground.updateMetadata(targetTitle, targetArtist);
-    if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase() || 'AUDIO', '--', false, trackNum);
+    currentRawBuffer = null;
+    currentAudioBlob = null;
+    currentAudioSrc = (typeof fileOrUrl === 'string') ? fileOrUrl : '';
+    currentTrackItem = trackItemRef || null;
+    if (window.XMQueue) window.XMQueue.setQueue(queue, queueIdx);
+
+    const trackNum = window.XMQueue ? window.XMQueue.getTrackNum() : 1;
+    if (window.XMVisualizer) window.XMVisualizer.clearVisualizerCache();
     if (window.XMLibrary && trackItemRef) window.XMLibrary.notifyPlaying(trackItemRef.id);
+    if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase() || 'AUDIO', '--', false, trackNum);
 
     const cacheKey = (trackItemRef && trackItemRef.id) || currentAudioSrc || targetTitle;
     if (compiledCache.has(cacheKey)) {
@@ -244,6 +235,10 @@
       audioEl.loop = window.XMQueue ? window.XMQueue.isLooping : true;
       connectNativeSource();
       if (cached.visData && window.XMVisualizer) window.XMVisualizer.setVisualizerCache(cached.visData, cached.visFps);
+      if (window.XMBackground) {
+        window.XMBackground.updateMetadata(targetTitle, targetArtist);
+        window.XMBackground.setPlaybackState(true);
+      }
       audioEl.play().then(() => notifyPlayState(true)).catch(() => notifyPlayState(false));
       if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2 CH', true, trackNum);
       return;
@@ -256,12 +251,24 @@
       audioEl.src = activeObjectUrl || fileOrUrl;
       audioEl.loop = window.XMQueue ? window.XMQueue.isLooping : true;
       connectNativeSource();
+      if (window.XMBackground) {
+        window.XMBackground.updateMetadata(targetTitle, targetArtist);
+        window.XMBackground.setPlaybackState(true);
+      }
       audioEl.play().then(() => notifyPlayState(true)).catch(() => notifyPlayState(false));
       if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2 CH', true, trackNum);
       return;
     }
 
+    // Synchronously activate carrier and notification during user interaction before network fetch
     isNativeStream = false;
+    connectNativeSource();
+    if (window.XMBackground) {
+      window.XMBackground.mountCarrier(180, 0, true);
+      window.XMBackground.updateMetadata(targetTitle, targetArtist);
+      window.XMBackground.setPlaybackState(true);
+    }
+
     player.load(fileOrUrl, (buf) => {
       if (loadId !== currentLoadId) return;
       currentRawBuffer = buf;
@@ -274,7 +281,10 @@
       }
       const meta = player.currentMetadata || {};
       const engineName = (meta.type_long || currentExt || "FT2").toUpperCase();
-      if (window.XMBackground) window.XMBackground.mountCarrier(meta.duration || 180, 0, true);
+      if (window.XMBackground) {
+        window.XMBackground.updateMetadata(targetTitle, targetArtist);
+        window.XMBackground.updatePositionState();
+      }
       notifyPlayState(true);
       if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, engineName, `${meta.channels || 8} CH`, false, trackNum);
     }, () => {
