@@ -60,9 +60,14 @@ separation, and responsive frequency spectrum analysis.
 -   **Artifact-Free Audio Compilation**: 1152-sample aligned frame blocks
     and continuous soft limiting eliminate bit reservoir underflow, frame drops,
     and harsh clipping distortion during MP3 and WAV rendering.
--   **Phosphor Spectrum Visualizer**: 28-band real-time audio analyzer
-    rendered to HTML5 Canvas with device-pixel-ratio display scaling and
-    color-batched draw calls for both tracker modules and native streams.
+-   **Precomputed Visualizer Spectrum Caching**: Analyzes and caches 28-band
+    frequency spectrum frames in the background worker during compilation,
+    enabling $O(1)$ zero-CPU visualizer rendering during playback without main-thread
+    FFT overhead.
+-   **High-FPS Anti-Flicker Spectrum Visualizer**: 28-band real-time audio analyzer
+    rendering at uncapped native display VSync (60Hz–144Hz+) with instant attack,
+    exponential analog decay smoothing, 25 Hz DC-blocking filter, and a multi-tier
+    spectrum color hierarchy (orange, yellow, green, purple, red, blue, pink, gray).
 -   **Master Audio Compiler**: Export tracker modules on-demand to MP3
     (320kbps CBR via LAME) or uncompressed WAV (16-bit PCM) without
     interrupting playback.
@@ -99,7 +104,7 @@ separation, and responsive frequency spectrum analysis.
     paused, stopped, or running in a background tab.
 -   **DPR Throttling**: Caps canvas resolution to 1.5× DPR on
     high-density screens (reducing fill-rate overhead by up to 75% on
-    3×/4× mobile displays) and throttles rendering to a stable ~33 FPS.
+    3×/4× mobile displays) while preserving high frame rates.
 
 ### Workstation Transport Controls
 
