@@ -1,6 +1,5 @@
 /**
- * js/engine/chiptune2.js - Multithreaded AudioWorklet + Web Worker DSP chiptune engine.
- * Eliminates ScriptProcessorNode and offloads 100% of module synthesis to a dedicated background worker.
+ * js/engine/dsp/chiptune2.js - Multithreaded AudioWorklet + Web Worker DSP chiptune engine.
  */
 (function(window) {
   const ChiptuneAudioContext = window.AudioContext || window.webkitAudioContext;
@@ -50,7 +49,7 @@
 
     this.initPromise = new Promise(async (resolve, reject) => {
       try {
-        await this.context.audioWorklet.addModule('js/engine/worklet.js');
+        await this.context.audioWorklet.addModule('js/engine/workers/worklet.js');
 
         this.workletNode = new AudioWorkletNode(this.context, 'xm-audio-worklet', {
           numberOfInputs: 0,
@@ -60,7 +59,7 @@
         this.workletNode.paused = true;
         this.workletNode.connect(this.gainNode);
 
-        this.dspWorker = new Worker('js/engine/dspworker.js');
+        this.dspWorker = new Worker('js/engine/workers/dspworker.js');
         this.bindWorkerEvents();
 
         const channel = new MessageChannel();

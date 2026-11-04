@@ -21,7 +21,8 @@
     };
   </script>
   <script src="js/libopenmpt.js" onerror="window.USE_CDN=true; this.src='https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js';"></script>
-  <script src="js/engine/chiptune2.js"></script><script src="js/engine/compiler.js"></script>
+  <script src="js/engine/dsp/chiptune2.js"></script>
+  <script src="js/engine/export/compiler.js"></script>
 </head>
 <body>
   <div class="mobile-view-toggle">
@@ -179,15 +180,20 @@
     </div>
   </div>
   <audio id="nativeAudio" preload="metadata" playsinline></audio>
-  <script src="js/engine/visualizer.js"></script><script src="js/engine/background.js"></script>
-  <script src="js/engine/queue.js"></script><script src="js/engine/audio.js"></script>
-  <script src="js/engine/export.js"></script>
-  <script src="js/data/zip.js"></script><script src="js/data/playlist.js"></script>
-  <script src="js/data/playlistui.js"></script>
-  <script src="js/data/custom.js"></script><script src="js/data/sources.js"></script>
-  <script src="js/data/catalog.js"></script>
-  <script src="js/data/scroller.js"></script>
-  <script src="js/data/backup.js"></script>
-  <script src="js/data/library.js"></script><script src="js/app.js"></script>
+  <script src="js/engine/dsp/visualizer.js"></script>
+  <script src="js/engine/dsp/background.js"></script>
+  <script src="js/engine/dsp/queue.js"></script>
+  <script src="js/engine/dsp/audio.js"></script>
+  <script src="js/engine/export/export.js"></script>
+  <script src="js/data/storage/zip.js"></script>
+  <script src="js/data/playlist/playlist.js"></script>
+  <script src="js/data/playlist/playlistui.js"></script>
+  <script src="js/data/storage/custom.js"></script>
+  <script src="js/data/catalog/sources.js"></script>
+  <script src="js/data/catalog/catalog.js"></script>
+  <script src="js/data/view/scroller.js"></script>
+  <script src="js/data/storage/backup.js"></script>
+  <script src="js/data/view/library.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>

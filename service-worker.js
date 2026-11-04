@@ -1,5 +1,5 @@
 // service-worker.js - Zero UI caching. Always network-first for immediate updates.
-const CACHE_NAME = 'xm-runtime-v38';
+const CACHE_NAME = 'xm-runtime-v39';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();

@@ -1,5 +1,5 @@
 /**
- * js/engine/compiler.js - Multithreaded background audio and visualizer compiler via Web Worker.
+ * js/engine/export/compiler.js - Multithreaded background audio and visualizer compiler via Web Worker.
  */
 (function(window) {
   function AudioCompiler() {
@@ -13,7 +13,7 @@
     self.isCompiling = true;
 
     try {
-      self.worker = new Worker('js/engine/worker.js');
+      self.worker = new Worker('js/engine/workers/worker.js');
 
       self.worker.onmessage = function(e) {
         const msg = e.data;

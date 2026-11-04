@@ -1,16 +1,16 @@
 /**
- * js/engine/dspworker.js - Dedicated Web Worker hosting libopenmpt for off-main-thread DSP.
+ * js/engine/workers/dspworker.js - Dedicated Web Worker hosting libopenmpt for off-main-thread DSP.
  */
 /* global importScripts, libopenmpt */
 self.libopenmpt = self.libopenmpt || {};
 self.libopenmpt.locateFile = function(f) {
   return self.USE_CDN
     ? 'https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/' + f
-    : '../' + f;
+    : '../../' + f;
 };
 
 try {
-  importScripts('../libopenmpt.js');
+  importScripts('../../libopenmpt.js');
 } catch (e) {
   self.USE_CDN = true;
   importScripts('https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js');

@@ -1,17 +1,26 @@
 /**
- * js/engine/worker.js - Dedicated Web Worker for OpenMPT rendering, MP3 compilation, and visualizer pre-caching.
+ * js/engine/workers/worker.js - Dedicated Web Worker for OpenMPT rendering and MP3 compilation.
  */
 /* global importScripts, libopenmpt, lamejs */
 self.libopenmpt = self.libopenmpt || {};
 self.libopenmpt.locateFile = function(f) {
-  return self.USE_CDN ? 'https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/' + f : '../' + f;
+  return self.USE_CDN
+    ? 'https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/' + f
+    : '../../' + f;
 };
 
-try { importScripts('../libopenmpt.js'); }
-catch (e) { self.USE_CDN = true; importScripts('https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js'); }
+try {
+  importScripts('../../libopenmpt.js');
+} catch (e) {
+  self.USE_CDN = true;
+  importScripts('https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js');
+}
 
-try { importScripts('../lame.min.js'); }
-catch (e) { importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js'); }
+try {
+  importScripts('../../lame.min.js');
+} catch (e) {
+  importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
+}
 
 function createWavBlob(pcmChunks, totalPcmBytes, sampleRate) {
   const buffer = new ArrayBuffer(44);
@@ -98,7 +107,10 @@ self.onmessage = function(e) {
 
     const modulePtr = libopenmpt._openmpt_module_create_from_memory(ptrToFile, byteArray.byteLength, 0, 0, 0);
     libopenmpt._free(ptrToFile);
-    if (!modulePtr) { self.postMessage({ type: 'error', message: 'Unable to parse module.' }); return; }
+    if (!modulePtr) {
+      self.postMessage({ type: 'error', message: 'Unable to parse module.' });
+      return;
+    }
 
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 4]);
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
