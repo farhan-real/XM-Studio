@@ -1,13 +1,13 @@
 /**
- * js/engine/chiptune2.js - Zero-allocation real-time Chiptune2 DSP player engine with background auto-resume.
+ * js/engine/chiptune2.js - Low-latency, zero-allocation real-time Chiptune2 DSP player engine.
  */
 (function(window) {
   var ChiptuneAudioContext = window.AudioContext || window.webkitAudioContext;
-  var BUFFER_FRAMES = 16384;
+  var BUFFER_FRAMES = 2048;
 
   function ChiptuneJsPlayer() {
     try {
-      this.context = new ChiptuneAudioContext({ sampleRate: 48000 });
+      this.context = new ChiptuneAudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
     } catch (e) {
       this.context = new ChiptuneAudioContext();
     }
@@ -179,6 +179,7 @@
     processNode.modulePtr = mod;
     processNode.ptrToFile = ptrToFile;
     processNode.paused = false;
+    processNode.isConnected = true;
 
     var leftPtr = this.leftBufferPtr;
     var rightPtr = this.rightBufferPtr;
@@ -217,7 +218,10 @@
       if (actual === 0) {
         outL.fill(0);
         outR.fill(0);
-        this.disconnect();
+        if (this.isConnected) {
+          try { this.disconnect(); } catch (err) {}
+          this.isConnected = false;
+        }
         this.cleanup();
         this.player.currentPlayingNode = null;
         this.player.fireEvent('onEnded');
@@ -244,7 +248,10 @@
       if (actual < framesToRender) {
         outL.fill(0, actual);
         outR.fill(0, actual);
-        this.disconnect();
+        if (this.isConnected) {
+          try { this.disconnect(); } catch (err) {}
+          this.isConnected = false;
+        }
         this.cleanup();
         this.player.currentPlayingNode = null;
         this.player.fireEvent('onEnded');
@@ -259,7 +266,10 @@
 
   ChiptuneJsPlayer.prototype.stop = function() {
     if (this.currentPlayingNode) {
-      this.currentPlayingNode.disconnect();
+      if (this.currentPlayingNode.isConnected) {
+        try { this.currentPlayingNode.disconnect(); } catch (e) {}
+        this.currentPlayingNode.isConnected = false;
+      }
       this.currentPlayingNode.cleanup();
       this.currentPlayingNode = null;
       this.currentMetadata = null;
@@ -269,12 +279,22 @@
   };
 
   ChiptuneJsPlayer.prototype.togglePause = function() {
-    if (this.currentPlayingNode) {
-      this.unlock();
-      this.currentPlayingNode.paused = !this.currentPlayingNode.paused;
-      return this.currentPlayingNode.paused;
+    var node = this.currentPlayingNode;
+    if (!node) return false;
+    this.unlock();
+    node.paused = !node.paused;
+    if (node.paused) {
+      if (node.isConnected) {
+        try { node.disconnect(); } catch (e) {}
+        node.isConnected = false;
+      }
+    } else {
+      if (!node.isConnected) {
+        node.connect(this.gainNode);
+        node.isConnected = true;
+      }
     }
-    return false;
+    return node.paused;
   };
 
   ChiptuneJsPlayer.prototype.seek = function(seconds) {

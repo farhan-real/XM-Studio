@@ -1,5 +1,5 @@
 /**
- * js/engine/audio.js - Master playback coordinator with background persistence and MediaSession sync.
+ * js/engine/audio.js - Master playback coordinator with instant transport response and background sync.
  */
 (function(window) {
   const player = new ChiptuneJsPlayer();
@@ -99,16 +99,20 @@
   }
 
   function notifyPlayState(playing) {
-    if (window.XMBackground) window.XMBackground.setPlaybackState(playing);
     if (window.XMApp && window.XMApp.setPlayingState) window.XMApp.setPlayingState(playing);
+    if (window.XMBackground) window.XMBackground.setPlaybackState(playing);
   }
 
   function setPaused(wantPaused) {
     player.unlock();
     if (isNativeStream) {
-      if (wantPaused && !audioEl.paused) audioEl.pause();
-      else if (!wantPaused && audioEl.paused) audioEl.play().catch(() => {});
-      notifyPlayState(!audioEl.paused);
+      if (wantPaused) {
+        audioEl.pause();
+        notifyPlayState(false);
+      } else {
+        notifyPlayState(true);
+        audioEl.play().catch(() => notifyPlayState(false));
+      }
     } else {
       if (!player.currentPlayingNode && currentRawBuffer && !wantPaused) {
         player.play(currentRawBuffer);
@@ -291,7 +295,8 @@
       }
       routeNativeAudioToWebAudio();
       audioEl.loop = isLooping;
-      audioEl.play().then(() => notifyPlayState(true)).catch(() => {});
+      notifyPlayState(true);
+      audioEl.play().catch(() => notifyPlayState(false));
       if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2 CH', true, currentTrackNum);
       return;
     }
