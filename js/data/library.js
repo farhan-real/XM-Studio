@@ -1,54 +1,16 @@
 /**
- * js/data/library.js - Pooled DOM virtual list, search index, and archive coordinator.
+ * js/data/library.js - Pooled DOM virtual list, custom scroller binding, and archive navigation.
  */
 (function(window) {
   const POOL_SIZE = 32;
-  let remoteCatalog = [];
-  let customCatalog = [];
-  let fullCatalog = [];
-  let displayCatalog = [];
   let activeTab = 'archive';
   let renderedTab = null;
   let currentlyPlayingId = null;
-
   let activeRenderQueue = [];
   let searchDebounceTimer = null;
   let scroller = null;
   let cardPool = [];
   let emptyMsgEl = null;
-
-  function indexTrack(t) {
-    if (!t._search) {
-      const a = (t.artist || '').toLowerCase();
-      const ti = (t.title || '').toLowerCase();
-      const f = (t.folder || '').toLowerCase();
-      t._sortArtist = a;
-      t._sortTitle = ti;
-      t._search = `${a}\0${ti}\0${f}`;
-    }
-    return t;
-  }
-
-  function sortAlphabetical(tracks) {
-    for (let i = 0; i < tracks.length; i++) indexTrack(tracks[i]);
-    return tracks.sort((a, b) => {
-      if (a._sortArtist < b._sortArtist) return -1;
-      if (a._sortArtist > b._sortArtist) return 1;
-      if (a._sortTitle < b._sortTitle) return -1;
-      if (a._sortTitle > b._sortTitle) return 1;
-      return 0;
-    });
-  }
-
-  function getFormatBadgeClass(ext) {
-    const e = (ext || 'xm').toLowerCase();
-    if (e === 'xm') return 'fmt-xm';
-    if (e === 'mod') return 'fmt-mod';
-    if (e === 'it') return 'fmt-it';
-    if (e === 's3m') return 'fmt-s3m';
-    if (e === 'flac') return 'fmt-flac';
-    return 'fmt-default';
-  }
 
   const tableBody = document.getElementById('kmTableBody');
   const countBadge = document.getElementById('leftCountBadge');
@@ -75,7 +37,16 @@
       const el = document.createElement('div');
       el.className = 'track-card';
       el.style.display = 'none';
-      el.innerHTML = `<span class="track-card-num"></span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title"></span><span class="fmt-badge"></span></div><div class="track-card-row2"><span class="track-card-artist"></span><div class="track-card-actions"><button class="km-btn-icon" data-action="fav" title="Favorite"><svg viewBox="0 0 24 24" class="t-icon-xs" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button><button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button></div></div></div>`;
+      el.innerHTML =
+        '<span class="track-card-num"></span>' +
+        '<div class="track-card-content">' +
+          '<div class="track-card-row1"><span class="track-card-title"></span><span class="fmt-badge"></span></div>' +
+          '<div class="track-card-row2"><span class="track-card-artist"></span><div class="track-card-actions">' +
+            '<button class="km-btn-icon" data-action="fav" title="Favorite"><svg viewBox="0 0 24 24" class="t-icon-xs" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button>' +
+            '<button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>' +
+          '</div></div>' +
+        '</div>';
+
       el._num = el.querySelector('.track-card-num');
       el._title = el.querySelector('.track-card-title');
       el._fmt = el.querySelector('.fmt-badge');
@@ -106,7 +77,7 @@
 
     const fmt = track.ext || 'XM';
     if (el._fmt.textContent !== fmt) {
-      el._fmt.className = `fmt-badge ${getFormatBadgeClass(fmt)}`;
+      el._fmt.className = `fmt-badge ${window.XMCatalog.getFormatBadgeClass(fmt)}`;
       el._fmt.textContent = fmt;
     }
     if (el._artist.textContent !== track.artist) el._artist.textContent = track.artist;
@@ -125,7 +96,10 @@
         ensureDomPool();
         if (!activeRenderQueue || activeRenderQueue.length === 0) {
           tableBody.style.transform = 'translate3d(0,0,0)';
-          for (let i = 0; i < POOL_SIZE; i++) { cardPool[i].style.display = 'none'; cardPool[i]._renderedIdx = -1; }
+          for (let i = 0; i < POOL_SIZE; i++) {
+            cardPool[i].style.display = 'none';
+            cardPool[i]._renderedIdx = -1;
+          }
           emptyMsgEl.textContent = 'No matching tracks found.';
           emptyMsgEl.style.display = 'block';
           return;
@@ -173,7 +147,7 @@
         window.XMPlaylist.toggleFavorite(track);
         if (window.XMApp && window.XMApp.updateDeckFav) window.XMApp.updateDeckFav();
         if (activeTab === 'favorites') {
-          renderTrackList(sortAlphabetical([...window.XMPlaylist.getFavorites()]), false);
+          renderTrackList(window.XMCatalog.sortAlphabetical([...window.XMPlaylist.getFavorites()]), false);
         } else {
           updatePoolSlot(card, track, idx, currentlyPlayingId === track.id, window.XMPlaylist.isFavorited(track.id));
         }
@@ -214,21 +188,22 @@
     if (activeTab !== 'archive') switchTab('archive');
     if (searchInput && searchInput.value) {
       searchInput.value = '';
-      displayCatalog = fullCatalog;
-      renderTrackList(displayCatalog, false);
+      const full = window.XMCatalog.getFullCatalog();
+      window.XMCatalog.setDisplayCatalog(full);
+      renderTrackList(full, false);
     }
-    const idx = activeRenderQueue.findIndex(t => t.id === trackId);
+    const idx = activeRenderQueue.findIndex((t) => t.id === trackId);
     if (idx >= 0 && scroller) {
       requestAnimationFrame(() => scroller.scrollToIndex(idx));
     }
   }
 
   function playRandomArchiveTrack() {
-    const catalog = (displayCatalog && displayCatalog.length > 0) ? displayCatalog : fullCatalog;
+    const catalog = window.XMCatalog.getDisplayCatalog();
     if (!catalog || catalog.length === 0) return;
     let randIdx = Math.floor(Math.random() * catalog.length);
     if (catalog.length > 1 && currentlyPlayingId) {
-      const curIdx = catalog.findIndex(t => t.id === currentlyPlayingId);
+      const curIdx = catalog.findIndex((t) => t.id === currentlyPlayingId);
       if (curIdx === randIdx) randIdx = (randIdx + 1) % catalog.length;
     }
     const track = catalog[randIdx];
@@ -236,9 +211,10 @@
     if (activeTab !== 'archive') switchTab('archive');
     if (searchInput && searchInput.value) {
       searchInput.value = '';
-      displayCatalog = fullCatalog;
-      renderTrackList(displayCatalog, false);
-      randIdx = activeRenderQueue.findIndex(t => t.id === track.id);
+      const full = window.XMCatalog.getFullCatalog();
+      window.XMCatalog.setDisplayCatalog(full);
+      renderTrackList(full, false);
+      randIdx = activeRenderQueue.findIndex((t) => t.id === track.id);
     }
     playTrack(track, activeRenderQueue, randIdx);
     if (scroller) requestAnimationFrame(() => scroller.scrollToIndex(randIdx));
@@ -247,22 +223,29 @@
 
   function switchTab(tabId) {
     activeTab = tabId;
-    [tabArchive, tabPlaylists, tabFavs, tabSource].forEach(t => t.classList.remove('active'));
-    [paneTable, panePlaylists, paneSource].forEach(p => p.classList.add('hide'));
+    [tabArchive, tabPlaylists, tabFavs, tabSource].forEach((t) => t.classList.remove('active'));
+    [paneTable, panePlaylists, paneSource].forEach((p) => p.classList.add('hide'));
 
     if (tabId === 'archive') {
       tabArchive.classList.add('active');
       searchBarWrap.classList.remove('hide');
       paneTable.classList.remove('hide');
-      searchInput.placeholder = "Filter artist (A-Z), title, or folder...";
-      if (renderedTab !== 'archive') { renderTrackList(displayCatalog, true); renderedTab = 'archive'; }
-      else { countBadge.textContent = `${displayCatalog.length} TRACKS`; updateActiveCards(); if (scroller) scroller.refresh(); }
+      searchInput.placeholder = 'Filter artist (A-Z), title, or folder...';
+      const disp = window.XMCatalog.getDisplayCatalog();
+      if (renderedTab !== 'archive') {
+        renderTrackList(disp, true);
+        renderedTab = 'archive';
+      } else {
+        countBadge.textContent = `${disp.length} TRACKS`;
+        updateActiveCards();
+        if (scroller) scroller.refresh();
+      }
     } else if (tabId === 'favorites') {
       tabFavs.classList.add('active');
       searchBarWrap.classList.remove('hide');
       paneTable.classList.remove('hide');
-      searchInput.placeholder = "Filter favorites...";
-      renderTrackList(sortAlphabetical([...window.XMPlaylist.getFavorites()]), true);
+      searchInput.placeholder = 'Filter favorites...';
+      renderTrackList(window.XMCatalog.sortAlphabetical([...window.XMPlaylist.getFavorites()]), true);
       renderedTab = 'favorites';
     } else if (tabId === 'playlists') {
       tabPlaylists.classList.add('active');
@@ -274,7 +257,7 @@
       tabSource.classList.add('active');
       searchBarWrap.classList.add('hide');
       paneSource.classList.remove('hide');
-      countBadge.textContent = "SOURCES";
+      countBadge.textContent = 'SOURCES';
       renderedTab = 'source';
       if (window.XMSources) window.XMSources.renderLists();
     }
@@ -290,29 +273,23 @@
     searchDebounceTimer = setTimeout(() => {
       const q = e.target.value.toLowerCase().trim();
       if (activeTab === 'archive') {
-        displayCatalog = q ? fullCatalog.filter(t => t._search.includes(q)) : fullCatalog;
-        renderTrackList(displayCatalog, true);
+        const filtered = window.XMCatalog.filter(q);
+        renderTrackList(filtered, true);
       } else if (activeTab === 'favorites') {
-        const favs = sortAlphabetical([...window.XMPlaylist.getFavorites()]);
-        renderTrackList(q ? favs.filter(t => t._search.includes(q)) : favs, true);
+        const favs = window.XMCatalog.sortAlphabetical([...window.XMPlaylist.getFavorites()]);
+        renderTrackList(q ? favs.filter((t) => t._search.includes(q)) : favs, true);
       }
     }, 60);
   });
-
-  async function syncFullCatalog() {
-    try { customCatalog = window.XMCustom ? await window.XMCustom.getTracks() : []; } catch (e) { customCatalog = []; }
-    fullCatalog = sortAlphabetical([...customCatalog, ...remoteCatalog]);
-    displayCatalog = fullCatalog;
-    renderedTab = 'archive';
-    if (activeTab === 'archive') renderTrackList(displayCatalog, true);
-  }
 
   async function loadAllCatalogs() {
     ensureDomPool();
     emptyMsgEl.textContent = 'Syncing active repository catalogs...';
     emptyMsgEl.style.display = 'block';
-    remoteCatalog = window.XMSources ? await window.XMSources.fetchRemoteCatalogs() : [];
-    await syncFullCatalog();
+    await window.XMCatalog.fetchRemoteCatalogs();
+    const disp = await window.XMCatalog.syncFullCatalog();
+    renderedTab = 'archive';
+    if (activeTab === 'archive') renderTrackList(disp, true);
   }
 
   loadAllCatalogs();
@@ -322,14 +299,15 @@
     renderCurrentTab: () => switchTab(activeTab),
     refreshScroller: () => { if (scroller) scroller.refresh(); },
     refreshArchive: async () => {
-      remoteCatalog = window.XMSources ? await window.XMSources.fetchRemoteCatalogs() : [];
-      await syncFullCatalog();
+      await window.XMCatalog.fetchRemoteCatalogs();
+      const disp = await window.XMCatalog.syncFullCatalog();
+      if (activeTab === 'archive') renderTrackList(disp, true);
     },
-    getDisplayCatalog: () => (activeRenderQueue && activeRenderQueue.length > 0) ? activeRenderQueue : displayCatalog,
-    getFullCatalog: () => fullCatalog,
+    getDisplayCatalog: () => (activeRenderQueue && activeRenderQueue.length > 0) ? activeRenderQueue : window.XMCatalog.getDisplayCatalog(),
+    getFullCatalog: () => window.XMCatalog.getFullCatalog(),
     playTrackDirect: playTrack,
     playRandomArchiveTrack,
     jumpToArchiveTrack,
-    getFormatBadgeClass
+    getFormatBadgeClass: (ext) => window.XMCatalog.getFormatBadgeClass(ext)
   };
 })(window);

@@ -1,0 +1,98 @@
+/* css/badges.css - Hardware badges, sample rate, channels, and DSP status indicators */
+.header-badges {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.badges-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  padding: 3px 7px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1.2;
+}
+
+#qualityBadge {
+  color: var(--col-gold);
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+}
+
+#rateBadge {
+  color: var(--accent);
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.badge-channels {
+  color: var(--col-purple);
+  background: rgba(168, 85, 247, 0.12);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.badge-engine {
+  color: #818cf8;
+  background: rgba(129, 140, 248, 0.12);
+  border: 1px solid rgba(129, 140, 248, 0.35);
+}
+
+.badge-engine.engine-none {
+  color: var(--col-slate);
+  background: rgba(148, 163, 184, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.badge-engine.engine-error {
+  color: var(--col-red);
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.spec-key {
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 700;
+  margin-right: 3px;
+}
+
+#statusBadge {
+  margin-left: auto;
+}
+
+.status-idle {
+  color: var(--col-slate);
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.status-compiling {
+  color: var(--col-gold);
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+}
+
+.status-ready {
+  color: var(--accent);
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+.status-error,
+.badge-error {
+  color: var(--col-red) !important;
+  background: rgba(239, 68, 68, 0.15) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
