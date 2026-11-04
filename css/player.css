@@ -1,4 +1,4 @@
-/* css/player.css - Hardware badges, visualizer deck, metadata readout, timeline */
+/* css/player.css - Hardware badges, visualizer deck, metadata readout, timeline, and mobile miniplayer */
 .header {
   display: flex;
   flex-direction: column;
@@ -58,7 +58,6 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.12s ease;
 }
 
 .btn-unload:hover {
@@ -128,7 +127,6 @@
   color: var(--col-red);
   background: rgba(239, 68, 68, 0.15);
   border: 1px solid rgba(239, 68, 68, 0.4);
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.2);
 }
 
 .spec-key {
@@ -139,10 +137,6 @@
 
 #statusBadge {
   margin-left: auto;
-}
-
-.status-badge {
-  transition: all 0.15s ease;
 }
 
 .status-idle {
@@ -210,6 +204,15 @@
   padding: 12px 14px;
 }
 
+.mini-track-num {
+  display: none;
+}
+
+.readout-main {
+  min-width: 0;
+  flex: 1;
+}
+
 .song-title {
   font-size: 0.95rem;
   font-weight: 600;
@@ -243,7 +246,6 @@
   height: 100%;
   background: var(--accent);
   border-radius: 2px;
-  transition: width 0.1s linear;
 }
 
 .segment-strip {
@@ -279,7 +281,6 @@
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 4px;
-  transition: all 0.12s ease;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -334,4 +335,84 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 2px;
   background: var(--text-primary);
   border: 1px solid rgba(0, 0, 0, 0.8);
+}
+
+@media (max-width: 900px) {
+  .chassis.mobile-mini .header,
+  .chassis.mobile-mini .deck-container,
+  .chassis.mobile-mini .segment-strip,
+  .chassis.mobile-mini .timeline-row,
+  .chassis.mobile-mini .transport-row-sub,
+  .chassis.mobile-mini .ingest-deck,
+  .chassis.mobile-mini #btnPlayRandom,
+  .chassis.mobile-mini .transport-row-main::before,
+  .chassis.mobile-mini .readout-progress-track {
+    display: none !important;
+  }
+
+  .chassis.mobile-mini .readout-panel {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+
+  .chassis.mobile-mini .mini-track-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 5px;
+    padding: 4px 6px;
+    min-width: 30px;
+    flex-shrink: 0;
+  }
+
+  .chassis.mobile-mini .song-title {
+    font-size: 0.84rem;
+    line-height: 1.2;
+  }
+
+  .chassis.mobile-mini .song-artist {
+    font-size: 0.70rem;
+    margin-top: 2px;
+  }
+
+  .chassis.mobile-mini .transport-panel {
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .chassis.mobile-mini .transport-row-main {
+    display: flex;
+    min-height: 0;
+    padding: 0;
+    width: auto;
+  }
+
+  .chassis.mobile-mini .transport-main-group {
+    gap: 6px;
+    margin: 0;
+  }
+
+  .chassis.mobile-mini .t-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .chassis.mobile-mini .t-btn-main {
+    width: 40px;
+    height: 40px;
+    margin: 0 !important;
+  }
 }

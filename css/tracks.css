@@ -31,6 +31,7 @@
 
 .track-cards-list .track-card {
   position: absolute;
+  top: 0;
   left: 0;
   right: 0;
   height: 54px;
@@ -42,6 +43,7 @@
   box-sizing: border-box;
   display: flex;
   align-items: center;
+  will-change: transform;
   contain: layout style paint;
 }
 
@@ -57,6 +59,7 @@
   left: auto !important;
   right: auto !important;
   top: auto !important;
+  transform: none !important;
   height: 54px;
   padding: 6px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);

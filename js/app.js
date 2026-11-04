@@ -1,5 +1,5 @@
 /**
- * js/app.js - Main workstation controller with zero-idle polling and immediate memory release.
+ * js/app.js - Main workstation controller with mobile Spotify-style miniplayer and zero-idle polling.
  */
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
@@ -30,6 +30,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnDemo = document.getElementById('btnDemo');
   const fileInput = document.getElementById('fileInput');
   const dropZone = document.getElementById('dropZone');
+  const readoutPanel = document.getElementById('readoutPanel');
+  const miniTrackNum = document.getElementById('miniTrackNum');
 
   const progressBar = document.getElementById('progressBar');
   const timeCurrent = document.getElementById('timeCurrent');
@@ -57,22 +59,36 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnToggleLeft = document.getElementById('btnToggleLeft');
   const btnToggleRight = document.getElementById('btnToggleRight');
   const panelLeft = document.getElementById('panelLeft');
+
+  function showMobileArchiveView() {
+    btnToggleLeft.classList.add('active');
+    btnToggleRight.classList.remove('active');
+    panelLeft.classList.remove('mobile-hide');
+    dropZone.classList.remove('mobile-hide');
+    dropZone.classList.add('mobile-mini');
+    if (window.XMLibrary && window.XMLibrary.refreshScroller) {
+      window.XMLibrary.refreshScroller();
+    }
+  }
+
+  function showMobilePlayerView() {
+    btnToggleRight.classList.add('active');
+    btnToggleLeft.classList.remove('active');
+    panelLeft.classList.add('mobile-hide');
+    dropZone.classList.remove('mobile-hide', 'mobile-mini');
+    if (window.XMVisualizer) window.XMVisualizer.resize();
+  }
+
   if (btnToggleLeft && btnToggleRight) {
-    btnToggleLeft.addEventListener('click', () => {
-      btnToggleLeft.classList.add('active');
-      btnToggleRight.classList.remove('active');
-      panelLeft.classList.remove('mobile-hide');
-      dropZone.classList.add('mobile-hide');
-      if (window.XMLibrary && window.XMLibrary.refreshScroller) {
-        window.XMLibrary.refreshScroller();
+    btnToggleLeft.addEventListener('click', showMobileArchiveView);
+    btnToggleRight.addEventListener('click', showMobilePlayerView);
+  }
+
+  if (readoutPanel) {
+    readoutPanel.addEventListener('click', () => {
+      if (window.innerWidth <= 900 && dropZone.classList.contains('mobile-mini')) {
+        showMobilePlayerView();
       }
-    });
-    btnToggleRight.addEventListener('click', () => {
-      btnToggleRight.classList.add('active');
-      btnToggleLeft.classList.remove('active');
-      dropZone.classList.remove('mobile-hide');
-      panelLeft.classList.add('mobile-hide');
-      if (window.XMVisualizer) window.XMVisualizer.resize();
     });
   }
 
@@ -187,6 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.XMAudio.unload();
     songTitle.textContent = "No Module Loaded";
     songArtist.textContent = "Ready for FastTracker II / Audio input";
+    if (miniTrackNum) miniTrackNum.textContent = "--";
     modType.textContent = "NONE";
     if (badgeEngine) { badgeEngine.classList.add('engine-none'); badgeEngine.classList.remove('engine-error'); }
     channels.textContent = "--";
@@ -305,10 +322,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   window.XMApp = {
-    updateTrackUI: function(title, artist, engine, channelCount, isNative) {
+    updateTrackUI: function(title, artist, engine, channelCount, isNative, trackNum) {
       const isError = (engine === 'ERROR');
       songTitle.textContent = title;
       songArtist.textContent = artist;
+      if (miniTrackNum) miniTrackNum.textContent = (!isError && trackNum > 0) ? `${trackNum}` : '--';
       modType.textContent = engine;
       if (badgeEngine) { badgeEngine.classList.remove('engine-none'); badgeEngine.classList.toggle('engine-error', isError); }
       channels.textContent = channelCount;

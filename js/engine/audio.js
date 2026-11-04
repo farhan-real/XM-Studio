@@ -1,5 +1,5 @@
 /**
- * js/engine/audio.js - Master playback coordinator with synchronous mobile gesture unlock.
+ * js/engine/audio.js - Master playback coordinator with track number tracking and mobile unlock.
  */
 (function(window) {
   const player = new ChiptuneJsPlayer();
@@ -20,6 +20,7 @@
   let isShuffle = false;
   let currentQueue = null;
   let currentQueueIdx = -1;
+  let currentTrackNum = 0;
 
   const NATIVE_STREAM_EXTS = new Set(['.mp3', '.ogg', '.wav', '.flac']);
 
@@ -101,6 +102,14 @@
   function playNextTrack(force) {
     if (isLooping && !force) return;
 
+    if ((!currentQueue || currentQueue.length === 0) && window.XMLibrary && window.XMLibrary.getDisplayCatalog) {
+      const cat = window.XMLibrary.getDisplayCatalog();
+      if (cat && cat.length > 0 && window.XMLibrary.playTrackDirect) {
+        window.XMLibrary.playTrackDirect(cat[0], cat, 0);
+        return;
+      }
+    }
+
     if (currentQueue && currentQueue.length > 0) {
       if (isShuffle) {
         let randIdx = Math.floor(Math.random() * currentQueue.length);
@@ -178,6 +187,7 @@
     currentRawBuffer = null;
     currentAudioBlob = null;
     currentAudioSrc = '';
+    currentTrackNum = 0;
     activeTitle = "No Module Loaded";
     activeArtist = "";
   }
@@ -196,6 +206,7 @@
     currentAudioSrc = (typeof fileOrUrl === 'string') ? fileOrUrl : '';
     currentQueue = queue || null;
     currentQueueIdx = (queueIdx !== undefined) ? queueIdx : -1;
+    currentTrackNum = (typeof queueIdx === 'number' && queueIdx >= 0) ? (queueIdx + 1) : 1;
 
     let targetTitle = (trackItemRef && trackItemRef.title) ? trackItemRef.title.trim() : '';
     let targetArtist = (trackItemRef && trackItemRef.artist) ? trackItemRef.artist.trim() : '';
@@ -209,7 +220,7 @@
     activeTitle = targetTitle;
     activeArtist = targetArtist;
 
-    if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase() || 'AUDIO', '--', false);
+    if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase() || 'AUDIO', '--', false, currentTrackNum);
     if (window.XMLibrary && trackItemRef) window.XMLibrary.notifyPlaying(trackItemRef.id);
 
     if ('mediaSession' in navigator) {
@@ -230,7 +241,7 @@
       routeNativeAudioToWebAudio();
       audioEl.loop = isLooping;
       audioEl.play().catch(() => {});
-      if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2 CH', true);
+      if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2 CH', true, currentTrackNum);
       return;
     }
 
@@ -241,15 +252,15 @@
       player.setRepeat(isLooping);
       const node = player.play(buf);
       if (!node) {
-        if (window.XMApp) window.XMApp.updateTrackUI(targetTitle + " (Load Failed)", targetArtist, "ERROR", "--", false);
+        if (window.XMApp) window.XMApp.updateTrackUI(targetTitle + " (Load Failed)", targetArtist, "ERROR", "--", false, 0);
         return;
       }
       const meta = player.currentMetadata || {};
       const engineName = (meta.type_long || currentExt || "FT2").toUpperCase();
-      if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, engineName, `${meta.channels || 8} CH`, false);
+      if (window.XMApp) window.XMApp.updateTrackUI(targetTitle, targetArtist, engineName, `${meta.channels || 8} CH`, false, currentTrackNum);
     }, () => {
       if (loadId !== currentLoadId) return;
-      if (window.XMApp) window.XMApp.updateTrackUI(targetTitle + " (Load Failed)", targetArtist, "ERROR", "--", false);
+      if (window.XMApp) window.XMApp.updateTrackUI(targetTitle + " (Load Failed)", targetArtist, "ERROR", "--", false, 0);
     });
   }
 
@@ -282,6 +293,6 @@
     },
     get isLooping() { return isLooping; },
     get isShuffle() { return isShuffle; },
-    getCurrentInfo: () => ({ title: activeTitle, artist: activeArtist })
+    getCurrentInfo: () => ({ title: activeTitle, artist: activeArtist, trackNum: currentTrackNum })
   };
 })(window);

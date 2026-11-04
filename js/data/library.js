@@ -1,7 +1,8 @@
 /**
- * js/data/library.js - GPU-translated virtual list, pre-indexed search, and archive coordinator.
+ * js/data/library.js - Pooled DOM virtual list (non-destructive for touch targets), search, and archive coordinator.
  */
 (function(window) {
+  const POOL_SIZE = 32;
   let remoteCatalog = [];
   let customCatalog = [];
   let fullCatalog = [];
@@ -14,8 +15,8 @@
   let activeRenderQueue = [];
   let searchDebounceTimer = null;
   let scroller = null;
-  let lastRenderStart = -1;
-  let lastRenderEnd = -1;
+  let cardPool = [];
+  let emptyMsgEl = null;
 
   function indexTrack(t) {
     if (!t._search) {
@@ -78,15 +79,54 @@
   const panePlaylists = document.getElementById('panePlaylists');
   const paneSource = document.getElementById('paneSource');
 
-  function buildCardHtml(track, idx, relTop, isPlaying, isFav) {
-    const fmtClass = getFormatBadgeClass(track.ext);
-    const isEven = (idx & 1) === 1;
-    const favFill = isFav ? 'var(--col-gold)' : 'none';
-    const favStroke = isFav ? 'var(--col-gold)' : 'currentColor';
-    return `<div class="track-card ${isEven ? 'track-even' : ''} ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}" style="top:${relTop}px" data-track-id="${track.id}" data-idx="${idx}"><span class="track-card-num">${idx + 1}</span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${fmtClass}">${track.ext || 'XM'}</span></div><div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions"><button class="km-btn-icon ${isFav ? 'active' : ''}" data-action="fav" title="Favorite"><svg viewBox="0 0 24 24" class="t-icon-xs" fill="${favFill}" stroke="${favStroke}"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button><button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button></div></div></div></div>`;
+  function ensureDomPool() {
+    if (cardPool.length > 0) return;
+    tableBody.innerHTML = '';
+    emptyMsgEl = document.createElement('div');
+    emptyMsgEl.className = 'library-empty-msg';
+    emptyMsgEl.style.display = 'none';
+    tableBody.appendChild(emptyMsgEl);
+
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < POOL_SIZE; i++) {
+      const el = document.createElement('div');
+      el.className = 'track-card';
+      el.style.display = 'none';
+      el.innerHTML = `<span class="track-card-num"></span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title"></span><span class="fmt-badge"></span></div><div class="track-card-row2"><span class="track-card-artist"></span><div class="track-card-actions"><button class="km-btn-icon" data-action="fav" title="Favorite"><svg viewBox="0 0 24 24" class="t-icon-xs" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button><button class="km-btn-icon" data-action="add-pl" title="Add to playlist"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button></div></div></div>`;
+      el._num = el.querySelector('.track-card-num');
+      el._title = el.querySelector('.track-card-title');
+      el._fmt = el.querySelector('.fmt-badge');
+      el._artist = el.querySelector('.track-card-artist');
+      el._favBtn = el.querySelector('[data-action="fav"]');
+      el._favSvg = el._favBtn.querySelector('svg');
+      el._renderedIdx = -1;
+      el._trackId = '';
+      cardPool.push(el);
+      frag.appendChild(el);
+    }
+    tableBody.appendChild(frag);
+  }
+
+  function updatePoolSlot(el, track, idx, isPlaying, isFav) {
+    el._renderedIdx = idx;
+    el._trackId = track.id;
+    el.setAttribute('data-idx', idx);
+    el.setAttribute('data-track-id', track.id);
+    el.style.display = 'flex';
+    el.style.transform = `translate3d(0,${idx * 54}px,0)`;
+    el.className = `track-card ${(idx & 1) ? 'track-even' : ''} ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}`;
+    el._num.textContent = idx + 1;
+    el._title.textContent = track.title;
+    el._fmt.className = `fmt-badge ${getFormatBadgeClass(track.ext)}`;
+    el._fmt.textContent = track.ext || 'XM';
+    el._artist.textContent = track.artist;
+    el._favBtn.classList.toggle('active', isFav);
+    el._favSvg.setAttribute('fill', isFav ? 'var(--col-gold)' : 'none');
+    el._favSvg.setAttribute('stroke', isFav ? 'var(--col-gold)' : 'currentColor');
   }
 
   function initScroller() {
+    ensureDomPool();
     scroller = window.XMScroller.create({
       viewport: document.getElementById('trackViewport'),
       track: document.getElementById('customScrollbarTrack'),
@@ -94,27 +134,35 @@
       itemHeight: 54,
       buffer: 6,
       onRender: (start, end, st, forceRebuild) => {
+        ensureDomPool();
         if (!activeRenderQueue || activeRenderQueue.length === 0) {
-          lastRenderStart = -1;
-          lastRenderEnd = -1;
           tableBody.style.transform = 'translate3d(0,0,0)';
-          tableBody.innerHTML = '<div class="library-empty-msg">No matching tracks found.</div>';
+          for (let i = 0; i < POOL_SIZE; i++) {
+            cardPool[i].style.display = 'none';
+            cardPool[i]._renderedIdx = -1;
+          }
+          emptyMsgEl.textContent = 'No matching tracks found.';
+          emptyMsgEl.style.display = 'block';
           return;
         }
-        tableBody.style.transform = `translate3d(0,${start * 54 - st}px,0)`;
-        if (!forceRebuild && start === lastRenderStart && end === lastRenderEnd) return;
-        lastRenderStart = start;
-        lastRenderEnd = end;
+        emptyMsgEl.style.display = 'none';
+        tableBody.style.transform = `translate3d(0,${-st}px,0)`;
 
         const isFavFn = window.XMPlaylist ? window.XMPlaylist.isFavorited : () => false;
-        const count = end - start;
-        const htmlParts = new Array(count);
-        for (let i = 0; i < count; i++) {
-          const idx = start + i;
+        for (let idx = start; idx < end; idx++) {
+          const slot = cardPool[idx % POOL_SIZE];
           const track = activeRenderQueue[idx];
-          htmlParts[i] = buildCardHtml(track, idx, i * 54, currentlyPlayingId === track.id, isFavFn(track.id));
+          if (forceRebuild || slot._renderedIdx !== idx || slot._trackId !== track.id) {
+            updatePoolSlot(slot, track, idx, currentlyPlayingId === track.id, isFavFn(track.id));
+          }
         }
-        tableBody.innerHTML = htmlParts.join('');
+        for (let i = 0; i < POOL_SIZE; i++) {
+          const slot = cardPool[i];
+          if (slot._renderedIdx !== -1 && (slot._renderedIdx < start || slot._renderedIdx >= end)) {
+            slot.style.display = 'none';
+            slot._renderedIdx = -1;
+          }
+        }
       }
     });
   }
@@ -142,13 +190,7 @@
           renderTrackList(sortAlphabetical([...window.XMPlaylist.getFavorites()]), false);
         } else {
           const isFav = window.XMPlaylist.isFavorited(track.id);
-          card.classList.toggle('is-favorite', isFav);
-          actionBtn.classList.toggle('active', isFav);
-          const svg = actionBtn.querySelector('svg');
-          if (svg) {
-            svg.setAttribute('fill', isFav ? 'var(--col-gold)' : 'none');
-            svg.setAttribute('stroke', isFav ? 'var(--col-gold)' : 'currentColor');
-          }
+          updatePoolSlot(card, track, idx, currentlyPlayingId === track.id, isFav);
         }
       } else if (action === 'add-pl') {
         window.XMPlaylist.openPlaylistPicker(track);
@@ -159,9 +201,7 @@
   });
 
   async function playTrack(track, queue, idx) {
-    if (window.XMAudio && window.XMAudio.player) {
-      window.XMAudio.player.unlock();
-    }
+    if (window.XMAudio && window.XMAudio.player) window.XMAudio.player.unlock();
     currentlyPlayingId = track.id;
     updateActiveCards();
     if (track.isCustom || track.isFolderTrack) {
@@ -176,11 +216,11 @@
   }
 
   function updateActiveCards() {
-    const children = tableBody.children;
-    for (let i = 0; i < children.length; i++) {
-      const el = children[i];
-      const id = el.getAttribute('data-track-id');
-      if (id) el.classList.toggle('active-playing', id === currentlyPlayingId);
+    for (let i = 0; i < cardPool.length; i++) {
+      const slot = cardPool[i];
+      if (slot._renderedIdx !== -1) {
+        slot.classList.toggle('active-playing', slot._trackId === currentlyPlayingId);
+      }
     }
   }
 
@@ -224,9 +264,7 @@
         if (act === 'export') window.XMPlaylist.exportPlaylist(pl.id);
         else if (act === 'modify') window.XMPlaylist.showPrompt("RENAME PLAYLIST", pl.name, "New name...", (nn) => { pl.name = nn; window.XMPlaylist.savePlaylists(playlists); renderPlaylists(); });
         else if (act === 'delete') window.XMPlaylist.showConfirm("DELETE PLAYLIST", `Delete "${pl.name}"?`, () => { window.XMPlaylist.savePlaylists(playlists.filter(p => p.id !== pl.id)); renderPlaylists(); });
-      } else {
-        viewPlaylist(pl.id);
-      }
+      } else viewPlaylist(pl.id);
       return;
     }
 
@@ -241,9 +279,7 @@
         pl.tracks.splice(idx, 1);
         window.XMPlaylist.savePlaylists(pls);
         viewPlaylist(currentPlaylistId);
-      } else {
-        playTrack(pl.tracks[idx], pl.tracks, idx);
-      }
+      } else playTrack(pl.tracks[idx], pl.tracks, idx);
     }
   });
 
@@ -394,11 +430,7 @@
   });
 
   async function syncFullCatalog() {
-    try {
-      customCatalog = window.XMCustom ? await window.XMCustom.getTracks() : [];
-    } catch (e) {
-      customCatalog = [];
-    }
+    try { customCatalog = window.XMCustom ? await window.XMCustom.getTracks() : []; } catch (e) { customCatalog = []; }
     fullCatalog = sortAlphabetical([...customCatalog, ...remoteCatalog]);
     displayCatalog = fullCatalog;
     renderedTab = 'archive';
@@ -406,7 +438,9 @@
   }
 
   async function loadAllCatalogs() {
-    tableBody.innerHTML = `<div class="library-empty-msg">Syncing active repository catalogs...</div>`;
+    ensureDomPool();
+    emptyMsgEl.textContent = 'Syncing active repository catalogs...';
+    emptyMsgEl.style.display = 'block';
     remoteCatalog = window.XMSources ? await window.XMSources.fetchRemoteCatalogs() : [];
     await syncFullCatalog();
   }

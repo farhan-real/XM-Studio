@@ -1,5 +1,5 @@
 /**
- * js/data/scroller.js - Mobile-resilient custom scrollbar and virtual windowing coordinator.
+ * js/data/scroller.js - Android-optimized custom scrollbar and virtual windowing coordinator.
  */
 (function(window) {
   function createScroller(options) {
@@ -149,7 +149,7 @@
       touchVelocity = 0;
     }, { passive: true });
 
-    window.addEventListener('touchmove', (e) => {
+    viewport.addEventListener('touchmove', (e) => {
       if (!isTouching || e.touches.length !== 1 || maxScroll <= 0) return;
       const currentY = e.touches[0].clientY;
       if (!isTouchDragging) {
@@ -158,14 +158,15 @@
         touchLastY = currentY;
         touchLastTime = performance.now();
       }
+      if (e.cancelable) e.preventDefault();
       const deltaY = touchLastY - currentY;
       const now = performance.now();
       const dt = Math.max(1, now - touchLastTime);
-      touchVelocity = 0.7 * (deltaY / dt) + 0.3 * touchVelocity;
+      touchVelocity = 0.65 * (deltaY / dt) + 0.35 * touchVelocity;
       touchLastY = currentY;
       touchLastTime = now;
       setScroll(scrollTop + deltaY, false);
-    }, { passive: true });
+    }, { passive: false });
 
     function onTouchEnd() {
       if (!isTouching) return;
@@ -173,21 +174,21 @@
       if (!isTouchDragging) return;
       isTouchDragging = false;
       suppressNextClick = true;
-      setTimeout(() => { suppressNextClick = false; }, 80);
+      setTimeout(() => { suppressNextClick = false; }, 100);
 
-      if (maxScroll <= 0 || Math.abs(touchVelocity) < 0.12) return;
+      if (maxScroll <= 0 || Math.abs(touchVelocity) < 0.08) return;
       let v = touchVelocity * 16;
       function momentum() {
-        if (Math.abs(v) < 0.4) { touchAnimId = null; return; }
+        if (Math.abs(v) < 0.35) { touchAnimId = null; return; }
         setScroll(scrollTop + v, false);
-        v *= 0.93;
+        v *= 0.94;
         touchAnimId = requestAnimationFrame(momentum);
       }
       touchAnimId = requestAnimationFrame(momentum);
     }
 
-    window.addEventListener('touchend', onTouchEnd, { passive: true });
-    window.addEventListener('touchcancel', () => {
+    viewport.addEventListener('touchend', onTouchEnd, { passive: true });
+    viewport.addEventListener('touchcancel', () => {
       isTouching = false;
       isTouchDragging = false;
     }, { passive: true });
