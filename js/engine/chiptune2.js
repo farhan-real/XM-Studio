@@ -1,5 +1,5 @@
 /**
- * js/engine/chiptune2.js - Zero-allocation real-time Chiptune2 DSP player engine.
+ * js/engine/chiptune2.js - Zero-allocation real-time Chiptune2 DSP player engine with background auto-resume.
  */
 (function(window) {
   var ChiptuneAudioContext = window.AudioContext || window.webkitAudioContext;
@@ -27,6 +27,15 @@
     this.handlers = {};
     this.leftBufferPtr = 0;
     this.rightBufferPtr = 0;
+
+    var self = this;
+    if (this.context && this.context.addEventListener) {
+      this.context.addEventListener('statechange', function() {
+        if (self.context.state !== 'running' && self.currentPlayingNode && !self.currentPlayingNode.paused) {
+          self.context.resume().catch(function() {});
+        }
+      });
+    }
   }
 
   ChiptuneJsPlayer.prototype.on = function(eventName, handler) {
@@ -40,7 +49,7 @@
   };
 
   ChiptuneJsPlayer.prototype.unlock = function() {
-    if (this.context && this.context.state === 'suspended') {
+    if (this.context && this.context.state !== 'running') {
       this.context.resume().catch(function() {});
     }
   };

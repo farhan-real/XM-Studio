@@ -1,5 +1,5 @@
 /**
- * js/app.js - Main workstation controller with mobile Spotify-style miniplayer and zero-idle polling.
+ * js/app.js - Main workstation controller with mobile miniplayer, background resume sync, and zero-idle polling.
  */
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
@@ -99,24 +99,14 @@ document.addEventListener('DOMContentLoaded', () => {
     return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
-  function getTrackDuration() {
-    if (window.XMAudio.isNativeStream) return (audioEl.duration && !isNaN(audioEl.duration)) ? audioEl.duration : 0;
-    return player.currentPlayingNode ? player.duration() : 0;
-  }
-
-  function getTrackCurrentTime() {
-    if (window.XMAudio.isNativeStream) return audioEl.currentTime || 0;
-    return player.currentPlayingNode ? player.getPosition() : 0;
-  }
-
   function tickProgress() {
-    if (isSeeking) return;
+    if (isSeeking || document.hidden) return;
     if (!window.XMAudio.isPlaying()) {
       stopProgressLoop();
       return;
     }
-    const dur = getTrackDuration();
-    const cur = getTrackCurrentTime();
+    const dur = window.XMAudio.getDuration();
+    const cur = window.XMAudio.getPosition();
     if (dur > 0) {
       progressBar.value = (cur / dur) * 100;
       const currentSec = cur | 0;
@@ -168,29 +158,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   btnPlayPause.addEventListener('click', () => {
-    player.unlock();
-    if (window.XMAudio.isNativeStream) {
-      if (audioEl.paused) audioEl.play().catch(() => {});
-      else audioEl.pause();
-      setPlayingState(!audioEl.paused);
-    } else {
-      if (!player.currentPlayingNode && window.XMAudio.currentRawBuffer) {
-        player.play(window.XMAudio.currentRawBuffer);
-        setPlayingState(true);
-      } else if (player.currentPlayingNode) {
-        const isPaused = player.togglePause();
-        setPlayingState(!isPaused);
-      }
-    }
+    window.XMAudio.togglePlayPause();
   });
 
   btnStop.addEventListener('click', () => {
-    if (window.XMAudio.isNativeStream) { audioEl.pause(); audioEl.currentTime = 0; }
-    else player.stop();
-    progressBar.value = 0;
-    timeCurrent.textContent = "00:00";
-    lastReportedSec = -1;
-    setPlayingState(false);
+    window.XMAudio.stopPlayback();
   });
 
   btnLoop.addEventListener('click', () => btnLoop.classList.toggle('active', window.XMAudio.toggleLoop()));
@@ -220,16 +192,14 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function applySeek(targetSec) {
-    if (window.XMAudio.isNativeStream) {
-      if (audioEl.duration && !isNaN(audioEl.duration)) audioEl.currentTime = targetSec;
-    } else player.seek(targetSec);
+    window.XMAudio.seekTo(targetSec);
     timeCurrent.textContent = formatTime(targetSec);
     lastReportedSec = targetSec | 0;
   }
 
   progressBar.addEventListener('input', () => {
     isSeeking = true;
-    const dur = getTrackDuration();
+    const dur = window.XMAudio.getDuration();
     if (dur > 0) {
       const targetSec = (progressBar.value / 100) * dur;
       timeCurrent.textContent = formatTime(targetSec);
@@ -238,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   progressBar.addEventListener('change', () => {
-    const dur = getTrackDuration();
+    const dur = window.XMAudio.getDuration();
     if (dur > 0) applySeek((progressBar.value / 100) * dur);
     isSeeking = false;
   });
@@ -322,6 +292,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   window.XMApp = {
+    setPlayingState,
+    onForegroundResume: function() {
+      const playing = window.XMAudio.isPlaying();
+      setPlayingState(playing);
+      if (playing) tickProgress();
+    },
     updateTrackUI: function(title, artist, engine, channelCount, isNative, trackNum) {
       const isError = (engine === 'ERROR');
       songTitle.textContent = title;
