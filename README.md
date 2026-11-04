@@ -6,7 +6,7 @@
 
 ## Use the App
 
-XM-Studio runs directly in any modern browser with zero installation:
+XM-Studio runs directly in any modern web browser with zero installation:
 
 **Launch Online:** **<https://farhan-real.github.io/XM-Studio/>**
 
@@ -34,19 +34,21 @@ Powered by `libopenmpt` compiled to WebAssembly, XM-Studio provides sample-accur
 
 ### Audio Engine & Multithreaded DSP
 
-* **Worker-to-Worklet Multithreaded Pipeline:** Offloads 100% of OpenMPT module synthesis into a dedicated Web Worker (`dspworker.js`) communicating directly with an `AudioWorkletProcessor` (`worklet.js`) via a zero-copy transferable `MessagePort`. The main UI thread never handles audio rendering, eliminating stutter and the legacy `ScriptProcessorNode` deprecation warning.
-* **Fast TypedArray Buffer Transfers (`TypedArray.prototype.set`):** OpenMPT heap buffer copies use native vector operations, cutting block transfer time from a legacy 4,096-iteration loop (~4.5ms) down to **0.03ms** per block.
-* **Persistent WASM Scratch Buffers:** Pre-allocated `_malloc` scratch buffers prevent repeated heap allocation and memory fragmentation in WebAssembly.
-* **25 Hz DC-Blocking Highpass Filter:** Biquad highpass filter cuts sub-audible infrasound and DC bias from legacy tracker instruments before reaching the output stage.
+* **Worker-to-Worklet Multithreaded Pipeline:** Offloads 100% of OpenMPT module synthesis into a dedicated background Web Worker (`dspworker.js`) communicating directly with a real-time `AudioWorkletProcessor` (`worklet.js`) via a zero-copy transferable `MessagePort`. The browser's main UI thread never handles audio calculations, eliminating stutter and removing the legacy `ScriptProcessorNode` deprecation warning.
+* **48 kHz Sample-Accurate Synthesis:** Synthesizes audio natively at 48,000 Hz with interactive latency hints. Automatically detects device DAC capabilities to prevent resampling jitter, frequency aliasing, or pitch drift on hardware locked to 44.1 kHz or higher sample rates.
+* **Deep Jitter-Buffered Worklet Queue:** Maintains a 1.2-second (14-chunk) pre-buffered FIFO queue on the audio thread with proactive low-watermark refilling and instant underrun recovery, insulating playback from background thread scheduling delays and GC pauses.
+* **0.03ms Fast TypedArray Memory Transfers:** OpenMPT PCM buffer copies use native vector operations (`TypedArray.prototype.set`), cutting block transfer time from legacy 4,096-iteration loops (~4.5ms) down to **0.03ms** per block.
+* **Persistent WASM Scratch Buffers:** Pre-allocated `_malloc` scratch buffers prevent repeated heap allocation and memory fragmentation in WebAssembly memory.
+* **25 Hz DC-Blocking Highpass Filter:** Biquad highpass filter cuts sub-audible infrasound and DC bias inherent in retro tracker instruments before reaching the output stage.
 * **Seamless Post-Compile Native Stream Handoff:** Tracker modules compiled into 320k MP3 or 16-bit WAV hand off directly to native hardware `<audio>` without losing playback position, dropping DSP CPU overhead to 0%.
 * **Artifact-Free Audio Compilation:** 1152-sample aligned frame blocks and continuous soft limiting eliminate bit reservoir underflow, frame drops, and harsh clipping distortion during MP3 and WAV rendering.
 * **Precomputed Visualizer Spectrum Caching:** The background worker analyzes and caches 28-band frequency spectrum frames during compilation, enabling $O(1)$ zero-CPU visualizer rendering during native playback.
-* **Lossless FLAC & Native Audio Support:** Direct hardware-accelerated playback for `.flac`, `.mp3`, and `.wav` with automatic `URL.revokeObjectURL` lifecycle cleanup.
+* **Lossless FLAC & Native Hardware Audio:** Direct hardware-accelerated playback for `.flac`, `.mp3`, and `.wav` with automatic `URL.revokeObjectURL` lifecycle cleanup.
 
 ### High Performance & Mobile Optimization
 
-* **Canvas Resolution Throttling (1.25× DPR Cap):** Caps canvas pixel density to 1.25× DPR on high-density displays (instead of 2×–3×), reducing GPU fill-rate overhead and memory bandwidth by over 60%.
-* **Ultra-Lightweight 20 FPS Spectrum Visualizer:** 28-band audio analyzer paced at a stable 20 FPS (50ms interval) with static logarithmic bin mapping and a multi-tier spectrum color hierarchy.
+* **Canvas Resolution Throttling (1.25× DPR Cap):** Caps canvas pixel density to 1.25× DPR on high-density mobile screens (instead of 2×–3×), reducing GPU fill-rate overhead and memory bandwidth by over 60%.
+* **Ultra-Lightweight 20 FPS Spectrum Visualizer:** 28-band audio analyzer paced at a stable 20 FPS (50ms interval) with static logarithmic bin mapping and an integer palette hierarchy.
 * **Visualizer Scroll Throttling:** Automatically drops the visualizer frame rate to 10 FPS during active touch scrolling or drag interactions to prevent frame drops on low-end devices.
 * **Complete Background Render Sleep:** Automatically shuts down all canvas rendering, explicitly cancels `requestAnimationFrame` loops, and pauses UI progress timers whenever the tab is hidden or screen is locked, dedicating 100% of CPU resources to audio synthesis.
 * **Persistent 32-Node DOM Virtualization:** Virtualizes catalogs of 5,000+ tracks by recycling a fixed pool of 32 GPU-translated (`translate3d`) DOM nodes without detaching active touch targets during Android momentum scrolling.
@@ -73,7 +75,7 @@ Powered by `libopenmpt` compiled to WebAssembly, XM-Studio provides sample-accur
 
 * **Deck Favorite & Playlist Picker:** Star and Plus buttons located directly to the left of main transport controls to toggle favorites or add the current track to any playlist on the fly.
 * **Random Jump to Archive:** Clicking the random track button automatically selects a track, switches to the Archive view, and smoothly centers the scroller on the active track.
-* **Two-Digit Digital Track Number Display:** Displays formatted track numbers (`01`, `02`...) in both desktop player deck and mobile miniplayer.
+* **Two-Digit Digital Track Number Display:** Formats track numbers (`01`, `02`...) in both desktop player deck and mobile miniplayer.
 * **Interactive Scrubber & Hardware Fader:** Timeline progress slider with elapsed/total time readouts, and master volume fader with mute toggle.
 * **Drag-and-Drop Ingestion:** Drop tracker files or audio tracks directly onto the deck chassis.
 
