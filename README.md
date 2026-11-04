@@ -64,19 +64,28 @@ separation, and responsive frequency spectrum analysis.
     frequency spectrum frames in the background worker during compilation,
     enabling $O(1)$ zero-CPU visualizer rendering during playback without main-thread
     FFT overhead.
--   **High-FPS Anti-Flicker Spectrum Visualizer**: 28-band real-time audio analyzer
-    rendering at uncapped native display VSync (60Hz–144Hz+) with instant attack,
-    exponential analog decay smoothing, 25 Hz DC-blocking filter, and a multi-tier
-    spectrum color hierarchy (orange, yellow, green, purple, red, blue, pink, gray).
+-   **Ultra-Lightweight 20 FPS Spectrum Visualizer**: 28-band audio analyzer
+    paced at a stable 20 FPS (50ms interval) with 25 Hz DC-blocking filter,
+    precomputed static logarithmic bin mappings, and a multi-tier spectrum color
+    hierarchy (orange, yellow, green, purple, red, blue, pink, gray).
 -   **Master Audio Compiler**: Export tracker modules on-demand to MP3
     (320kbps CBR via LAME) or uncompressed WAV (16-bit PCM) without
     interrupting playback.
 
 ### High Performance & Mobile Optimization
 
+-   **Chrome Media Visibility & Tab Audio Indicators**: Displays the
+    browser tab speaker icon, Desktop Chrome Global Media Controls, and
+    live tab titles (`▶ Song Title - Artist`) during both real-time tracker
+    DSP synthesis and native MP3 stream playback.
+-   **Complete Background Render Sleep**: Automatically shuts down all
+    canvas rendering, explicitly cancels `requestAnimationFrame` loops, and
+    pauses UI progress intervals whenever the app is hidden or the phone screen
+    is locked, dedicating 100% of CPU resources exclusively to uninterrupted
+    audio synthesis and OS MediaSession controls.
 -   **Background Playback & Lock-Screen Controls**: Continues playing
     seamlessly when switching apps or locking the phone screen via an
-    accurate in-memory audio carrier, automatic `AudioContext` resumption,
+    in-memory audio carrier, automatic `AudioContext` resumption,
     and full `navigator.mediaSession` integration for lock-screen,
     notification shade, and Bluetooth headset controls.
 -   **Spotify-Style Mobile Miniplayer**: Displays a docked compact
@@ -99,12 +108,9 @@ separation, and responsive frequency spectrum analysis.
 -   **Single-Node Event Delegation**: Uses container-level event
     delegation across the Archive, Playlists, and Source managers to
     eliminate per-card closures and garbage collection pauses.
--   **Intelligent Sleep States**: Automatically pauses canvas
-    `requestAnimationFrame` loops and UI progress timers when audio is
-    paused, stopped, or running in a background tab.
--   **DPR Throttling**: Caps canvas resolution to 1.5× DPR on
-    high-density screens (reducing fill-rate overhead by up to 75% on
-    3×/4× mobile displays) while preserving high frame rates.
+-   **DPR & Frame Throttling**: Caps canvas resolution to 1.25× DPR on
+    high-density screens and paces rendering to a rock-solid 20 FPS,
+    completely preventing main-thread audio buffer underruns.
 
 ### Workstation Transport Controls
 
