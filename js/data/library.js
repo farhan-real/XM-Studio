@@ -171,6 +171,7 @@
       const action = actionBtn.getAttribute('data-action');
       if (action === 'fav') {
         window.XMPlaylist.toggleFavorite(track);
+        if (window.XMApp && window.XMApp.updateDeckFav) window.XMApp.updateDeckFav();
         if (activeTab === 'favorites') {
           renderTrackList(sortAlphabetical([...window.XMPlaylist.getFavorites()]), false);
         } else {

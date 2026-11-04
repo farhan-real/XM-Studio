@@ -2,9 +2,7 @@
  * js/app.js - Main workstation controller with visualizer sleep state management.
  */
 document.addEventListener('DOMContentLoaded', () => {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
-  }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(() => {});
 
   const { player, audioEl } = window.XMAudio;
   window.XMVisualizer.start(player);
@@ -25,6 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext');
   const btnPlayRandom = document.getElementById('btnPlayRandom');
+  const btnDeckFav = document.getElementById('btnDeckFav');
+  const btnDeckAddPl = document.getElementById('btnDeckAddPl');
   const btnDownload = document.getElementById('btnDownload');
   const btnBrowse = document.getElementById('btnBrowse');
   const btnDemo = document.getElementById('btnDemo');
@@ -75,10 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnToggleLeft.classList.remove('active');
     panelLeft.classList.add('mobile-hide');
     dropZone.classList.remove('mobile-hide', 'mobile-mini');
-    if (window.XMVisualizer) {
-      window.XMVisualizer.resize();
-      window.XMVisualizer.wake();
-    }
+    if (window.XMVisualizer) { window.XMVisualizer.resize(); window.XMVisualizer.wake(); }
   }
 
   if (btnToggleLeft && btnToggleRight) {
@@ -101,49 +98,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function tickProgress() {
     if (isSeeking || document.hidden) return;
-    if (!window.XMAudio.isPlaying()) {
-      stopProgressLoop();
-      return;
-    }
+    if (!window.XMAudio.isPlaying()) { stopProgressLoop(); return; }
     const dur = window.XMAudio.getDuration();
     const cur = window.XMAudio.getPosition();
     if (dur > 0) {
       progressBar.value = (cur / dur) * 100;
-      const currentSec = cur | 0;
-      const totalSec = dur | 0;
-      if (currentSec !== lastReportedSec) {
-        lastReportedSec = currentSec;
-        timeCurrent.textContent = formatTime(cur);
-      }
-      if (totalSec !== lastReportedTotalSec) {
-        lastReportedTotalSec = totalSec;
-        timeTotal.textContent = formatTime(dur);
-      }
+      const curSec = cur | 0;
+      const totSec = dur | 0;
+      if (curSec !== lastReportedSec) { lastReportedSec = curSec; timeCurrent.textContent = formatTime(cur); }
+      if (totSec !== lastReportedTotalSec) { lastReportedTotalSec = totSec; timeTotal.textContent = formatTime(dur); }
     }
   }
 
   function startProgressLoop() {
-    if (!progressTimerId && !document.hidden) {
-      tickProgress();
-      progressTimerId = setInterval(tickProgress, 250);
-    }
+    if (!progressTimerId && !document.hidden) { tickProgress(); progressTimerId = setInterval(tickProgress, 250); }
   }
 
   function stopProgressLoop() {
-    if (progressTimerId) {
-      clearInterval(progressTimerId);
-      progressTimerId = null;
-    }
+    if (progressTimerId) { clearInterval(progressTimerId); progressTimerId = null; }
   }
 
   function setPlayingState(isPlaying) {
     if (isPlaying) {
       svgPlay.classList.add('hide');
       svgPause.classList.remove('hide');
-      if (!document.hidden) {
-        startProgressLoop();
-        if (window.XMVisualizer) window.XMVisualizer.wake(player);
-      }
+      if (!document.hidden) { startProgressLoop(); if (window.XMVisualizer) window.XMVisualizer.wake(player); }
     } else {
       svgPlay.classList.remove('hide');
       svgPause.classList.add('hide');
@@ -171,6 +150,55 @@ document.addEventListener('DOMContentLoaded', () => {
     else if (state === 'error') { statusBadge.classList.add('status-error'); statusBadge.textContent = 'STATUS: ERROR'; }
   }
 
+  function getCurrentDeckTrack() {
+    let t = window.XMAudio.currentTrackItem;
+    if (!t) {
+      const info = window.XMAudio.getCurrentInfo();
+      if (!info || !info.title || info.title === 'No Module Loaded') return null;
+      t = {
+        id: window.XMAudio.currentAudioSrc || `track_${encodeURIComponent(info.title)}`,
+        title: info.title,
+        artist: info.artist,
+        ext: (window.XMAudio.getCurrentExtension() || 'XM').toUpperCase(),
+        url: window.XMAudio.currentAudioSrc || '',
+        blob: window.XMAudio.currentAudioBlob || null
+      };
+    }
+    return t;
+  }
+
+  function updateDeckFavState() {
+    if (!btnDeckFav) return;
+    const t = getCurrentDeckTrack();
+    const isLoaded = Boolean(t);
+    btnDeckFav.disabled = !isLoaded;
+    if (btnDeckAddPl) btnDeckAddPl.disabled = !isLoaded;
+    const isFav = isLoaded && window.XMPlaylist ? window.XMPlaylist.isFavorited(t.id) : false;
+    btnDeckFav.classList.toggle('active', isFav);
+    const svg = btnDeckFav.querySelector('svg');
+    if (svg) {
+      svg.setAttribute('fill', isFav ? 'var(--col-gold)' : 'none');
+      svg.setAttribute('stroke', isFav ? 'var(--col-gold)' : 'currentColor');
+    }
+  }
+
+  if (btnDeckFav) {
+    btnDeckFav.addEventListener('click', () => {
+      const t = getCurrentDeckTrack();
+      if (!t || !window.XMPlaylist) return;
+      window.XMPlaylist.toggleFavorite(t);
+      updateDeckFavState();
+      if (window.XMLibrary && window.XMLibrary.renderCurrentTab) window.XMLibrary.renderCurrentTab();
+    });
+  }
+
+  if (btnDeckAddPl) {
+    btnDeckAddPl.addEventListener('click', () => {
+      const t = getCurrentDeckTrack();
+      if (t && window.XMPlaylistUI) window.XMPlaylistUI.openPlaylistPicker(t);
+    });
+  }
+
   btnPlayPause.addEventListener('click', () => { window.XMAudio.togglePlayPause(); });
   btnStop.addEventListener('click', () => { window.XMAudio.stopPlayback(); });
   btnLoop.addEventListener('click', () => btnLoop.classList.toggle('active', window.XMAudio.toggleLoop()));
@@ -196,6 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnDownload.disabled = true;
     setStatus('idle');
     setPlayingState(false);
+    updateDeckFavState();
     if (window.XMLibrary) window.XMLibrary.notifyPlaying(null);
   });
 
@@ -313,6 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.XMApp = {
     setPlayingState,
+    updateDeckFav: updateDeckFavState,
     onForegroundResume: function() {
       const playing = window.XMAudio.isPlaying();
       setPlayingState(playing);
@@ -338,6 +368,7 @@ document.addEventListener('DOMContentLoaded', () => {
       lastReportedTotalSec = -1;
       setStatus(isError ? 'error' : 'ready');
       setPlayingState(!isError);
+      updateDeckFavState();
     },
     onTrackEnded: function() {
       setPlayingState(false);

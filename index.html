@@ -144,6 +144,10 @@
       <div class="timeline-row"><span class="time-readout" id="timeCurrent">00:00</span><div class="slider-wrap"><input type="range" id="progressBar" min="0" max="100" value="0" step="0.1" disabled aria-label="Playback Progress" /></div><span class="time-readout time-dim" id="timeTotal">00:00</span></div>
       <div class="transport-panel">
         <div class="transport-row transport-row-main">
+          <div class="transport-sub-group transport-left-group">
+            <button class="t-btn" id="btnDeckFav" title="Favorite Track" aria-label="Favorite" disabled><svg viewBox="0 0 24 24" class="t-icon-sm" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button>
+            <button class="t-btn" id="btnDeckAddPl" title="Add to Playlist" aria-label="Add to Playlist" disabled><svg viewBox="0 0 24 24" class="t-icon-sm"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+          </div>
           <div class="transport-main-group">
             <button class="t-btn" id="btnPrev" title="Previous Track" aria-label="Previous"><svg viewBox="0 0 24 24" class="t-icon"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg></button>
             <button class="t-btn t-btn-main" id="btnPlayPause" title="Play or Pause" aria-label="Play"><svg id="svgPlay" viewBox="0 0 24 24" class="t-icon-main" fill="currentColor"><polygon points="7 4 19 12 7 20 7 4"></polygon></svg><svg id="svgPause" viewBox="0 0 24 24" class="t-icon-main hide" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg></button>

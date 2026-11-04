@@ -23,12 +23,11 @@
   gap: 0;
 }
 
-.transport-row-main::before {
-  content: "";
-  display: block;
-  width: 40px;
-  height: 40px;
-  visibility: hidden;
+.transport-left-group {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   justify-self: start;
 }
 
@@ -80,6 +79,17 @@
   border-color: var(--accent-border);
   color: var(--accent);
   background: var(--accent-dim);
+}
+
+#btnDeckFav.active {
+  border-color: rgba(234, 179, 8, 0.4);
+  color: var(--col-gold);
+  background: rgba(234, 179, 8, 0.12);
+}
+
+#btnDeckFav.active svg {
+  fill: var(--col-gold);
+  stroke: var(--col-gold);
 }
 
 .t-btn[disabled] {
