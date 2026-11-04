@@ -1,15 +1,14 @@
 /**
- * js/engine/background.js - Mobile background audio keep-alive and MediaSession controller.
+ * js/engine/background.js - Mobile background audio keep-alive and Chrome MediaSession coordinator.
  */
 (function(window) {
-  let keepAliveAudio = null;
-  let keepAliveUrl = null;
+  let activeCarrierUrl = null;
   let isActive = false;
 
-  function createSilentWavUrl() {
-    if (keepAliveUrl) return keepAliveUrl;
+  function createCarrierWavBlob(durationSec) {
+    const dur = Math.max(10, Math.ceil(durationSec || 180));
     const sampleRate = 8000;
-    const numSamples = sampleRate;
+    const numSamples = dur * sampleRate;
     const dataBytes = numSamples * 2;
     const buffer = new ArrayBuffer(44 + dataBytes);
     const view = new DataView(buffer);
@@ -32,45 +31,77 @@
     writeStr(36, 'data');
     view.setUint32(40, dataBytes, true);
 
-    // 1-LSB alternating value prevents mobile OS zero-amplitude stream killers while remaining completely inaudible
     for (let i = 0; i < numSamples; i++) {
       view.setInt16(44 + i * 2, (i & 1) ? 1 : -1, true);
     }
 
-    keepAliveUrl = URL.createObjectURL(new Blob([buffer], { type: 'audio/wav' }));
-    return keepAliveUrl;
+    return new Blob([buffer], { type: 'audio/wav' });
   }
 
-  function ensureKeepAliveElement() {
-    if (keepAliveAudio) return keepAliveAudio;
-    keepAliveAudio = document.createElement('audio');
-    keepAliveAudio.src = createSilentWavUrl();
-    keepAliveAudio.loop = true;
-    keepAliveAudio.preload = 'auto';
-    keepAliveAudio.volume = 0.01;
-    keepAliveAudio.setAttribute('playsinline', '');
-    keepAliveAudio.setAttribute('webkit-playsinline', '');
-    return keepAliveAudio;
+  function getAudioElement() {
+    return document.getElementById('nativeAudio');
+  }
+
+  function mountCarrier(durationSec, positionSec, shouldPlay) {
+    const audioEl = getAudioElement();
+    if (!audioEl) return;
+
+    if (activeCarrierUrl) {
+      URL.revokeObjectURL(activeCarrierUrl);
+      activeCarrierUrl = null;
+    }
+
+    const carrierBlob = createCarrierWavBlob(durationSec);
+    activeCarrierUrl = URL.createObjectURL(carrierBlob);
+    audioEl.src = activeCarrierUrl;
+    audioEl.loop = true;
+
+    const onReady = () => {
+      if (positionSec > 0 && isFinite(positionSec)) {
+        try { audioEl.currentTime = Math.min(positionSec, audioEl.duration || positionSec); } catch (e) {}
+      }
+      if (shouldPlay) {
+        audioEl.play().catch(() => {});
+      }
+    };
+
+    if (audioEl.readyState >= 1) {
+      onReady();
+    } else {
+      audioEl.addEventListener('loadedmetadata', onReady, { once: true });
+    }
+  }
+
+  function releaseCarrier() {
+    if (activeCarrierUrl) {
+      URL.revokeObjectURL(activeCarrierUrl);
+      activeCarrierUrl = null;
+    }
   }
 
   function unlock() {
-    const el = ensureKeepAliveElement();
-    if (isActive && el.paused) {
-      el.play().catch(() => {});
+    const audioEl = getAudioElement();
+    if (audioEl && isActive && audioEl.paused) {
+      audioEl.play().catch(() => {});
+    }
+    if (window.XMAudio && window.XMAudio.player) {
+      window.XMAudio.player.unlock();
     }
   }
 
   function setPlaybackState(playing) {
     isActive = Boolean(playing);
-    const el = ensureKeepAliveElement();
+    const audioEl = getAudioElement();
 
     if (isActive) {
-      if (el.paused) el.play().catch(() => {});
+      if (audioEl && audioEl.paused && audioEl.src) {
+        audioEl.play().catch(() => {});
+      }
       if (window.XMAudio && window.XMAudio.player) {
         window.XMAudio.player.unlock();
       }
-    } else if (!el.paused) {
-      el.pause();
+    } else if (audioEl && !audioEl.paused) {
+      audioEl.pause();
     }
 
     if ('mediaSession' in navigator) {
@@ -88,7 +119,7 @@
       navigator.mediaSession.metadata = new MediaMetadata({
         title: title || 'Untitled Track',
         artist: artist || 'XM-Studio',
-        album: 'XM-Studio',
+        album: 'XM-Studio DSP Workstation',
         artwork: [
           { src: iconUrl, sizes: '96x96', type: 'image/svg+xml' },
           { src: iconUrl, sizes: '192x192', type: 'image/svg+xml' },
@@ -153,10 +184,7 @@
 
   document.addEventListener('visibilitychange', () => {
     if (window.XMAudio && window.XMAudio.isPlaying()) {
-      window.XMAudio.player.unlock();
-      if (keepAliveAudio && keepAliveAudio.paused) {
-        keepAliveAudio.play().catch(() => {});
-      }
+      unlock();
     }
     if (!document.hidden && window.XMApp && window.XMApp.onForegroundResume) {
       window.XMApp.onForegroundResume();
@@ -167,6 +195,8 @@
 
   window.XMBackground = {
     unlock,
+    mountCarrier,
+    releaseCarrier,
     setPlaybackState,
     updateMetadata,
     updatePositionState

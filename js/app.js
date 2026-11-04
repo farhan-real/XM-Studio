@@ -266,15 +266,26 @@ document.addEventListener('DOMContentLoaded', () => {
     readoutProgressTrack.classList.remove('hide');
     readoutProgressBar.style.width = '0%';
 
-    window.AudioCompiler.compile(raw, activeFormat, (p) => { readoutProgressBar.style.width = `${Math.round(p * 100)}%`; }, (blob) => {
+    window.AudioCompiler.compile(raw, activeFormat, (p) => {
+      readoutProgressBar.style.width = `${Math.round(p * 100)}%`;
+    }, (blob) => {
       readoutProgressTrack.classList.add('hide');
       setStatus('ready');
+
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
+      const blobUrl = URL.createObjectURL(blob);
+      a.href = blobUrl;
       a.download = `${info.artist} - ${info.title}.${activeFormat}`.replace(/[/\\?%*:|"<>]/g, '_');
       a.click();
-      URL.revokeObjectURL(a.href);
-    }, () => { readoutProgressTrack.classList.add('hide'); setStatus('error'); });
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+
+      if (window.XMAudio && window.XMAudio.handoffToCompiled) {
+        window.XMAudio.handoffToCompiled(blob, activeFormat);
+      }
+    }, () => {
+      readoutProgressTrack.classList.add('hide');
+      setStatus('error');
+    });
   });
 
   btnBrowse.addEventListener('click', () => fileInput.click());
@@ -306,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
       modType.textContent = engine;
       if (badgeEngine) { badgeEngine.classList.remove('engine-none'); badgeEngine.classList.toggle('engine-error', isError); }
       channels.textContent = channelCount;
-      qualityBadge.textContent = isNative ? engine : (activeFormat === 'raw' ? 'TRACKER' : (activeFormat === 'mp3' ? '320 KBPS' : '16-BIT PCM'));
+      qualityBadge.textContent = isNative ? (activeFormat === 'wav' ? '16-BIT PCM' : '320 KBPS') : (activeFormat === 'raw' ? 'TRACKER' : (activeFormat === 'mp3' ? '320 KBPS' : '16-BIT PCM'));
       rateBadge.textContent = isError ? "--" : "48 KHZ";
       progressBar.disabled = isError;
       btnDownload.disabled = isError;
