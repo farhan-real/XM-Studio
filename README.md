@@ -184,7 +184,7 @@ Open `http://localhost:8080` in your web browser.
 .
 ├── index.html                  # Workstation HTML chassis layout
 ├── manifest.json               # Progressive Web App manifest
-├── service-worker.js           # Offline runtime asset caching (v41)
+├── service-worker.js           # Offline runtime asset caching
 ├── icon.svg                    # Application chassis icon
 ├── README.md                   # Technical documentation
 ├── css/
