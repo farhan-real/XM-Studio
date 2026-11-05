@@ -66,6 +66,9 @@
     const cached = window.XMAudio.getCachedCompiled ? window.XMAudio.getCachedCompiled(targetTrackId, format) : null;
     if (cached && cached.blob) {
       if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
+      if (cached.visData && window.XMVisualizer) {
+        window.XMVisualizer.setVisualizerCache(cached.visData, cached.visFps);
+      }
       if (window.XMAudio && window.XMAudio.handoffToCompiled) {
         window.XMAudio.handoffToCompiled(cached.blob, format, targetTrackId, cached.visData, cached.visFps);
       }
@@ -88,6 +91,11 @@
       (blob, visData, visFps) => {
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
         if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
+
+        // Immediately decouple visualizer handoff so O(1) cache takes over right at current frame
+        if (visData && window.XMVisualizer) {
+          window.XMVisualizer.setVisualizerCache(visData, visFps);
+        }
 
         if (isUserDownloadPending) {
           isUserDownloadPending = false;
@@ -207,6 +215,11 @@
       (blob, visData, visFps) => {
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
         if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
+
+        // Decouple visualizer handoff immediately
+        if (visData && window.XMVisualizer) {
+          window.XMVisualizer.setVisualizerCache(visData, visFps);
+        }
 
         if (isUserDownloadPending) {
           isUserDownloadPending = false;

@@ -1,5 +1,5 @@
 /**
- * js/engine/visualizer.js - Adaptive 20 FPS visualizer with zero-lag CPU pacing and anti-stutter isolation.
+ * js/engine/dsp/visualizer.js - Adaptive 20 FPS spectrum visualizer with precomputed O(1) cache priority.
  */
 (function(window) {
   const canvas = document.getElementById('visualizer');
@@ -37,10 +37,15 @@
   let cachedStep = 0;
 
   let cachedVisData = null;
-  let cachedVisFps = 60;
+  let cachedVisFps = 30;
 
   function isCanvasVisible() {
     return !document.hidden && canvas.offsetWidth > 0 && canvas.offsetHeight > 0;
+  }
+
+  function drawIdleBackground() {
+    ctx.fillStyle = '#090a0d';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
   function resizeCanvas() {
@@ -68,21 +73,27 @@
     }
   }
 
-  function drawIdleBackground() {
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  function clear() {
+    smoothedValues.fill(0);
+    frameBars.fill(0);
+    dataArray.fill(0);
+    drawIdleBackground();
   }
 
   function setVisualizerCache(data, fps) {
     cachedVisData = data ? new Uint8Array(data) : null;
-    cachedVisFps = fps || 60;
+    cachedVisFps = fps || 30;
   }
 
-  function clearVisualizerCache() { cachedVisData = null; }
+  function clearVisualizerCache() {
+    cachedVisData = null;
+    clear();
+  }
 
   function sleep() {
     isLoopRunning = false;
     if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    clear();
   }
 
   function wake(player) {
@@ -110,7 +121,7 @@
   function renderFrame(now) {
     const isLive = window.XMAudio ? window.XMAudio.isPlaying() : false;
     if (!isLive || document.hidden || !isCanvasVisible()) {
-      if (!isLive) { smoothedValues.fill(0); drawIdleBackground(); }
+      clear();
       sleep();
       return;
     }
@@ -127,25 +138,32 @@
     drawIdleBackground();
 
     let hasData = false;
+
+    // 1. Primary: Use precomputed cache (O(1) memory lookup, eliminates CPU lag on weak hardware)
     if (cachedVisData && cachedVisData.length > 0) {
       const pos = window.XMAudio.getPosition();
       const fIdx = Math.floor(pos * cachedVisFps);
       const offset = fIdx * TOTAL_BARS;
       if (offset >= 0 && offset + TOTAL_BARS <= cachedVisData.length) {
-        for (let b = 0; b < TOTAL_BARS; b++) frameBars[b] = cachedVisData[offset + b];
+        for (let b = 0; b < TOTAL_BARS; b++) {
+          frameBars[b] = cachedVisData[offset + b];
+        }
         hasData = true;
       }
     }
 
+    // 2. Secondary: If cache is not compiled yet, read from live Web Audio analyser node
     if (!hasData && activePlayer && activePlayer.analyser) {
       activePlayer.analyser.getByteFrequencyData(dataArray);
+      let signalSum = 0;
       for (let i = 0; i < TOTAL_BARS; i++) {
         const binIdx = BIN_MAP[i];
         let raw = dataArray[binIdx];
         if (binIdx + 1 < 32 && dataArray[binIdx + 1] > raw) raw = Math.max(raw, dataArray[binIdx + 1]);
         frameBars[i] = raw < 10 ? 0 : raw;
+        signalSum += frameBars[i];
       }
-      hasData = true;
+      if (signalSum > 0) hasData = true;
     }
 
     if (hasData && cachedWidth > 0) {
@@ -184,6 +202,7 @@
     start: function(player) { activePlayer = player; wake(player); },
     wake,
     sleep,
+    clear,
     setThrottled,
     resize: resizeCanvas,
     setVisualizerCache,

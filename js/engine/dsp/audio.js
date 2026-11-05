@@ -146,6 +146,7 @@
     try { audioEl.currentTime = 0; } catch (e) {}
     player.stop();
     notifyPlayState(false);
+    if (window.XMVisualizer) window.XMVisualizer.clear();
     if (window.XMApp) window.XMApp.onTrackEnded();
   }
 
@@ -167,7 +168,10 @@
     audioEl.removeAttribute('src');
     audioEl.load();
     if (window.XMBackground) window.XMBackground.releaseCarrier();
-    if (window.XMVisualizer) window.XMVisualizer.clearVisualizerCache();
+    if (window.XMVisualizer) {
+      window.XMVisualizer.clearVisualizerCache();
+      window.XMVisualizer.clear();
+    }
     revokeActiveObjectUrl();
     isNativeStream = false;
     currentRawBuffer = null;

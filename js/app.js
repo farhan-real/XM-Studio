@@ -305,6 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnUnload.addEventListener('click', () => {
     window.XMAudio.unload();
+    if (window.XMVisualizer) window.XMVisualizer.clear();
     songTitle.textContent = 'No Module Loaded';
     songArtist.textContent = 'Ready for FastTracker II / Audio input';
     if (miniTrackNum) miniTrackNum.textContent = '--';

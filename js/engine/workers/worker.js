@@ -151,9 +151,19 @@ function computeFftBars(inputSamples, outTarget, outOffset) {
     }
   }
   for (let b = 0; b < FFT_BARS; b++) {
-    const binIdx = Math.min(31, Math.floor(1 + Math.pow(b / (FFT_BARS - 1), 1.25) * 29));
-    const mag = Math.sqrt(fftRe[binIdx] * fftRe[binIdx] + fftIm[binIdx] * fftIm[binIdx]) * 8.0;
-    outTarget[outOffset + b] = mag > 0 ? Math.min(255, Math.round(Math.log10(1 + mag * 50) * 110)) : 0;
+    const binIdx = Math.min(30, Math.floor(1 + Math.pow(b / (FFT_BARS - 1), 1.35) * 28));
+    const re = fftRe[binIdx];
+    const im = fftIm[binIdx];
+    const mag = Math.sqrt(re * re + im * im) / 32.0;
+
+    let val = 0;
+    if (mag > 0.00001) {
+      const db = 20 * Math.log10(mag);
+      val = Math.round(255 * (db + 100) / 70);
+      if (val < 10) val = 0;
+      else if (val > 255) val = 255;
+    }
+    outTarget[outOffset + b] = val;
   }
 }
 
@@ -217,7 +227,7 @@ function runCompilation(data) {
     const encodedChunks = [];
     let totalPcmBytes = 0;
 
-    const VIS_FPS = 60;
+    const VIS_FPS = 30;
     const visStep = Math.max(1, Math.round(sampleRate / VIS_FPS));
     const totalVisFrames = Math.ceil(totalFrames / visStep) + 16;
     const visBuffer = new Uint8Array(totalVisFrames * FFT_BARS);
