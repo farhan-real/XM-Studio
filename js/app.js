@@ -11,6 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.AudioCompiler && window.AudioCompiler.init) {
     window.AudioCompiler.init();
   }
+  if (window.XMCache && window.XMCache.init) {
+    window.XMCache.init();
+  }
 
   let isSeeking = false;
   let prevVolume = 0.85;

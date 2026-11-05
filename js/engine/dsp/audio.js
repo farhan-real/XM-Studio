@@ -185,13 +185,21 @@
   }
 
   function getCachedCompiled(trackId, format) {
+    if (window.XMCache) {
+      const res = window.XMCache.get(trackId, format);
+      if (res) return res;
+    }
     const key = `${trackId}_${(format || 'mp3').toLowerCase()}`;
     return compiledCache.get(key) || null;
   }
 
   function setCachedCompiled(trackId, format, blob, visData, visFps) {
-    const key = `${trackId}_${(format || 'mp3').toLowerCase()}`;
-    compiledCache.set(key, { blob, ext: (format || 'mp3').toLowerCase(), visData, visFps });
+    const fmt = (format || 'mp3').toLowerCase();
+    if (window.XMCache) {
+      window.XMCache.set(trackId, fmt, blob, visData, visFps);
+    }
+    const key = `${trackId}_${fmt}`;
+    compiledCache.set(key, { blob, ext: fmt, visData, visFps });
   }
 
   function handoffToCompiled(blob, format, targetTrackId, visData, visFps) {
@@ -302,7 +310,7 @@
     }
 
     const cacheKey = (trackItemRef && trackItemRef.id) || currentAudioSrc || targetTitle;
-    const cached = compiledCache.get(`${cacheKey}_mp3`) || compiledCache.get(cacheKey);
+    const cached = getCachedCompiled(cacheKey, 'mp3') || getCachedCompiled(cacheKey, 'wav');
     if (cached && cached.blob) {
       isNativeStream = true;
       currentAudioBlob = cached.blob;
@@ -321,6 +329,8 @@
       if (window.XMApp) {
         window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2CH', true, trackNum);
         if (audioEl.duration && !isNaN(audioEl.duration)) window.XMApp.updateDuration(audioEl.duration);
+        if (window.XMApp.setPlaybackStatus) window.XMApp.setPlaybackStatus('loaded');
+        if (window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
       }
       return;
     }
