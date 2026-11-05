@@ -2,18 +2,12 @@
  * js/app.js - Main workstation controller with visualizer sleep state and dual status indicators.
  */
 document.addEventListener('DOMContentLoaded', () => {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
-  }
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(() => {});
 
   const { player, audioEl } = window.XMAudio;
-  window.XMVisualizer.start(player);
-  if (window.AudioCompiler && window.AudioCompiler.init) {
-    window.AudioCompiler.init();
-  }
-  if (window.XMCache && window.XMCache.init) {
-    window.XMCache.init();
-  }
+  if (window.XMVisualizer && window.XMVisualizer.start) window.XMVisualizer.start(player);
+  if (window.AudioCompiler && window.AudioCompiler.init) window.AudioCompiler.init();
+  if (window.XMCache && window.XMCache.init) window.XMCache.init();
 
   let isSeeking = false;
   let prevVolume = 0.85;
@@ -89,9 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (readoutPanel) {
     readoutPanel.addEventListener('click', () => {
-      if (window.innerWidth <= 900 && dropZone.classList.contains('mobile-mini')) {
-        showMobilePlayerView();
-      }
+      if (window.innerWidth <= 900 && dropZone.classList.contains('mobile-mini')) showMobilePlayerView();
     });
   }
 
@@ -110,6 +102,10 @@ document.addEventListener('DOMContentLoaded', () => {
     timeTotal.textContent = '00:00';
     lastReportedSec = -1;
     lastReportedTotalSec = -1;
+    const progressTrack = document.getElementById('readoutProgressTrack');
+    const progressBarEl = document.getElementById('readoutProgressBar');
+    if (progressTrack) progressTrack.classList.add('hide');
+    if (progressBarEl) progressBarEl.style.width = '0%';
   }
 
   function updateProgress() {
@@ -121,44 +117,26 @@ document.addEventListener('DOMContentLoaded', () => {
       progressBar.value = (safeCur / dur) * 100;
       const curSec = safeCur | 0;
       const totSec = dur | 0;
-      if (curSec !== lastReportedSec) {
-        lastReportedSec = curSec;
-        timeCurrent.textContent = formatTime(safeCur);
-      }
-      if (totSec !== lastReportedTotalSec) {
-        lastReportedTotalSec = totSec;
-        timeTotal.textContent = formatTime(dur);
-      }
+      if (curSec !== lastReportedSec) { lastReportedSec = curSec; timeCurrent.textContent = formatTime(safeCur); }
+      if (totSec !== lastReportedTotalSec) { lastReportedTotalSec = totSec; timeTotal.textContent = formatTime(dur); }
     } else {
-      const safeCur = Math.max(0, cur);
-      const curSec = safeCur | 0;
-      if (curSec !== lastReportedSec) {
-        lastReportedSec = curSec;
-        timeCurrent.textContent = formatTime(safeCur);
-      }
+      const curSec = Math.max(0, cur) | 0;
+      if (curSec !== lastReportedSec) { lastReportedSec = curSec; timeCurrent.textContent = formatTime(cur); }
     }
-  }
-
-  function tickProgress() {
-    if (!window.XMAudio.isPlaying()) {
-      stopProgressLoop();
-      return;
-    }
-    updateProgress();
   }
 
   function startProgressLoop() {
     if (!progressTimerId && !document.hidden) {
       updateProgress();
-      progressTimerId = setInterval(tickProgress, 250);
+      progressTimerId = setInterval(() => {
+        if (!window.XMAudio.isPlaying()) stopProgressLoop();
+        else updateProgress();
+      }, 250);
     }
   }
 
   function stopProgressLoop() {
-    if (progressTimerId) {
-      clearInterval(progressTimerId);
-      progressTimerId = null;
-    }
+    if (progressTimerId) { clearInterval(progressTimerId); progressTimerId = null; }
   }
 
   function setPlayingState(isPlaying) {
@@ -192,36 +170,17 @@ document.addEventListener('DOMContentLoaded', () => {
   function setPlaybackStatus(state) {
     if (!playbackBadge || !playbackStatus) return;
     const s = (state || 'idle').toLowerCase();
-    playbackBadge.className = 'badge badge-playback';
-    if (s === 'live') {
-      playbackBadge.classList.add('status-live');
-      playbackStatus.textContent = 'LIVE';
-    } else if (s === 'loaded') {
-      playbackBadge.classList.add('status-loaded');
-      playbackStatus.textContent = 'LOADED';
-    } else {
-      playbackBadge.classList.add('status-idle');
-      playbackStatus.textContent = 'IDLE';
-    }
+    playbackBadge.className = `badge badge-playback status-${s}`;
+    playbackStatus.textContent = s.toUpperCase();
   }
 
   function setCompileStatus(state, pct) {
     if (!compileBadge || !compileStatus) return;
     const s = (state || 'idle').toLowerCase();
-    compileBadge.className = 'badge badge-compile';
-    if (s === 'compiling') {
-      compileBadge.classList.add('status-compiling');
-      compileStatus.textContent = (typeof pct === 'number' && pct > 0) ? `${Math.round(pct * 100)}%` : 'COMPILING';
-    } else if (s === 'error') {
-      compileBadge.classList.add('status-error');
-      compileStatus.textContent = 'ERROR';
-    } else if (s === 'ready') {
-      compileBadge.classList.add('status-ready');
-      compileStatus.textContent = 'READY';
-    } else {
-      compileBadge.classList.add('status-idle');
-      compileStatus.textContent = 'IDLE';
-    }
+    compileBadge.className = `badge badge-compile status-${s}`;
+    compileStatus.textContent = (s === 'compiling' && typeof pct === 'number' && pct > 0)
+      ? `${Math.round(pct * 100)}%`
+      : s.toUpperCase();
   }
 
   function getCurrentDeckTrack() {
@@ -262,56 +221,46 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!t || !window.XMPlaylist) return;
       window.XMPlaylist.toggleFavorite(t);
       updateDeckFavState();
-      if (window.XMLibrary && window.XMLibrary.renderCurrentTab) {
-        window.XMLibrary.renderCurrentTab();
-      }
+      if (window.XMLibrary && window.XMLibrary.renderCurrentTab) window.XMLibrary.renderCurrentTab();
     });
   }
 
   if (btnDeckAddPl) {
     btnDeckAddPl.addEventListener('click', () => {
       const t = getCurrentDeckTrack();
-      if (t && window.XMPlaylistUI) {
-        window.XMPlaylistUI.openPlaylistPicker(t);
-      }
+      if (t && window.XMPlaylistUI) window.XMPlaylistUI.openPlaylistPicker(t);
     });
   }
 
-  btnPlayPause.addEventListener('click', () => { window.XMAudio.togglePlayPause(); });
-  btnStop.addEventListener('click', () => { window.XMAudio.stopPlayback(); });
-
-  btnLoop.addEventListener('click', () => {
-    window.XMAudio.toggleLoop();
-    syncTransportButtons();
-  });
-
-  btnShuffle.addEventListener('click', () => {
-    window.XMAudio.toggleShuffle();
-    syncTransportButtons();
-  });
-
+  btnPlayPause.addEventListener('click', () => window.XMAudio.togglePlayPause());
+  btnStop.addEventListener('click', () => window.XMAudio.stopPlayback());
+  btnLoop.addEventListener('click', () => { window.XMAudio.toggleLoop(); syncTransportButtons(); });
+  btnShuffle.addEventListener('click', () => { window.XMAudio.toggleShuffle(); syncTransportButtons(); });
   if (btnPrev) btnPrev.addEventListener('click', () => window.XMAudio.playPrevTrack());
   if (btnNext) btnNext.addEventListener('click', () => window.XMAudio.playNextTrack(true));
 
   if (btnPlayRandom) {
     btnPlayRandom.addEventListener('click', () => {
       if (window.innerWidth <= 900) showMobileArchiveView();
-      let played = false;
-      if (window.XMLibrary && window.XMLibrary.playRandomArchiveTrack) {
-        played = Boolean(window.XMLibrary.playRandomArchiveTrack());
-      }
-      if (!played && window.XMAudio && window.XMAudio.playRandomTrack) {
-        window.XMAudio.playRandomTrack();
-      }
+      let played = window.XMLibrary && window.XMLibrary.playRandomArchiveTrack ? Boolean(window.XMLibrary.playRandomArchiveTrack()) : false;
+      if (!played && window.XMAudio && window.XMAudio.playRandomTrack) window.XMAudio.playRandomTrack();
     });
   }
 
   btnUnload.addEventListener('click', () => {
-    if (window.XMExport && window.XMExport.cancelExport) {
-      window.XMExport.cancelExport();
+    try {
+      if (window.XMExport && window.XMExport.cancelExport) window.XMExport.cancelExport();
+      window.XMAudio.unload();
+    } catch (e) {
+      console.warn('Unload error caught:', e);
     }
-    window.XMAudio.unload();
-    if (window.XMVisualizer) window.XMVisualizer.clear();
+    try {
+      if (window.XMVisualizer) {
+        if (typeof window.XMVisualizer.clear === 'function') window.XMVisualizer.clear();
+        else if (typeof window.XMVisualizer.clearCanvas === 'function') window.XMVisualizer.clearCanvas();
+      }
+    } catch (e) {}
+
     songTitle.textContent = 'No Module Loaded';
     songArtist.textContent = 'Ready for FastTracker II / Audio input';
     if (miniTrackNum) miniTrackNum.textContent = '--';
@@ -324,39 +273,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const rateBadge = document.getElementById('rateBadge');
     if (rateBadge) rateBadge.textContent = '--';
     resetTimeline();
-    document.getElementById('btnDownload').disabled = true;
+    const btnDownload = document.getElementById('btnDownload');
+    if (btnDownload) btnDownload.disabled = true;
     setPlaybackStatus('idle');
     setCompileStatus('idle');
     setPlayingState(false);
     updateDeckFavState();
-    if (window.XMLibrary) window.XMLibrary.notifyPlaying(null);
+    if (window.XMLibrary && window.XMLibrary.notifyPlaying) window.XMLibrary.notifyPlaying(null);
   });
-
-  function applySeek(targetSec) {
-    window.XMAudio.seekTo(targetSec);
-    timeCurrent.textContent = formatTime(targetSec);
-    lastReportedSec = targetSec | 0;
-  }
 
   progressBar.addEventListener('input', () => {
     isSeeking = true;
     const dur = window.XMAudio.getDuration();
-    if (dur > 0 && isFinite(dur)) {
-      const targetSec = (progressBar.value / 100) * dur;
-      timeCurrent.textContent = formatTime(targetSec);
-    }
+    if (dur > 0 && isFinite(dur)) timeCurrent.textContent = formatTime((progressBar.value / 100) * dur);
   });
 
   progressBar.addEventListener('change', () => {
     const dur = window.XMAudio.getDuration();
     if (dur > 0 && isFinite(dur)) {
       const targetSec = (progressBar.value / 100) * dur;
-      applySeek(targetSec);
+      window.XMAudio.seekTo(targetSec);
+      timeCurrent.textContent = formatTime(targetSec);
+      lastReportedSec = targetSec | 0;
     }
-    setTimeout(() => {
-      isSeeking = false;
-      updateProgress();
-    }, 150);
+    setTimeout(() => { isSeeking = false; updateProgress(); }, 150);
   });
 
   volSlider.addEventListener('input', (e) => {
@@ -389,14 +329,14 @@ document.addEventListener('DOMContentLoaded', () => {
     showMobileArchiveView,
     showMobilePlayerView,
     resetTimeline,
-    updateDuration: function(dur) {
+    updateDuration: (dur) => {
       if (dur > 0 && isFinite(dur)) {
         timeTotal.textContent = formatTime(dur);
         progressBar.disabled = false;
         updateProgress();
       }
     },
-    onForegroundResume: function() {
+    onForegroundResume: () => {
       const playing = window.XMAudio.isPlaying();
       setPlayingState(playing);
       if (playing) {
@@ -405,7 +345,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.XMVisualizer) window.XMVisualizer.wake(player);
       }
     },
-    updateTrackUI: function(title, artist, engine, channelCount, isNative, trackNum) {
+    updateTrackUI: (title, artist, engine, channelCount, isNative, trackNum) => {
       const isError = (engine === 'ERROR');
       songTitle.textContent = title;
       songArtist.textContent = artist;
@@ -418,12 +358,8 @@ document.addEventListener('DOMContentLoaded', () => {
         badgeEngine.classList.toggle('engine-error', isError);
       }
       if (channels) {
-        if (!channelCount || channelCount === '--' || isError) {
-          channels.textContent = '--';
-        } else {
-          const numOnly = String(channelCount).replace(/\s*ch/i, '').trim();
-          channels.textContent = numOnly ? `${numOnly}CH` : '--';
-        }
+        const numOnly = String(channelCount || '').replace(/\s*ch/i, '').trim();
+        channels.textContent = (!isError && numOnly && numOnly !== '--') ? `${numOnly}CH` : '--';
       }
       const fmt = window.XMExport ? window.XMExport.getActiveFormat() : 'mp3';
       const qualityBadge = document.getElementById('qualityBadge');
@@ -432,17 +368,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const rateBadge = document.getElementById('rateBadge');
       if (rateBadge) rateBadge.textContent = isError ? '--' : '48 KHZ';
-      document.getElementById('btnDownload').disabled = isError;
-      if (isError) {
-        setPlaybackStatus('idle');
-        setCompileStatus('error');
-      } else {
-        setPlaybackStatus(isNative ? 'loaded' : 'live');
-      }
+      const btnDownload = document.getElementById('btnDownload');
+      if (btnDownload) btnDownload.disabled = isError;
+      setPlaybackStatus(isError ? 'idle' : (isNative ? 'loaded' : 'live'));
+      if (isError) setCompileStatus('error');
       setPlayingState(!isError && (window.XMAudio ? window.XMAudio.isPlaying() : false));
       updateDeckFavState();
     },
-    onTrackEnded: function() {
+    onTrackEnded: () => {
       setPlayingState(false);
       resetTimeline();
     }

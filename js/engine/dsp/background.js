@@ -9,9 +9,7 @@
 
   function getCarrierBlob(durationSec) {
     const dur = Math.max(10, Math.ceil(durationSec || 180));
-    if (cachedCarrierBlob && cachedCarrierBlob._dur >= dur) {
-      return cachedCarrierBlob;
-    }
+    if (cachedCarrierBlob && cachedCarrierBlob._dur >= dur) return cachedCarrierBlob;
 
     const sampleRate = 8000;
     const numSamples = dur * sampleRate;
@@ -20,9 +18,7 @@
     const view = new DataView(buffer);
 
     function writeStr(offset, str) {
-      for (let i = 0; i < str.length; i++) {
-        view.setUint8(offset + i, str.charCodeAt(i));
-      }
+      for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
     }
 
     writeStr(0, 'RIFF');
@@ -92,31 +88,22 @@
 
     const onReady = () => {
       if (positionSec > 0 && isFinite(positionSec)) {
-        try {
-          audioEl.currentTime = Math.min(positionSec, audioEl.duration || positionSec);
-        } catch (e) {}
+        try { audioEl.currentTime = Math.min(positionSec, audioEl.duration || positionSec); } catch (e) {}
       }
       if (shouldPlay && audioEl.paused) {
         audioEl.play().then(() => {
-          if ('mediaSession' in navigator) {
-            navigator.mediaSession.playbackState = 'playing';
-          }
+          if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
           updatePositionState();
         }).catch(() => {});
       }
     };
 
-    if (audioEl.readyState >= 1) {
-      onReady();
-    } else {
-      audioEl.addEventListener('loadedmetadata', onReady, { once: true });
-    }
+    if (audioEl.readyState >= 1) onReady();
+    else audioEl.addEventListener('loadedmetadata', onReady, { once: true });
 
     if (shouldPlay && audioEl.paused) {
       audioEl.play().then(() => {
-        if ('mediaSession' in navigator) {
-          navigator.mediaSession.playbackState = 'playing';
-        }
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
         updatePositionState();
       }).catch(() => {});
     }
@@ -126,6 +113,15 @@
     const audioEl = getAudioElement();
     if (audioEl && activeCarrierUrl && audioEl.src === activeCarrierUrl) {
       audioEl.pause();
+    }
+  }
+
+  function clearMetadata() {
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.playbackState = 'none';
+      } catch (e) {}
     }
   }
 
@@ -144,20 +140,14 @@
     const audioEl = getAudioElement();
 
     if (isActive) {
-      if (audioEl && audioEl.paused && audioEl.src) {
-        audioEl.play().catch(() => {});
-      }
-      if (window.XMAudio && window.XMAudio.player) {
-        window.XMAudio.player.unlock();
-      }
+      if (audioEl && audioEl.paused && audioEl.src) audioEl.play().catch(() => {});
+      if (window.XMAudio && window.XMAudio.player) window.XMAudio.player.unlock();
     } else if (audioEl && !audioEl.paused) {
       audioEl.pause();
     }
 
     if ('mediaSession' in navigator) {
-      try {
-        navigator.mediaSession.playbackState = isActive ? 'playing' : 'paused';
-      } catch (e) {}
+      try { navigator.mediaSession.playbackState = isActive ? 'playing' : 'paused'; } catch (e) {}
     }
     updatePositionState();
   }
@@ -189,11 +179,10 @@
       const dur = window.XMAudio.getDuration();
       const pos = window.XMAudio.getPosition();
       if (dur > 0 && isFinite(dur)) {
-        const safePos = Math.max(0, Math.min(dur, Number(pos) || 0));
         navigator.mediaSession.setPositionState({
           duration: dur,
           playbackRate: 1.0,
-          position: safePos
+          position: Math.max(0, Math.min(dur, Number(pos) || 0))
         });
       }
     } catch (e) {}
@@ -215,25 +204,21 @@
       }],
       ['seekbackward', (d) => {
         if (window.XMAudio) {
-          const off = (d && d.seekOffset) || 10;
-          window.XMAudio.seekTo(Math.max(0, window.XMAudio.getPosition() - off));
+          window.XMAudio.seekTo(Math.max(0, window.XMAudio.getPosition() - ((d && d.seekOffset) || 10)));
           updatePositionState();
         }
       }],
       ['seekforward', (d) => {
         if (window.XMAudio) {
-          const off = (d && d.seekOffset) || 10;
           const dur = window.XMAudio.getDuration();
-          window.XMAudio.seekTo(Math.min(dur || 0, window.XMAudio.getPosition() + off));
+          window.XMAudio.seekTo(Math.min(dur || 0, window.XMAudio.getPosition() + ((d && d.seekOffset) || 10)));
           updatePositionState();
         }
       }]
     ];
 
     for (let i = 0; i < actions.length; i++) {
-      try {
-        navigator.mediaSession.setActionHandler(actions[i][0], actions[i][1]);
-      } catch (e) {}
+      try { navigator.mediaSession.setActionHandler(actions[i][0], actions[i][1]); } catch (e) {}
     }
   }
 
@@ -250,6 +235,7 @@
     unlock,
     mountCarrier,
     releaseCarrier,
+    clearMetadata,
     setPlaybackState,
     updateMetadata,
     updatePositionState

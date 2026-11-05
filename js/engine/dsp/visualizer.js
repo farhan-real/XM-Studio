@@ -10,7 +10,7 @@
   const dataArray = new Uint8Array(32);
   const smoothedValues = new Float32Array(TOTAL_BARS);
   const frameBars = new Uint8Array(TOTAL_BARS);
-  const FRAME_INTERVAL = 100; // Strictly 10 FPS (100ms interval)
+  const FRAME_INTERVAL = 100;
 
   const BIN_MAP = new Uint8Array(TOTAL_BARS);
   for (let i = 0; i < TOTAL_BARS; i++) {
@@ -44,8 +44,10 @@
   }
 
   function drawIdleBackground() {
-    ctx.fillStyle = '#090a0d';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (canvas.width > 0 && canvas.height > 0) {
+      ctx.fillStyle = '#090a0d';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
   }
 
   function resizeCanvas() {
@@ -77,6 +79,7 @@
     smoothedValues.fill(0);
     frameBars.fill(0);
     dataArray.fill(0);
+    if (canvas.width === 0 || canvas.height === 0) resizeCanvas();
     drawIdleBackground();
   }
 
@@ -126,7 +129,7 @@
       return;
     }
 
-    const interval = FRAME_INTERVAL; // 100ms lock (10 FPS)
+    const interval = FRAME_INTERVAL;
     const elapsed = now - lastFrameTime;
     if (elapsed < interval) {
       if (isLoopRunning) rafId = requestAnimationFrame(renderFrame);
@@ -139,7 +142,6 @@
 
     let hasData = false;
 
-    // 1. Primary: Use precomputed cache (O(1) memory lookup, zero audio thread load)
     if (cachedVisData && cachedVisData.length > 0) {
       const pos = window.XMAudio.getPosition();
       const fIdx = Math.floor(pos * cachedVisFps);
@@ -152,7 +154,6 @@
       }
     }
 
-    // 2. Secondary: If cache is not compiled yet, read from live Web Audio analyser node
     if (!hasData && activePlayer && activePlayer.analyser) {
       activePlayer.analyser.getByteFrequencyData(dataArray);
       let signalSum = 0;
@@ -203,6 +204,8 @@
     wake,
     sleep,
     clear,
+    clearCanvas: clear,
+    reset: clear,
     setThrottled,
     resize: resizeCanvas,
     setVisualizerCache,
