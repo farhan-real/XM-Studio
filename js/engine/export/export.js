@@ -55,6 +55,8 @@
       window.XMAudio.currentAudioSrc ||
       info.title;
 
+    if (!info || !info.title || info.title === 'No Module Loaded') return;
+
     if (activeFormat === 'raw') {
       let blob = window.XMAudio.currentAudioBlob;
       if (!blob && window.XMAudio.currentRawBuffer) {
@@ -76,7 +78,49 @@
       return;
     }
 
-    const raw = window.XMAudio ? window.XMAudio.currentRawBuffer : null;
+    if (window.XMAudio.currentAudioBlob && ext.toLowerCase() === activeFormat.toLowerCase()) {
+      const a = document.createElement('a');
+      const blobUrl = URL.createObjectURL(window.XMAudio.currentAudioBlob);
+      a.href = blobUrl;
+      a.download = `${info.artist} - ${info.title}.${activeFormat}`.replace(/[/\\?%*:|"<>]/g, '_');
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      return;
+    }
+
+    const TRACKER_EXTS = new Set(['xm', 'mod', 'it', 's3m', 'mtm', 'mo3', 'med', '669', 'far', 'ptm', 'v2m', 'ahx', 'sid']);
+    const isTracker = TRACKER_EXTS.has(ext.toLowerCase());
+
+    if (!isTracker && (window.XMAudio.currentAudioBlob || window.XMAudio.currentAudioSrc)) {
+      let blob = window.XMAudio.currentAudioBlob;
+      if (!blob && window.XMAudio.currentAudioSrc) {
+        try {
+          const res = await fetch(window.XMAudio.currentAudioSrc);
+          blob = await res.blob();
+        } catch (e) {}
+      }
+      if (blob) {
+        const a = document.createElement('a');
+        const blobUrl = URL.createObjectURL(blob);
+        a.href = blobUrl;
+        a.download = `${info.artist} - ${info.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        return;
+      }
+    }
+
+    let raw = window.XMAudio ? window.XMAudio.currentRawBuffer : null;
+    if (!raw && window.XMAudio.currentAudioBlob) {
+      try {
+        raw = await window.XMAudio.currentAudioBlob.arrayBuffer();
+      } catch (e) {}
+    } else if (!raw && window.XMAudio.currentAudioSrc) {
+      try {
+        const res = await fetch(window.XMAudio.currentAudioSrc);
+        raw = await res.arrayBuffer();
+      } catch (e) {}
+    }
     if (!raw) return;
 
     if (window.XMApp && window.XMApp.setStatus) window.XMApp.setStatus('compiling');
@@ -106,7 +150,8 @@
           window.XMAudio.handoffToCompiled(blob, activeFormat, targetTrackId, visData, visFps);
         }
       },
-      () => {
+      (err) => {
+        console.error('Audio compilation failed:', err);
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
         if (window.XMApp && window.XMApp.setStatus) window.XMApp.setStatus('error');
       }

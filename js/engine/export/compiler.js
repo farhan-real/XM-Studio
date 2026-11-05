@@ -13,7 +13,8 @@
     self.isCompiling = true;
 
     try {
-      self.worker = new Worker('js/engine/workers/worker.js');
+      const workerUrl = 'js/engine/workers/worker.js' + (window.USE_CDN ? '?cdn=1' : '');
+      self.worker = new Worker(workerUrl);
 
       self.worker.onmessage = function(e) {
         const msg = e.data;
