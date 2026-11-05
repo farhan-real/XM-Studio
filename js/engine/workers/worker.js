@@ -227,7 +227,7 @@ function runCompilation(data) {
     const encodedChunks = [];
     let totalPcmBytes = 0;
 
-    const VIS_FPS = 30;
+    const VIS_FPS = 10; // Locked strictly to 10 FPS
     const visStep = Math.max(1, Math.round(sampleRate / VIS_FPS));
     const totalVisFrames = Math.ceil(totalFrames / visStep) + 16;
     const visBuffer = new Uint8Array(totalVisFrames * FFT_BARS);

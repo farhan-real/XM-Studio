@@ -1,5 +1,5 @@
 /**
- * js/engine/dsp/visualizer.js - Adaptive 20 FPS spectrum visualizer with precomputed O(1) cache priority.
+ * js/engine/dsp/visualizer.js - Lightweight 10 FPS spectrum visualizer with precomputed O(1) cache priority.
  */
 (function(window) {
   const canvas = document.getElementById('visualizer');
@@ -10,7 +10,7 @@
   const dataArray = new Uint8Array(32);
   const smoothedValues = new Float32Array(TOTAL_BARS);
   const frameBars = new Uint8Array(TOTAL_BARS);
-  const FRAME_INTERVAL = 50;
+  const FRAME_INTERVAL = 100; // Strictly 10 FPS (100ms interval)
 
   const BIN_MAP = new Uint8Array(TOTAL_BARS);
   for (let i = 0; i < TOTAL_BARS; i++) {
@@ -37,7 +37,7 @@
   let cachedStep = 0;
 
   let cachedVisData = null;
-  let cachedVisFps = 30;
+  let cachedVisFps = 10;
 
   function isCanvasVisible() {
     return !document.hidden && canvas.offsetWidth > 0 && canvas.offsetHeight > 0;
@@ -82,7 +82,7 @@
 
   function setVisualizerCache(data, fps) {
     cachedVisData = data ? new Uint8Array(data) : null;
-    cachedVisFps = fps || 30;
+    cachedVisFps = fps || 10;
   }
 
   function clearVisualizerCache() {
@@ -126,7 +126,7 @@
       return;
     }
 
-    const interval = isThrottled ? 100 : FRAME_INTERVAL;
+    const interval = FRAME_INTERVAL; // 100ms lock (10 FPS)
     const elapsed = now - lastFrameTime;
     if (elapsed < interval) {
       if (isLoopRunning) rafId = requestAnimationFrame(renderFrame);
@@ -139,7 +139,7 @@
 
     let hasData = false;
 
-    // 1. Primary: Use precomputed cache (O(1) memory lookup, eliminates CPU lag on weak hardware)
+    // 1. Primary: Use precomputed cache (O(1) memory lookup, zero audio thread load)
     if (cachedVisData && cachedVisData.length > 0) {
       const pos = window.XMAudio.getPosition();
       const fIdx = Math.floor(pos * cachedVisFps);
@@ -170,8 +170,8 @@
       let currentStyle = '';
       for (let i = 0; i < TOTAL_BARS; i++) {
         const raw = frameBars[i];
-        if (raw > smoothedValues[i]) smoothedValues[i] += (raw - smoothedValues[i]) * 0.9;
-        else smoothedValues[i] += (raw - smoothedValues[i]) * 0.45;
+        if (raw > smoothedValues[i]) smoothedValues[i] += (raw - smoothedValues[i]) * 0.95;
+        else smoothedValues[i] += (raw - smoothedValues[i]) * 0.6;
 
         const val = smoothedValues[i];
         const barHeight = val > 1 ? Math.max(cachedMinBarH, (val / 255 * cachedMaxBarH) | 0) : cachedMinBarH;
