@@ -171,15 +171,12 @@
     if (window.XMApp) {
       window.XMApp.updateTrackUI(
         `${title || filename || 'Unknown'} (Unsupported)`,
-        `Format .${displayExt} cannot be decoded`,
+        `Format .${displayExt} is not supported by workstation`,
         'UNSUPPORTED',
         '--',
         false,
         0
       );
-      if (window.XMApp.showUnsupportedModal) {
-        window.XMApp.showUnsupportedModal(filename || title || 'Selected File', displayExt);
-      }
     }
   }
 
