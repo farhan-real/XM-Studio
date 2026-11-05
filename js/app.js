@@ -81,38 +81,60 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function formatTime(sec) {
-    if (!sec || isNaN(sec)) return '00:00';
-    const m = (sec / 60) | 0;
-    const s = (sec % 60) | 0;
+    if (!sec || isNaN(sec) || !isFinite(sec) || sec < 0) return '00:00';
+    const totalSec = Math.floor(sec);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
     return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
-  function tickProgress() {
+  function resetTimeline() {
+    progressBar.value = 0;
+    progressBar.disabled = true;
+    timeCurrent.textContent = '00:00';
+    timeTotal.textContent = '00:00';
+    lastReportedSec = -1;
+    lastReportedTotalSec = -1;
+  }
+
+  function updateProgress() {
     if (isSeeking || document.hidden) return;
-    if (!window.XMAudio.isPlaying()) {
-      stopProgressLoop();
-      return;
-    }
     const dur = window.XMAudio.getDuration();
     const cur = window.XMAudio.getPosition();
-    if (dur > 0) {
-      progressBar.value = (cur / dur) * 100;
-      const curSec = cur | 0;
+    if (dur > 0 && isFinite(dur)) {
+      const safeCur = Math.min(dur, Math.max(0, cur));
+      progressBar.value = (safeCur / dur) * 100;
+      const curSec = safeCur | 0;
       const totSec = dur | 0;
       if (curSec !== lastReportedSec) {
         lastReportedSec = curSec;
-        timeCurrent.textContent = formatTime(cur);
+        timeCurrent.textContent = formatTime(safeCur);
       }
       if (totSec !== lastReportedTotalSec) {
         lastReportedTotalSec = totSec;
         timeTotal.textContent = formatTime(dur);
       }
+    } else {
+      const safeCur = Math.max(0, cur);
+      const curSec = safeCur | 0;
+      if (curSec !== lastReportedSec) {
+        lastReportedSec = curSec;
+        timeCurrent.textContent = formatTime(safeCur);
+      }
     }
+  }
+
+  function tickProgress() {
+    if (!window.XMAudio.isPlaying()) {
+      stopProgressLoop();
+      return;
+    }
+    updateProgress();
   }
 
   function startProgressLoop() {
     if (!progressTimerId && !document.hidden) {
-      tickProgress();
+      updateProgress();
       progressTimerId = setInterval(tickProgress, 250);
     }
   }
@@ -136,6 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
       svgPlay.classList.remove('hide');
       svgPause.classList.add('hide');
       stopProgressLoop();
+      updateProgress();
       if (window.XMVisualizer) window.XMVisualizer.sleep();
     }
   }
@@ -146,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.XMVisualizer) window.XMVisualizer.sleep();
     } else if (window.XMAudio && window.XMAudio.isPlaying()) {
       startProgressLoop();
-      tickProgress();
+      updateProgress();
       if (window.XMVisualizer) window.XMVisualizer.wake(player);
     }
   });
@@ -252,12 +275,7 @@ document.addEventListener('DOMContentLoaded', () => {
       badgeEngine.classList.remove('engine-error');
     }
     channels.textContent = '--';
-    progressBar.value = 0;
-    progressBar.disabled = true;
-    timeCurrent.textContent = '00:00';
-    timeTotal.textContent = '00:00';
-    lastReportedSec = -1;
-    lastReportedTotalSec = -1;
+    resetTimeline();
     document.getElementById('btnDownload').disabled = true;
     setStatus('idle');
     setPlayingState(false);
@@ -274,19 +292,22 @@ document.addEventListener('DOMContentLoaded', () => {
   progressBar.addEventListener('input', () => {
     isSeeking = true;
     const dur = window.XMAudio.getDuration();
-    if (dur > 0) {
+    if (dur > 0 && isFinite(dur)) {
       const targetSec = (progressBar.value / 100) * dur;
       timeCurrent.textContent = formatTime(targetSec);
-      if (window.XMAudio.isNativeStream && audioEl.paused) {
-        audioEl.currentTime = targetSec;
-      }
     }
   });
 
   progressBar.addEventListener('change', () => {
     const dur = window.XMAudio.getDuration();
-    if (dur > 0) applySeek((progressBar.value / 100) * dur);
-    isSeeking = false;
+    if (dur > 0 && isFinite(dur)) {
+      const targetSec = (progressBar.value / 100) * dur;
+      applySeek(targetSec);
+    }
+    setTimeout(() => {
+      isSeeking = false;
+      updateProgress();
+    }, 150);
   });
 
   volSlider.addEventListener('input', (e) => {
@@ -313,12 +334,20 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDeckFav: updateDeckFavState,
     showMobileArchiveView,
     showMobilePlayerView,
+    resetTimeline,
+    updateDuration: function(dur) {
+      if (dur > 0 && isFinite(dur)) {
+        timeTotal.textContent = formatTime(dur);
+        progressBar.disabled = false;
+        updateProgress();
+      }
+    },
     onForegroundResume: function() {
       const playing = window.XMAudio.isPlaying();
       setPlayingState(playing);
       if (playing) {
         startProgressLoop();
-        tickProgress();
+        updateProgress();
         if (window.XMVisualizer) window.XMVisualizer.wake(player);
       }
     },
@@ -342,19 +371,14 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const rateBadge = document.getElementById('rateBadge');
       if (rateBadge) rateBadge.textContent = isError ? '--' : '48 KHZ';
-      progressBar.disabled = isError;
       document.getElementById('btnDownload').disabled = isError;
-      lastReportedSec = -1;
-      lastReportedTotalSec = -1;
       setStatus(isError ? 'error' : 'ready');
       setPlayingState(!isError);
       updateDeckFavState();
     },
     onTrackEnded: function() {
       setPlayingState(false);
-      progressBar.value = 0;
-      timeCurrent.textContent = '00:00';
-      lastReportedSec = -1;
+      resetTimeline();
     }
   };
 });

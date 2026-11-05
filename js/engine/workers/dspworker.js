@@ -64,7 +64,13 @@ function extractMetadata(mod) {
   meta.channels = libopenmpt._openmpt_module_get_num_channels
     ? libopenmpt._openmpt_module_get_num_channels(mod)
     : (libopenmpt.ccall('openmpt_module_get_num_channels', 'number', ['number'], [mod]) || 0);
-  meta.duration = libopenmpt._openmpt_module_get_duration_seconds(mod) || 180;
+
+  // Compute nominal single-play duration with repeatCount=0 to prevent infinite duration
+  libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [mod, 0]);
+  const rawDur = libopenmpt._openmpt_module_get_duration_seconds
+    ? libopenmpt._openmpt_module_get_duration_seconds(mod)
+    : (libopenmpt.ccall('openmpt_module_get_duration_seconds', 'number', ['number'], [mod]) || 0);
+  meta.duration = (isFinite(rawDur) && rawDur > 0) ? rawDur : 180;
   return meta;
 }
 
@@ -74,6 +80,11 @@ function renderAndSendChunk() {
   }
 
   ensureScratchBuffers();
+
+  const rawPos = libopenmpt._openmpt_module_get_position_seconds
+    ? libopenmpt._openmpt_module_get_position_seconds(modulePtr)
+    : libopenmpt.ccall('openmpt_module_get_position_seconds', 'number', ['number'], [modulePtr]);
+  const chunkPos = (isFinite(rawPos) && rawPos >= 0) ? rawPos : 0;
 
   const actual = libopenmpt._openmpt_module_read_float_stereo(
     modulePtr,
@@ -85,7 +96,7 @@ function renderAndSendChunk() {
 
   if (actual === 0) {
     isPlaying = false;
-    self.postMessage({ type: 'ended' });
+    directPort.postMessage({ type: 'eos' });
     return;
   }
 
@@ -99,10 +110,8 @@ function renderAndSendChunk() {
   for (let i = 0; i < actual; i++) {
     let sL = heapF32[baseL + i];
     let sR = heapF32[baseR + i];
-    if (sL > 1.0) sL = 1.0;
-    else if (sL < -1.0) sL = -1.0;
-    if (sR > 1.0) sR = 1.0;
-    else if (sR < -1.0) sR = -1.0;
+    if (sL > 1.0) sL = 1.0; else if (sL < -1.0) sL = -1.0;
+    if (sR > 1.0) sR = 1.0; else if (sR < -1.0) sR = -1.0;
     leftArray[i] = sL;
     rightArray[i] = sR;
   }
@@ -111,7 +120,8 @@ function renderAndSendChunk() {
     {
       type: 'chunk',
       left: leftArray.buffer,
-      right: rightArray.buffer
+      right: rightArray.buffer,
+      pos: chunkPos
     },
     [leftArray.buffer, rightArray.buffer]
   );
@@ -125,17 +135,6 @@ function renderBatch(count) {
     }
     renderAndSendChunk();
   }
-}
-
-function reportPosition() {
-  if (!isPlaying || !modulePtr || !isEngineReady()) {
-    return;
-  }
-  const pos = libopenmpt._openmpt_module_get_position_seconds
-    ? libopenmpt._openmpt_module_get_position_seconds(modulePtr)
-    : libopenmpt.ccall('openmpt_module_get_position_seconds', 'number', ['number'], [modulePtr]);
-
-  self.postMessage({ type: 'position', position: pos || 0 });
 }
 
 function waitForEngine(callback, errback, attempts) {
@@ -164,7 +163,6 @@ self.onmessage = function(e) {
       }
       if (msgEvent.data.type === 'pull') {
         renderBatch(msgEvent.data.count || 1);
-        reportPosition();
       }
     };
   } else if (data.action === 'load') {
@@ -182,13 +180,14 @@ self.onmessage = function(e) {
           return;
         }
 
-        repeatCount = (data.repeatCount !== undefined) ? data.repeatCount : -1;
         libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 4]);
         libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
         libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 2, 100]);
-        libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [modulePtr, repeatCount]);
 
         const meta = extractMetadata(modulePtr);
+        repeatCount = (data.repeatCount !== undefined) ? data.repeatCount : -1;
+        libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [modulePtr, repeatCount]);
+
         self.postMessage({ type: 'metadata', meta: meta });
       } catch (err) {
         self.postMessage({ type: 'error', message: err.message });
@@ -201,20 +200,19 @@ self.onmessage = function(e) {
       return;
     }
     isPlaying = true;
-    // Prime the worklet with a healthy 1.2-second buffer (14 chunks of 4096 frames)
     renderBatch(14);
   } else if (data.action === 'pause') {
     isPlaying = false;
   } else if (data.action === 'seek') {
     if (modulePtr && typeof data.seconds === 'number') {
-      libopenmpt.ccall('openmpt_module_set_position_seconds', 'number', ['number', 'number'], [modulePtr, data.seconds]);
+      const targetSec = Math.max(0, data.seconds);
+      libopenmpt.ccall('openmpt_module_set_position_seconds', 'number', ['number', 'number'], [modulePtr, targetSec]);
       if (directPort) {
-        directPort.postMessage({ type: 'flush' });
+        directPort.postMessage({ type: 'flush', position: targetSec });
       }
       if (isPlaying) {
         renderBatch(14);
       }
-      reportPosition();
     }
   } else if (data.action === 'repeat') {
     repeatCount = data.repeatCount;
@@ -224,7 +222,7 @@ self.onmessage = function(e) {
   } else if (data.action === 'stop') {
     freeModule();
     if (directPort) {
-      directPort.postMessage({ type: 'flush' });
+      directPort.postMessage({ type: 'flush', position: 0 });
     }
   }
 };

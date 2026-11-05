@@ -60,6 +60,20 @@
         this.workletNode.paused = true;
         this.workletNode.connect(this.gainNode);
 
+        this.workletNode.port.onmessage = (e) => {
+          if (!e.data) return;
+          if (e.data.type === 'position') {
+            this.currentPosition = e.data.position;
+          } else if (e.data.type === 'ended') {
+            if (this.currentPlayingNode) {
+              this.currentPlayingNode.paused = true;
+              this.currentPlayingNode = null;
+            }
+            this.currentPosition = 0;
+            this.fireEvent('onEnded');
+          }
+        };
+
         this.dspWorker = new Worker('js/engine/workers/dspworker.js');
         this.bindWorkerEvents();
 
@@ -83,26 +97,16 @@
   ChiptuneJsPlayer.prototype.bindWorkerEvents = function() {
     this.dspWorker.onmessage = (e) => {
       const data = e.data;
-      if (!data) {
-        return;
-      }
+      if (!data) return;
 
       if (data.type === 'metadata') {
         this.currentMetadata = data.meta;
-        this.cachedDuration = data.meta.duration || 180;
+        this.cachedDuration = (data.meta && isFinite(data.meta.duration) && data.meta.duration > 0) ? data.meta.duration : 180;
         if (typeof this.pendingLoadCallback === 'function') {
           const cb = this.pendingLoadCallback;
           this.pendingLoadCallback = null;
           cb();
         }
-      } else if (data.type === 'position') {
-        this.currentPosition = data.position;
-      } else if (data.type === 'ended') {
-        if (this.currentPlayingNode) {
-          this.currentPlayingNode.paused = true;
-          this.currentPlayingNode = null;
-        }
-        this.fireEvent('onEnded');
       } else if (data.type === 'error') {
         this.fireEvent('onError', new Error(data.message));
       }
@@ -127,6 +131,8 @@
 
   ChiptuneJsPlayer.prototype.load = function(input, callback, errback) {
     this.unlock();
+    this.currentPosition = 0;
+    this.cachedDuration = 0;
 
     const finishLoad = (buf) => {
       this.initPipeline()
@@ -179,34 +185,34 @@
       return null;
     }
 
-    this.workletNode.port.postMessage({ type: 'flush' });
+    this.currentPosition = 0;
+    this.workletNode.port.postMessage({ type: 'flush', position: 0 });
     this.dspWorker.postMessage({ action: 'play' });
     this.workletNode.port.postMessage({ type: 'resume' });
 
     this.currentPlayingNode = this.workletNode;
     this.currentPlayingNode.paused = false;
-    this.currentPosition = 0;
 
     this.fireEvent('onPlay');
     return this.workletNode;
   };
 
   ChiptuneJsPlayer.prototype.stop = function() {
+    if (this.dspWorker) {
+      this.dspWorker.postMessage({ action: 'stop' });
+    }
+    if (this.workletNode) {
+      this.workletNode.port.postMessage({ type: 'flush', position: 0 });
+      this.workletNode.port.postMessage({ type: 'pause' });
+    }
     if (this.currentPlayingNode) {
-      if (this.dspWorker) {
-        this.dspWorker.postMessage({ action: 'stop' });
-      }
-      if (this.workletNode) {
-        this.workletNode.port.postMessage({ type: 'flush' });
-        this.workletNode.port.postMessage({ type: 'pause' });
-      }
       this.currentPlayingNode.paused = true;
       this.currentPlayingNode = null;
-      this.currentMetadata = null;
-      this.cachedDuration = 0;
-      this.currentPosition = 0;
-      this.fireEvent('onStop');
     }
+    this.currentMetadata = null;
+    this.cachedDuration = 0;
+    this.currentPosition = 0;
+    this.fireEvent('onStop');
   };
 
   ChiptuneJsPlayer.prototype.togglePause = function() {
@@ -230,18 +236,22 @@
   };
 
   ChiptuneJsPlayer.prototype.seek = function(seconds) {
+    const s = Math.max(0, Number(seconds) || 0);
+    this.currentPosition = s;
+    if (this.workletNode) {
+      this.workletNode.port.postMessage({ type: 'seek', position: s });
+    }
     if (this.dspWorker && this.currentPlayingNode) {
-      this.currentPosition = seconds;
-      this.dspWorker.postMessage({ action: 'seek', seconds: seconds });
+      this.dspWorker.postMessage({ action: 'seek', seconds: s });
     }
   };
 
   ChiptuneJsPlayer.prototype.getPosition = function() {
-    return this.currentPosition || 0;
+    return (isFinite(this.currentPosition) && this.currentPosition >= 0) ? this.currentPosition : 0;
   };
 
   ChiptuneJsPlayer.prototype.duration = function() {
-    return this.cachedDuration || 0;
+    return (isFinite(this.cachedDuration) && this.cachedDuration > 0) ? this.cachedDuration : 0;
   };
 
   ChiptuneJsPlayer.prototype.setVolume = function(vol) {
