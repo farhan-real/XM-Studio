@@ -3,6 +3,7 @@
  */
 (function(window) {
   let activeFormat = 'mp3';
+  let isUserDownloadPending = false;
 
   const btnFmtMp3 = document.getElementById('btnFmtMp3');
   const btnFmtWav = document.getElementById('btnFmtWav');
@@ -58,6 +59,54 @@
     setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
   }
 
+  function startInitialCompile(raw, targetTrackId) {
+    if (!raw || !window.AudioCompiler) return;
+    const format = activeFormat || 'mp3';
+
+    const cached = window.XMAudio.getCachedCompiled ? window.XMAudio.getCachedCompiled(targetTrackId, format) : null;
+    if (cached && cached.blob) {
+      if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
+      if (window.XMAudio && window.XMAudio.handoffToCompiled) {
+        window.XMAudio.handoffToCompiled(cached.blob, format, targetTrackId, cached.visData, cached.visFps);
+      }
+      return;
+    }
+
+    if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('compiling');
+    if (readoutProgressTrack) readoutProgressTrack.classList.remove('hide');
+    if (readoutProgressBar) readoutProgressBar.style.width = '0%';
+
+    window.AudioCompiler.compile(
+      raw,
+      format,
+      (progress) => {
+        if (readoutProgressBar) readoutProgressBar.style.width = `${Math.round(progress * 100)}%`;
+        if (window.XMApp && window.XMApp.setCompileStatus) {
+          window.XMApp.setCompileStatus('compiling', progress);
+        }
+      },
+      (blob, visData, visFps) => {
+        if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
+        if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
+
+        if (isUserDownloadPending) {
+          isUserDownloadPending = false;
+          const info = window.XMAudio.getCurrentInfo();
+          triggerBlobDownload(blob, `${info.artist} - ${info.title}.${format}`.replace(/[/\\?%*:|"<>]/g, '_'));
+        }
+
+        if (window.XMAudio && window.XMAudio.handoffToCompiled) {
+          window.XMAudio.handoffToCompiled(blob, format, targetTrackId, visData, visFps);
+        }
+      },
+      (err) => {
+        console.error('Initial audio compilation failed:', err);
+        if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
+        if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('error');
+      }
+    );
+  }
+
   async function handleExportDownload() {
     const info = window.XMAudio ? window.XMAudio.getCurrentInfo() : { title: 'track', artist: 'artist' };
     const ext = window.XMAudio && window.XMAudio.getCurrentExtension ? window.XMAudio.getCurrentExtension() : 'xm';
@@ -91,12 +140,14 @@
     // 2. Check if this track is ALREADY compiled in cache -> instant zero-delay download!
     const cached = window.XMAudio.getCachedCompiled ? window.XMAudio.getCachedCompiled(targetTrackId, activeFormat) : null;
     if (cached && cached.blob) {
+      if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
       triggerBlobDownload(cached.blob, downloadFilename);
       return;
     }
 
-    // 3. If currently playing native audio and format matches, download directly
+    // 3. If currently playing compiled/native audio and format matches, download directly!
     if (window.XMAudio.currentAudioBlob && ext.toLowerCase() === activeFormat.toLowerCase()) {
+      if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
       triggerBlobDownload(window.XMAudio.currentAudioBlob, downloadFilename);
       return;
     }
@@ -118,7 +169,13 @@
       }
     }
 
-    // 5. Retrieve source ArrayBuffer for off-thread compilation
+    // 5. If compilation is already in flight, queue download for completion
+    if (window.AudioCompiler && window.AudioCompiler.isCompiling) {
+      isUserDownloadPending = true;
+      return;
+    }
+
+    // 6. Retrieve source ArrayBuffer for off-thread compilation
     let raw = window.XMAudio ? window.XMAudio.currentRawBuffer : null;
     if (!raw && window.XMAudio.currentAudioBlob) {
       try {
@@ -132,9 +189,9 @@
     }
     if (!raw) return;
 
-    // 6. Completely independent background compile:
-    // DOES NOT interrupt, touch, or desync the active playback engine, scrubber, or UI!
-    if (window.XMApp && window.XMApp.setStatus) window.XMApp.setStatus('compiling');
+    // 7. Background compile with progress reporting and smooth post-export handoff
+    isUserDownloadPending = true;
+    if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('compiling');
     if (readoutProgressTrack) readoutProgressTrack.classList.remove('hide');
     if (readoutProgressBar) readoutProgressBar.style.width = '0%';
 
@@ -142,26 +199,29 @@
       raw,
       activeFormat,
       (progress) => {
-        if (readoutProgressBar) {
-          readoutProgressBar.style.width = `${Math.round(progress * 100)}%`;
+        if (readoutProgressBar) readoutProgressBar.style.width = `${Math.round(progress * 100)}%`;
+        if (window.XMApp && window.XMApp.setCompileStatus) {
+          window.XMApp.setCompileStatus('compiling', progress);
         }
       },
       (blob, visData, visFps) => {
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
-        if (window.XMApp && window.XMApp.setStatus) window.XMApp.setStatus('ready');
+        if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
 
-        // Cache compiled audio so any future downloads of this track are instant
-        if (window.XMAudio && window.XMAudio.setCachedCompiled) {
-          window.XMAudio.setCachedCompiled(targetTrackId, activeFormat, blob, visData, visFps);
+        if (isUserDownloadPending) {
+          isUserDownloadPending = false;
+          triggerBlobDownload(blob, downloadFilename);
         }
 
-        // Trigger file download to disk without altering active playback
-        triggerBlobDownload(blob, downloadFilename);
+        if (window.XMAudio && window.XMAudio.handoffToCompiled) {
+          window.XMAudio.handoffToCompiled(blob, activeFormat, targetTrackId, visData, visFps);
+        }
       },
       (err) => {
         console.error('Audio compilation failed:', err);
+        isUserDownloadPending = false;
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
-        if (window.XMApp && window.XMApp.setStatus) window.XMApp.setStatus('error');
+        if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('error');
       }
     );
   }
@@ -222,6 +282,7 @@
   });
 
   window.XMExport = {
-    getActiveFormat: () => activeFormat
+    getActiveFormat: () => activeFormat,
+    startInitialCompile
   };
 })(window);

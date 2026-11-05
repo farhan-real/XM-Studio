@@ -1,5 +1,5 @@
 /**
- * js/app.js - Main workstation controller with visualizer sleep state management.
+ * js/app.js - Main workstation controller with visualizer sleep state and dual status indicators.
  */
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
@@ -41,7 +41,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const modType = document.getElementById('modType');
   const badgeEngine = document.querySelector('.badge-engine');
   const channels = document.getElementById('channels');
-  const statusBadge = document.getElementById('statusBadge');
+  const playbackBadge = document.getElementById('playbackBadge');
+  const playbackStatus = document.getElementById('playbackStatus');
+  const compileBadge = document.getElementById('compileBadge');
+  const compileStatus = document.getElementById('compileStatus');
   const miniTrackNum = document.getElementById('miniTrackNum');
   const btnToggleLeft = document.getElementById('btnToggleLeft');
   const btnToggleRight = document.getElementById('btnToggleRight');
@@ -183,20 +186,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  function setStatus(state) {
-    statusBadge.className = 'badge status-badge';
-    if (state === 'idle') {
-      statusBadge.classList.add('status-idle');
-      statusBadge.textContent = 'STATUS: IDLE';
-    } else if (state === 'compiling') {
-      statusBadge.classList.add('status-compiling');
-      statusBadge.textContent = 'STATUS: COMPILING';
-    } else if (state === 'ready') {
-      statusBadge.classList.add('status-ready');
-      statusBadge.textContent = 'STATUS: READY';
-    } else if (state === 'error') {
-      statusBadge.classList.add('status-error');
-      statusBadge.textContent = 'STATUS: ERROR';
+  function setPlaybackStatus(state) {
+    if (!playbackBadge || !playbackStatus) return;
+    const s = (state || 'idle').toLowerCase();
+    playbackBadge.className = 'badge badge-playback';
+    if (s === 'live') {
+      playbackBadge.classList.add('status-live');
+      playbackStatus.textContent = 'LIVE';
+    } else if (s === 'loaded') {
+      playbackBadge.classList.add('status-loaded');
+      playbackStatus.textContent = 'LOADED';
+    } else {
+      playbackBadge.classList.add('status-idle');
+      playbackStatus.textContent = 'IDLE';
+    }
+  }
+
+  function setCompileStatus(state, pct) {
+    if (!compileBadge || !compileStatus) return;
+    const s = (state || 'idle').toLowerCase();
+    compileBadge.className = 'badge badge-compile';
+    if (s === 'compiling') {
+      compileBadge.classList.add('status-compiling');
+      compileStatus.textContent = (typeof pct === 'number' && pct > 0) ? `${Math.round(pct * 100)}%` : 'COMPILING';
+    } else if (s === 'error') {
+      compileBadge.classList.add('status-error');
+      compileStatus.textContent = 'ERROR';
+    } else if (s === 'ready') {
+      compileBadge.classList.add('status-ready');
+      compileStatus.textContent = 'READY';
+    } else {
+      compileBadge.classList.add('status-idle');
+      compileStatus.textContent = 'IDLE';
     }
   }
 
@@ -295,7 +316,8 @@ document.addEventListener('DOMContentLoaded', () => {
     channels.textContent = '--';
     resetTimeline();
     document.getElementById('btnDownload').disabled = true;
-    setStatus('idle');
+    setPlaybackStatus('idle');
+    setCompileStatus('idle');
     setPlayingState(false);
     updateDeckFavState();
     if (window.XMLibrary) window.XMLibrary.notifyPlaying(null);
@@ -348,7 +370,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.XMApp = {
     setPlayingState,
-    setStatus,
+    setStatus: (s) => {
+      if (s === 'compiling' || s === 'ready' || s === 'error') setCompileStatus(s);
+      else if (s === 'idle') { setPlaybackStatus('idle'); setCompileStatus('idle'); }
+    },
+    setPlaybackStatus,
+    setCompileStatus,
     updateDeckFav: updateDeckFavState,
     showMobileArchiveView,
     showMobilePlayerView,
@@ -381,7 +408,14 @@ document.addEventListener('DOMContentLoaded', () => {
         badgeEngine.classList.remove('engine-none');
         badgeEngine.classList.toggle('engine-error', isError);
       }
-      channels.textContent = channelCount;
+      if (channels) {
+        if (!channelCount || channelCount === '--' || isError) {
+          channels.textContent = '--';
+        } else {
+          const numOnly = String(channelCount).replace(/\s*ch/i, '').trim();
+          channels.textContent = numOnly ? `${numOnly}CH` : '--';
+        }
+      }
       const fmt = window.XMExport ? window.XMExport.getActiveFormat() : 'mp3';
       const qualityBadge = document.getElementById('qualityBadge');
       if (qualityBadge) {
@@ -390,7 +424,12 @@ document.addEventListener('DOMContentLoaded', () => {
       const rateBadge = document.getElementById('rateBadge');
       if (rateBadge) rateBadge.textContent = isError ? '--' : '48 KHZ';
       document.getElementById('btnDownload').disabled = isError;
-      setStatus(isError ? 'error' : 'ready');
+      if (isError) {
+        setPlaybackStatus('idle');
+        setCompileStatus('error');
+      } else {
+        setPlaybackStatus(isNative ? 'loaded' : 'live');
+      }
       setPlayingState(!isError && (window.XMAudio ? window.XMAudio.isPlaying() : false));
       updateDeckFavState();
     },

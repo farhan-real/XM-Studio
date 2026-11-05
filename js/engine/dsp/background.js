@@ -131,7 +131,7 @@
 
   function unlock() {
     const audioEl = getAudioElement();
-    if (audioEl && audioEl.paused && audioEl.src) {
+    if (isActive && audioEl && audioEl.paused && audioEl.src) {
       audioEl.play().catch(() => {});
     }
     if (window.XMAudio && window.XMAudio.player) {

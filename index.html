@@ -133,8 +133,15 @@
           <div class="header-top-right"><span class="badge badge-engine"><span class="spec-key">ENGINE:</span> <span id="modType">NONE</span></span><button class="btn-unload" id="btnUnload" title="Unload track" aria-label="Unload track"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>
         </div>
         <div class="header-badges">
-          <div class="badges-group"><span class="badge" id="qualityBadge">320 KBPS</span><span class="badge" id="rateBadge">48 KHZ</span><span class="badge badge-channels"><span class="spec-key">CHANNELS:</span> <span id="channels">--</span></span></div>
-          <span class="badge status-badge status-idle" id="statusBadge">STATUS: IDLE</span>
+          <div class="badges-group">
+            <span class="badge" id="qualityBadge">320 KBPS</span>
+            <span class="badge" id="rateBadge">48 KHZ</span>
+            <span class="badge badge-channels" id="channelsBadge"><span id="channels">--</span></span>
+          </div>
+          <div class="status-cluster">
+            <span class="badge badge-playback status-idle" id="playbackBadge"><span class="spec-key">PLAYBACK:</span><span id="playbackStatus">IDLE</span></span>
+            <span class="badge badge-compile status-idle" id="compileBadge"><span class="spec-key">COMPILE:</span><span id="compileStatus">IDLE</span></span>
+          </div>
         </div>
       </header>
       <div class="deck-container"><div class="canvas-wrap"><canvas id="visualizer"></canvas></div><div class="screen-grid"></div></div>
