@@ -13,10 +13,7 @@ class XMAudioWorkletProcessor extends AudioWorkletProcessor {
 
     this.port.onmessage = (e) => {
       const data = e.data;
-      if (!data) {
-        return;
-      }
-
+      if (!data) return;
       if (data.type === 'init-port') {
         this.initDirectPort(data.port);
       } else if (data.type === 'pause') {
@@ -33,10 +30,7 @@ class XMAudioWorkletProcessor extends AudioWorkletProcessor {
     this.directPort = port;
     this.directPort.onmessage = (e) => {
       const data = e.data;
-      if (!data) {
-        return;
-      }
-
+      if (!data) return;
       if (data.type === 'chunk') {
         this.leftQueue.push(new Float32Array(data.left));
         this.rightQueue.push(new Float32Array(data.right));
@@ -54,19 +48,16 @@ class XMAudioWorkletProcessor extends AudioWorkletProcessor {
 
   process(inputs, outputs) {
     const output = outputs[0];
-    if (!output || output.length < 2) {
-      return true;
-    }
+    if (!output || output.length === 0) return true;
 
     const outL = output[0];
-    const outR = output[1];
+    const outR = output[1] || null;
+    const isMono = !outR;
     const framesNeeded = outL.length;
 
     if (this.isPaused || this.leftQueue.length === 0) {
       outL.fill(0);
-      outR.fill(0);
-
-      // If playing but starved, proactively signal emergency refill
+      if (outR) outR.fill(0);
       if (!this.isPaused && this.directPort) {
         this.directPort.postMessage({ type: 'pull', count: 8 });
       }
@@ -80,10 +71,15 @@ class XMAudioWorkletProcessor extends AudioWorkletProcessor {
       const available = curL.length - this.readOffset;
       const toCopy = Math.min(available, framesNeeded - framesWritten);
 
-      // Direct loop copy avoids GC allocation in the real-time audio thread
-      for (let i = 0; i < toCopy; i++) {
-        outL[framesWritten + i] = curL[this.readOffset + i];
-        outR[framesWritten + i] = curR[this.readOffset + i];
+      if (isMono) {
+        for (let i = 0; i < toCopy; i++) {
+          outL[framesWritten + i] = 0.5 * (curL[this.readOffset + i] + curR[this.readOffset + i]);
+        }
+      } else {
+        for (let i = 0; i < toCopy; i++) {
+          outL[framesWritten + i] = curL[this.readOffset + i];
+          outR[framesWritten + i] = curR[this.readOffset + i];
+        }
       }
 
       this.readOffset += toCopy;
@@ -94,7 +90,6 @@ class XMAudioWorkletProcessor extends AudioWorkletProcessor {
         this.rightQueue.shift();
         this.readOffset = 0;
 
-        // Keep buffer topped up as chunks are consumed
         if (this.directPort) {
           const needed = this.leftQueue.length < 8 ? 4 : 1;
           this.directPort.postMessage({ type: 'pull', count: needed });
@@ -102,14 +97,13 @@ class XMAudioWorkletProcessor extends AudioWorkletProcessor {
       }
     }
 
-    // Proactive low-watermark refill request before queue drops to zero
     if (this.leftQueue.length < 6 && this.directPort && !this.isPaused) {
       this.directPort.postMessage({ type: 'pull', count: 4 });
     }
 
     if (framesWritten < framesNeeded) {
       outL.subarray(framesWritten).fill(0);
-      outR.subarray(framesWritten).fill(0);
+      if (outR) outR.subarray(framesWritten).fill(0);
     }
 
     return true;

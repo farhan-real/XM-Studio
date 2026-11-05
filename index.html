@@ -14,15 +14,15 @@
   <link rel="stylesheet" href="css/controls.css" />
   <link rel="stylesheet" href="css/tracks.css" />
   <link rel="stylesheet" href="css/library.css" />
-  <script>
+  <script data-cfasync="false">
     window.libopenmpt = window.libopenmpt || {};
     window.libopenmpt.locateFile = function(f) {
       return window.USE_CDN ? "https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/" + f : "js/" + f;
     };
   </script>
-  <script src="js/libopenmpt.js" onerror="window.USE_CDN=true; this.src='https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js';"></script>
-  <script src="js/engine/dsp/chiptune2.js"></script>
-  <script src="js/engine/export/compiler.js"></script>
+  <script data-cfasync="false" src="js/libopenmpt.js" onerror="window.USE_CDN=true; this.src='https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js';"></script>
+  <script data-cfasync="false" src="js/engine/dsp/chiptune2.js"></script>
+  <script data-cfasync="false" src="js/engine/export/compiler.js"></script>
 </head>
 <body>
   <div class="mobile-view-toggle">
@@ -87,7 +87,7 @@
           <div class="source-status-msg" id="backupStatusMsg"></div>
         </div>
         <div class="source-config-card">
-          <div class="source-card-header"><span class="spec-key">LOCAL FOLDER SOURCES</span><span class="badge" id="folderCountBadge">0 FOLDERS</span></div>
+          <div class="source-card-header"><span class="spec-key">LOCAL FOLDER SOURCES</span><span class="badge" id="folderCountBadge">0 ACTIVE</span></div>
           <p class="source-subtext">Mount local directories containing tracker modules or audio files. Folders and nested subdirectories are cataloged and stored in IndexedDB.</p>
           <div class="source-actions">
             <input type="file" id="inputLocalFolder" webkitdirectory directory multiple class="hide" />
@@ -116,7 +116,7 @@
         </div>
         <div class="source-config-card">
           <div class="source-card-header"><span class="spec-key">CUSTOM MUSIC ARCHIVE</span><span class="badge" id="customCountBadge">0 ADDED</span></div>
-          <p class="source-subtext">Add tracker or audio files (.xm, .mod, .it, .s3m, .flac, .mp3, .wav). Stored permanently in IndexedDB and blended into Archive.</p>
+          <p class="source-subtext">Add tracker or audio files (.xm, .mod, .it, .s3m, .mtm, .flac, .mp3, .ogg, .wav, .v2m, .mid, .ahx, .sid). Stored permanently in IndexedDB and blended into Archive.</p>
           <div class="source-actions">
             <input type="file" id="inputCustomFiles" multiple accept=".xm,.mod,.it,.s3m,.mtm,.flac,.mp3,.ogg,.wav,.v2m,.mid,.ahx,.sid" class="hide" />
             <button class="action-btn" id="btnAddCustomFile"><svg viewBox="0 0 24 24" class="action-icon"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg><span>ADD TRACKS</span></button>
@@ -180,20 +180,20 @@
     </div>
   </div>
   <audio id="nativeAudio" preload="metadata" playsinline></audio>
-  <script src="js/engine/dsp/visualizer.js"></script>
-  <script src="js/engine/dsp/background.js"></script>
-  <script src="js/engine/dsp/queue.js"></script>
-  <script src="js/engine/dsp/audio.js"></script>
-  <script src="js/engine/export/export.js"></script>
-  <script src="js/data/storage/zip.js"></script>
-  <script src="js/data/playlist/playlist.js"></script>
-  <script src="js/data/playlist/playlistui.js"></script>
-  <script src="js/data/storage/custom.js"></script>
-  <script src="js/data/catalog/sources.js"></script>
-  <script src="js/data/catalog/catalog.js"></script>
-  <script src="js/data/view/scroller.js"></script>
-  <script src="js/data/storage/backup.js"></script>
-  <script src="js/data/view/library.js"></script>
-  <script src="js/app.js"></script>
+  <script data-cfasync="false" src="js/engine/dsp/visualizer.js"></script>
+  <script data-cfasync="false" src="js/engine/dsp/background.js"></script>
+  <script data-cfasync="false" src="js/engine/dsp/queue.js"></script>
+  <script data-cfasync="false" src="js/engine/dsp/audio.js"></script>
+  <script data-cfasync="false" src="js/engine/export/export.js"></script>
+  <script data-cfasync="false" src="js/data/storage/zip.js"></script>
+  <script data-cfasync="false" src="js/data/playlist/playlist.js"></script>
+  <script data-cfasync="false" src="js/data/playlist/playlistui.js"></script>
+  <script data-cfasync="false" src="js/data/storage/custom.js"></script>
+  <script data-cfasync="false" src="js/data/catalog/sources.js"></script>
+  <script data-cfasync="false" src="js/data/catalog/catalog.js"></script>
+  <script data-cfasync="false" src="js/data/view/scroller.js"></script>
+  <script data-cfasync="false" src="js/data/storage/backup.js"></script>
+  <script data-cfasync="false" src="js/data/view/library.js"></script>
+  <script data-cfasync="false" src="js/app.js"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 /**
- * js/engine/export.js - Export target formats, audio compilation, and ingestion deck coordinator.
+ * js/engine/export/export.js - Export target formats, audio compilation, and ingestion deck coordinator.
  */
 (function(window) {
   let activeFormat = 'mp3';
@@ -19,9 +19,7 @@
   function updateFmtButtons(activeId) {
     const list = [btnFmtMp3, btnFmtWav, btnFmtRaw];
     for (let i = 0; i < list.length; i++) {
-      if (list[i]) {
-        list[i].classList.toggle('active', list[i].id === activeId);
-      }
+      if (list[i]) list[i].classList.toggle('active', list[i].id === activeId);
     }
   }
 
@@ -115,9 +113,7 @@
     );
   }
 
-  if (btnDownload) {
-    btnDownload.addEventListener('click', handleExportDownload);
-  }
+  if (btnDownload) btnDownload.addEventListener('click', handleExportDownload);
 
   if (btnBrowse && fileInput) {
     btnBrowse.addEventListener('click', () => fileInput.click());
@@ -155,11 +151,22 @@
     });
 
     dropZone.addEventListener('drop', (e) => {
-      if (e.dataTransfer.files.length > 0 && window.XMAudio) {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && window.XMAudio) {
         window.XMAudio.loadTrack(e.dataTransfer.files[0], e.dataTransfer.files[0].name);
       }
     });
   }
+
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (dropZone) dropZone.classList.remove('drag-over');
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0 && window.XMAudio) {
+      window.XMAudio.loadTrack(e.dataTransfer.files[0], e.dataTransfer.files[0].name);
+    }
+  });
 
   window.XMExport = {
     getActiveFormat: () => activeFormat

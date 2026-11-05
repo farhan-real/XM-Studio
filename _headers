@@ -1,0 +1,15 @@
+/*
+  X-Content-Type-Options: nosniff
+  Access-Control-Allow-Origin: *
+
+/js/engine/workers/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/js/libopenmpt*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.wasm
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.mem
+  Cache-Control: public, max-age=31536000, immutable
