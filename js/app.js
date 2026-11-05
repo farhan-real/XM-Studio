@@ -391,7 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (rateBadge) rateBadge.textContent = isError ? '--' : '48 KHZ';
       document.getElementById('btnDownload').disabled = isError;
       setStatus(isError ? 'error' : 'ready');
-      setPlayingState(!isError);
+      setPlayingState(!isError && (window.XMAudio ? window.XMAudio.isPlaying() : false));
       updateDeckFavState();
     },
     onTrackEnded: function() {
