@@ -3,9 +3,10 @@
  */
 (function(window) {
   const DB_NAME = 'xm_studio_cache_db';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2; // Upgraded to v2 for 10 FPS visualizer migration
   const STORE_NAME = 'compiled_songs';
   const MAX_ITEMS = 10;
+  const CURRENT_VIS_FPS = 10;
 
   const ramCache = new Map();
   let dbPromise = null;
@@ -17,6 +18,10 @@
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
+        // Purge legacy v1 store with outdated visualizer data
+        if (e.oldVersion < 2 && db.objectStoreNames.contains(STORE_NAME)) {
+          db.deleteObjectStore(STORE_NAME);
+        }
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
           store.createIndex('timestamp', 'timestamp', { unique: false });
@@ -63,24 +68,37 @@
     try {
       const db = await openDB();
       if (!db) return;
-      const tx = db.transaction(STORE_NAME, 'readonly');
+      const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       const req = store.getAll();
       req.onsuccess = () => {
         const items = req.result || [];
         items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
         ramCache.clear();
-        const keep = items.slice(0, MAX_ITEMS);
+
+        const validItems = [];
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          // Invalidate and delete any records not matching current 10 FPS visualizer
+          if (item.visFps === CURRENT_VIS_FPS && item.visData) {
+            validItems.push(item);
+          } else {
+            store.delete(item.id);
+          }
+        }
+
+        const keep = validItems.slice(0, MAX_ITEMS);
         for (let i = 0; i < keep.length; i++) {
           const item = keep[i];
           ramCache.set(item.id, {
             blob: item.blob,
             ext: item.format || 'mp3',
             visData: item.visData,
-            visFps: item.visFps || 30
+            visFps: item.visFps || CURRENT_VIS_FPS
           });
         }
-        if (items.length > MAX_ITEMS) {
+
+        if (validItems.length > MAX_ITEMS) {
           pruneOldEntries(db);
         }
       };
@@ -91,6 +109,11 @@
     const key = `${trackId}_${(format || 'mp3').toLowerCase()}`;
     const item = ramCache.get(key);
     if (item) {
+      if (item.visFps !== CURRENT_VIS_FPS) {
+        ramCache.delete(key);
+        return null;
+      }
+
       openDB().then((db) => {
         if (!db) return;
         try {
@@ -120,7 +143,7 @@
       blob,
       ext: fmt,
       visData: visData ? (visData instanceof Uint8Array ? visData : new Uint8Array(visData)) : null,
-      visFps: visFps || 30
+      visFps: visFps || CURRENT_VIS_FPS
     };
 
     ramCache.set(key, entry);
