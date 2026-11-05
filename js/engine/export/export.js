@@ -1,5 +1,5 @@
 /**
- * js/engine/export/export.js - Export target formats, audio compilation, and ingestion deck coordinator.
+ * js/engine/export/export.js - Independent background audio export, format routing, and instant cache delivery.
  */
 (function(window) {
   let activeFormat = 'mp3';
@@ -47,16 +47,30 @@
     });
   }
 
+  function triggerBlobDownload(blob, filename) {
+    const a = document.createElement('a');
+    const blobUrl = URL.createObjectURL(blob);
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+  }
+
   async function handleExportDownload() {
     const info = window.XMAudio ? window.XMAudio.getCurrentInfo() : { title: 'track', artist: 'artist' };
     const ext = window.XMAudio && window.XMAudio.getCurrentExtension ? window.XMAudio.getCurrentExtension() : 'xm';
-    const safeName = `${info.artist} - ${info.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
     const targetTrackId = (window.XMAudio.currentTrackItem && window.XMAudio.currentTrackItem.id) ||
       window.XMAudio.currentAudioSrc ||
       info.title;
 
     if (!info || !info.title || info.title === 'No Module Loaded') return;
 
+    const outExt = (activeFormat === 'raw') ? ext : activeFormat;
+    const downloadFilename = `${info.artist} - ${info.title}.${outExt}`.replace(/[/\\?%*:|"<>]/g, '_');
+
+    // 1. Direct Tracker / Raw file download
     if (activeFormat === 'raw') {
       let blob = window.XMAudio.currentAudioBlob;
       if (!blob && window.XMAudio.currentRawBuffer) {
@@ -69,28 +83,27 @@
         } catch (e) {}
       }
       if (blob) {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = safeName;
-        a.click();
-        URL.revokeObjectURL(a.href);
+        triggerBlobDownload(blob, downloadFilename);
       }
       return;
     }
 
-    if (window.XMAudio.currentAudioBlob && ext.toLowerCase() === activeFormat.toLowerCase()) {
-      const a = document.createElement('a');
-      const blobUrl = URL.createObjectURL(window.XMAudio.currentAudioBlob);
-      a.href = blobUrl;
-      a.download = `${info.artist} - ${info.title}.${activeFormat}`.replace(/[/\\?%*:|"<>]/g, '_');
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+    // 2. Check if this track is ALREADY compiled in cache -> instant zero-delay download!
+    const cached = window.XMAudio.getCachedCompiled ? window.XMAudio.getCachedCompiled(targetTrackId, activeFormat) : null;
+    if (cached && cached.blob) {
+      triggerBlobDownload(cached.blob, downloadFilename);
       return;
     }
 
+    // 3. If currently playing native audio and format matches, download directly
+    if (window.XMAudio.currentAudioBlob && ext.toLowerCase() === activeFormat.toLowerCase()) {
+      triggerBlobDownload(window.XMAudio.currentAudioBlob, downloadFilename);
+      return;
+    }
+
+    // 4. Fallback for non-tracker native streams (e.g. FLAC)
     const TRACKER_EXTS = new Set(['xm', 'mod', 'it', 's3m', 'mtm', 'mo3', 'med', '669', 'far', 'ptm', 'v2m', 'ahx', 'sid']);
     const isTracker = TRACKER_EXTS.has(ext.toLowerCase());
-
     if (!isTracker && (window.XMAudio.currentAudioBlob || window.XMAudio.currentAudioSrc)) {
       let blob = window.XMAudio.currentAudioBlob;
       if (!blob && window.XMAudio.currentAudioSrc) {
@@ -100,16 +113,12 @@
         } catch (e) {}
       }
       if (blob) {
-        const a = document.createElement('a');
-        const blobUrl = URL.createObjectURL(blob);
-        a.href = blobUrl;
-        a.download = `${info.artist} - ${info.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_');
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+        triggerBlobDownload(blob, `${info.artist} - ${info.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_'));
         return;
       }
     }
 
+    // 5. Retrieve source ArrayBuffer for off-thread compilation
     let raw = window.XMAudio ? window.XMAudio.currentRawBuffer : null;
     if (!raw && window.XMAudio.currentAudioBlob) {
       try {
@@ -123,6 +132,8 @@
     }
     if (!raw) return;
 
+    // 6. Completely independent background compile:
+    // DOES NOT interrupt, touch, or desync the active playback engine, scrubber, or UI!
     if (window.XMApp && window.XMApp.setStatus) window.XMApp.setStatus('compiling');
     if (readoutProgressTrack) readoutProgressTrack.classList.remove('hide');
     if (readoutProgressBar) readoutProgressBar.style.width = '0%';
@@ -139,16 +150,13 @@
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
         if (window.XMApp && window.XMApp.setStatus) window.XMApp.setStatus('ready');
 
-        const a = document.createElement('a');
-        const blobUrl = URL.createObjectURL(blob);
-        a.href = blobUrl;
-        a.download = `${info.artist} - ${info.title}.${activeFormat}`.replace(/[/\\?%*:|"<>]/g, '_');
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-
-        if (window.XMAudio && window.XMAudio.handoffToCompiled) {
-          window.XMAudio.handoffToCompiled(blob, activeFormat, targetTrackId, visData, visFps);
+        // Cache compiled audio so any future downloads of this track are instant
+        if (window.XMAudio && window.XMAudio.setCachedCompiled) {
+          window.XMAudio.setCachedCompiled(targetTrackId, activeFormat, blob, visData, visFps);
         }
+
+        // Trigger file download to disk without altering active playback
+        triggerBlobDownload(blob, downloadFilename);
       },
       (err) => {
         console.error('Audio compilation failed:', err);
