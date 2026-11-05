@@ -4,6 +4,23 @@
 /* global importScripts, libopenmpt, lamejs */
 self.libopenmpt = self.libopenmpt || {};
 
+let isRuntimeReady = false;
+let isRuntimeAborted = false;
+let abortErrorMessage = '';
+
+const prevInit = self.libopenmpt.onRuntimeInitialized;
+self.libopenmpt.onRuntimeInitialized = function() {
+  isRuntimeReady = true;
+  if (typeof prevInit === 'function') prevInit();
+};
+
+const prevAbort = self.libopenmpt.onAbort;
+self.libopenmpt.onAbort = function(msg) {
+  isRuntimeAborted = true;
+  abortErrorMessage = String(msg || 'Module aborted');
+  if (typeof prevAbort === 'function') prevAbort(msg);
+};
+
 if (self.location.search && self.location.search.includes('cdn=1')) {
   self.USE_CDN = true;
 }
@@ -45,11 +62,15 @@ function getLame() {
 
 function isEngineReady() {
   try {
-    if (typeof libopenmpt === 'undefined' || typeof libopenmpt._malloc !== 'function') return false;
+    if (isRuntimeAborted) return false;
+    if (typeof libopenmpt === 'undefined') return false;
     if (!libopenmpt.HEAPU8 || libopenmpt.HEAPU8.length === 0) return false;
-    const ptr = libopenmpt._malloc(4);
-    if (!ptr) return false;
-    libopenmpt._free(ptr);
+    if (typeof libopenmpt._malloc !== 'function') return false;
+    if (typeof libopenmpt._openmpt_module_create_from_memory !== 'function') return false;
+    if (!isRuntimeReady && !libopenmpt.calledRun && !libopenmpt.asm) return false;
+
+    // Probe the entry point to ensure Module['asm'] is resolved and callable
+    libopenmpt._openmpt_module_create_from_memory(0, 0, 0, 0, 0);
     return true;
   } catch (e) {
     return false;
@@ -58,9 +79,13 @@ function isEngineReady() {
 
 function waitForEngine(callback, errback, attempts) {
   const tries = attempts || 0;
+  if (isRuntimeAborted) {
+    if (errback) errback(new Error(abortErrorMessage || 'libopenmpt memory initialization aborted.'));
+    return;
+  }
   if (isEngineReady()) {
     callback();
-  } else if (tries < 200) {
+  } else if (tries < 300) {
     setTimeout(() => waitForEngine(callback, errback, tries + 1), 50);
   } else if (errback) {
     errback(new Error('DSP engine memory initialization timed out in worker.'));
@@ -136,10 +161,7 @@ function computeFftBars(inputSamples, outTarget, outOffset) {
   }
   for (let b = 0; b < FFT_BARS; b++) {
     const binIdx = Math.min(30, Math.floor(1 + Math.pow(b / (FFT_BARS - 1), 1.35) * 28));
-    const re = fftRe[binIdx];
-    const im = fftIm[binIdx];
-    const mag = Math.sqrt(re * re + im * im) / 32.0;
-
+    const mag = Math.sqrt(fftRe[binIdx] * fftRe[binIdx] + fftIm[binIdx] * fftIm[binIdx]) / 32.0;
     let val = 0;
     if (mag > 0.00001) {
       const db = 20 * Math.log10(mag);
@@ -219,7 +241,6 @@ function runCompilation(data) {
     let samplesSinceLastVis = 0;
     const fftWindowBuf = new Float32Array(FFT_SIZE);
     let fftWindowPtr = 0;
-
     let framesRendered = 0;
     let lastReportedPct = -1;
 

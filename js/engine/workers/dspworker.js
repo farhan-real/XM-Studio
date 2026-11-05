@@ -3,6 +3,24 @@
  */
 /* global importScripts, libopenmpt */
 self.libopenmpt = self.libopenmpt || {};
+
+let isRuntimeReady = false;
+let isRuntimeAborted = false;
+let abortErrorMessage = '';
+
+const prevInit = self.libopenmpt.onRuntimeInitialized;
+self.libopenmpt.onRuntimeInitialized = function() {
+  isRuntimeReady = true;
+  if (typeof prevInit === 'function') prevInit();
+};
+
+const prevAbort = self.libopenmpt.onAbort;
+self.libopenmpt.onAbort = function(msg) {
+  isRuntimeAborted = true;
+  abortErrorMessage = String(msg || 'Module aborted');
+  if (typeof prevAbort === 'function') prevAbort(msg);
+};
+
 self.libopenmpt.locateFile = function(f) {
   return self.USE_CDN
     ? 'https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/' + f
@@ -28,9 +46,19 @@ let rightBufferPtr = 0;
 const CHUNK_FRAMES = 4096;
 
 function isEngineReady() {
-  return typeof libopenmpt !== 'undefined' &&
-    Boolean(libopenmpt._openmpt_module_create_from_memory) &&
-    Boolean(libopenmpt.HEAPU8);
+  try {
+    if (isRuntimeAborted) return false;
+    if (typeof libopenmpt === 'undefined') return false;
+    if (!libopenmpt.HEAPU8 || libopenmpt.HEAPU8.length === 0) return false;
+    if (typeof libopenmpt._malloc !== 'function') return false;
+    if (typeof libopenmpt._openmpt_module_create_from_memory !== 'function') return false;
+    if (!isRuntimeReady && !libopenmpt.calledRun && !libopenmpt.asm) return false;
+
+    libopenmpt._openmpt_module_create_from_memory(0, 0, 0, 0, 0);
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 function ensureScratchBuffers() {
@@ -139,9 +167,13 @@ function renderBatch(count) {
 
 function waitForEngine(callback, errback, attempts) {
   const tries = attempts || 0;
+  if (isRuntimeAborted) {
+    if (errback) errback(new Error(abortErrorMessage || 'DSP engine aborted.'));
+    return;
+  }
   if (isEngineReady()) {
     callback();
-  } else if (tries < 100) {
+  } else if (tries < 300) {
     setTimeout(() => waitForEngine(callback, errback, tries + 1), 50);
   } else if (errback) {
     errback(new Error('DSP engine timed out in worker.'));
