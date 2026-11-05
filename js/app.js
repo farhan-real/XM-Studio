@@ -231,6 +231,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function showUnsupportedModal(filename, ext) {
+    const modalBackdrop = document.getElementById('studioModalBackdrop');
+    const modalTitle = document.getElementById('studioModalTitle');
+    const modalBody = document.getElementById('studioModalBody');
+    const modalFooter = document.getElementById('studioModalFooter');
+    if (!modalBackdrop || !modalTitle || !modalBody || !modalFooter) return;
+
+    modalTitle.textContent = 'UNSUPPORTED FORMAT';
+    modalBody.innerHTML = `
+      <p style="font-size:0.82rem;color:var(--text-primary);line-height:1.45;margin-bottom:8px;">
+        The file <strong>${filename}</strong> (.${ext}) is not supported.
+      </p>
+      <div style="font-size:0.72rem;color:var(--text-secondary);line-height:1.45;display:flex;flex-direction:column;gap:5px;">
+        <div><strong style="color:var(--accent);">Tracker Modules:</strong> .xm, .mod, .it, .s3m, .mtm, .mo3, .med, .669, .far, .ptm</div>
+        <div><strong style="color:var(--col-purple);">Retro &amp; Chiptunes:</strong> .v2m, .ahx, .sid, .mid</div>
+        <div><strong style="color:var(--col-gold);">Audio Streams:</strong> .flac, .mp3, .ogg, .wav, .aac, .m4a</div>
+      </div>`;
+    modalFooter.innerHTML = '<button class="action-btn" id="btnCloseUnsupported"><span>DISMISS</span></button>';
+    modalBackdrop.classList.remove('hide');
+
+    const btnClose = document.getElementById('btnCloseUnsupported');
+    if (btnClose) {
+      btnClose.onclick = () => {
+        modalBackdrop.classList.add('hide');
+        modalBody.innerHTML = '';
+        modalFooter.innerHTML = '';
+      };
+    }
+  }
+
   if (btnDeckFav) {
     btnDeckFav.addEventListener('click', () => {
       const t = getCurrentDeckTrack();
@@ -341,6 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     setPlaybackStatus,
     setCompileStatus,
+    showUnsupportedModal,
     updateDeckFav: updateDeckFavState,
     showMobileArchiveView,
     showMobilePlayerView,
@@ -362,7 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     },
     updateTrackUI: (title, artist, engine, channelCount, isNative, trackNum) => {
-      const isError = (engine === 'ERROR');
+      const isError = (engine === 'ERROR' || engine === 'UNSUPPORTED');
       songTitle.textContent = title;
       songArtist.textContent = artist;
       if (miniTrackNum) {
@@ -386,8 +417,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (rateBadge) rateBadge.textContent = isError ? '--' : '48 KHZ';
       const btnDownload = document.getElementById('btnDownload');
       if (btnDownload) btnDownload.disabled = isError;
-      setPlaybackStatus(isError ? 'idle' : (isNative ? 'loaded' : 'live'));
-      if (isError) setCompileStatus('error');
+      if (isError) {
+        setPlaybackStatus('idle');
+        setCompileStatus('error');
+      } else {
+        setPlaybackStatus(isNative ? 'loaded' : 'live');
+      }
       setPlayingState(!isError && (window.XMAudio ? window.XMAudio.isPlaying() : false));
       updateDeckFavState();
     },

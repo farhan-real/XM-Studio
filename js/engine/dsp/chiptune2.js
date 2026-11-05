@@ -13,7 +13,6 @@
 
     this.sampleRate = this.context.sampleRate || 48000;
     this.gainNode = this.context.createGain();
-
     this.dcFilter = this.context.createBiquadFilter();
     this.dcFilter.type = 'highpass';
     this.dcFilter.frequency.value = 25;
@@ -31,7 +30,6 @@
     this.dspWorker = null;
     this.isPipelineReady = false;
     this.initPromise = null;
-
     this.currentPlayingNode = null;
     this.currentMetadata = null;
     this.cachedDuration = 0;
@@ -39,19 +37,17 @@
     this.repeatCount = -1;
     this.handlers = {};
     this.pendingLoadCallback = null;
+    this.pendingLoadErrback = null;
 
     this.initPipeline();
   }
 
   ChiptuneJsPlayer.prototype.initPipeline = function() {
-    if (this.initPromise) {
-      return this.initPromise;
-    }
+    if (this.initPromise) return this.initPromise;
 
     this.initPromise = new Promise(async (resolve, reject) => {
       try {
         await this.context.audioWorklet.addModule('js/engine/workers/worklet.js');
-
         this.workletNode = new AudioWorkletNode(this.context, 'xm-audio-worklet', {
           numberOfInputs: 0,
           numberOfOutputs: 1,
@@ -79,10 +75,7 @@
 
         const channel = new MessageChannel();
         this.workletNode.port.postMessage({ type: 'init-port', port: channel.port1 }, [channel.port1]);
-        this.dspWorker.postMessage(
-          { action: 'init-port', port: channel.port2, sampleRate: this.sampleRate },
-          [channel.port2]
-        );
+        this.dspWorker.postMessage({ action: 'init-port', port: channel.port2, sampleRate: this.sampleRate }, [channel.port2]);
 
         this.isPipelineReady = true;
         resolve();
@@ -98,35 +91,34 @@
     this.dspWorker.onmessage = (e) => {
       const data = e.data;
       if (!data) return;
-
       if (data.type === 'metadata') {
         this.currentMetadata = data.meta;
         this.cachedDuration = (data.meta && isFinite(data.meta.duration) && data.meta.duration > 0) ? data.meta.duration : 180;
         if (typeof this.pendingLoadCallback === 'function') {
           const cb = this.pendingLoadCallback;
           this.pendingLoadCallback = null;
+          this.pendingLoadErrback = null;
           cb();
         }
       } else if (data.type === 'error') {
+        if (typeof this.pendingLoadErrback === 'function') {
+          const eb = this.pendingLoadErrback;
+          this.pendingLoadCallback = null;
+          this.pendingLoadErrback = null;
+          eb(new Error(data.message));
+        }
         this.fireEvent('onError', new Error(data.message));
       }
     };
   };
 
-  ChiptuneJsPlayer.prototype.on = function(eventName, handler) {
-    this.handlers[eventName] = handler;
-  };
-
+  ChiptuneJsPlayer.prototype.on = function(eventName, handler) { this.handlers[eventName] = handler; };
   ChiptuneJsPlayer.prototype.fireEvent = function(eventName, arg) {
-    if (typeof this.handlers[eventName] === 'function') {
-      this.handlers[eventName](arg);
-    }
+    if (typeof this.handlers[eventName] === 'function') this.handlers[eventName](arg);
   };
 
   ChiptuneJsPlayer.prototype.unlock = function() {
-    if (this.context && this.context.state !== 'running') {
-      this.context.resume().catch(() => {});
-    }
+    if (this.context && this.context.state !== 'running') this.context.resume().catch(() => {});
   };
 
   ChiptuneJsPlayer.prototype.load = function(input, callback, errback) {
@@ -138,15 +130,9 @@
       this.initPipeline()
         .then(() => {
           this.pendingLoadCallback = () => callback(buf);
+          this.pendingLoadErrback = (err) => { if (errback) errback(err); };
           const copy = buf.slice(0);
-          this.dspWorker.postMessage(
-            {
-              action: 'load',
-              buffer: copy,
-              repeatCount: this.repeatCount
-            },
-            [copy]
-          );
+          this.dspWorker.postMessage({ action: 'load', buffer: copy, repeatCount: this.repeatCount }, [copy]);
         })
         .catch((err) => {
           if (errback) errback(err);
@@ -157,22 +143,13 @@
     if (input instanceof File || input instanceof Blob) {
       const reader = new FileReader();
       reader.onload = () => finishLoad(reader.result);
-      reader.onerror = (err) => {
-        if (errback) errback(err);
-        this.fireEvent('onError', err);
-      };
+      reader.onerror = (err) => { if (errback) errback(err); this.fireEvent('onError', err); };
       reader.readAsArrayBuffer(input);
     } else if (typeof input === 'string') {
       fetch(input)
-        .then((res) => {
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          return res.arrayBuffer();
-        })
+        .then((res) => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.arrayBuffer(); })
         .then(finishLoad)
-        .catch((err) => {
-          if (errback) errback(err);
-          this.fireEvent('onError', err);
-        });
+        .catch((err) => { if (errback) errback(err); this.fireEvent('onError', err); });
     } else if (input instanceof ArrayBuffer) {
       finishLoad(input);
     }
@@ -180,10 +157,7 @@
 
   ChiptuneJsPlayer.prototype.play = function(buffer) {
     this.unlock();
-
-    if (!this.isPipelineReady || !this.dspWorker || !this.workletNode) {
-      return null;
-    }
+    if (!this.isPipelineReady || !this.dspWorker || !this.workletNode) return null;
 
     this.currentPosition = 0;
     this.workletNode.port.postMessage({ type: 'flush', position: 0 });
@@ -192,15 +166,12 @@
 
     this.currentPlayingNode = this.workletNode;
     this.currentPlayingNode.paused = false;
-
     this.fireEvent('onPlay');
     return this.workletNode;
   };
 
   ChiptuneJsPlayer.prototype.stop = function() {
-    if (this.dspWorker) {
-      this.dspWorker.postMessage({ action: 'stop' });
-    }
+    if (this.dspWorker) this.dspWorker.postMessage({ action: 'stop' });
     if (this.workletNode) {
       this.workletNode.port.postMessage({ type: 'flush', position: 0 });
       this.workletNode.port.postMessage({ type: 'pause' });
@@ -216,10 +187,7 @@
   };
 
   ChiptuneJsPlayer.prototype.togglePause = function() {
-    if (!this.currentPlayingNode) {
-      return false;
-    }
-
+    if (!this.currentPlayingNode) return false;
     this.unlock();
     const willPause = !this.currentPlayingNode.paused;
     this.currentPlayingNode.paused = willPause;
@@ -231,19 +199,14 @@
       this.workletNode.port.postMessage({ type: 'resume' });
       this.dspWorker.postMessage({ action: 'play' });
     }
-
     return willPause;
   };
 
   ChiptuneJsPlayer.prototype.seek = function(seconds) {
     const s = Math.max(0, Number(seconds) || 0);
     this.currentPosition = s;
-    if (this.workletNode) {
-      this.workletNode.port.postMessage({ type: 'seek', position: s });
-    }
-    if (this.dspWorker && this.currentPlayingNode) {
-      this.dspWorker.postMessage({ action: 'seek', seconds: s });
-    }
+    if (this.workletNode) this.workletNode.port.postMessage({ type: 'seek', position: s });
+    if (this.dspWorker && this.currentPlayingNode) this.dspWorker.postMessage({ action: 'seek', seconds: s });
   };
 
   ChiptuneJsPlayer.prototype.getPosition = function() {
@@ -260,9 +223,7 @@
 
   ChiptuneJsPlayer.prototype.setRepeat = function(loop) {
     this.repeatCount = loop ? -1 : 0;
-    if (this.dspWorker) {
-      this.dspWorker.postMessage({ action: 'repeat', repeatCount: this.repeatCount });
-    }
+    if (this.dspWorker) this.dspWorker.postMessage({ action: 'repeat', repeatCount: this.repeatCount });
   };
 
   window.ChiptuneJsPlayer = ChiptuneJsPlayer;
