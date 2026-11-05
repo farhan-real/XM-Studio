@@ -8,6 +8,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const { player, audioEl } = window.XMAudio;
   window.XMVisualizer.start(player);
+  if (window.AudioCompiler && window.AudioCompiler.init) {
+    window.AudioCompiler.init();
+  }
 
   let isSeeking = false;
   let prevVolume = 0.85;

@@ -7,6 +7,15 @@
     this.worker = null;
   }
 
+  AudioCompiler.prototype.init = function() {
+    if (!this.worker && !this.isCompiling) {
+      try {
+        const workerUrl = 'js/engine/workers/worker.js' + (window.USE_CDN ? '?cdn=1' : '');
+        this.worker = new Worker(workerUrl);
+      } catch (e) {}
+    }
+  };
+
   AudioCompiler.prototype.compile = function(buffer, format, onProgress, onComplete, onError) {
     this.cancel();
     const self = this;
@@ -39,9 +48,13 @@
         if (onError) onError(err);
       };
 
-      const targetSampleRate = (window.XMAudio && window.XMAudio.player && window.XMAudio.player.context)
-        ? window.XMAudio.player.context.sampleRate
-        : 48000;
+      let targetSampleRate = 48000;
+      if (window.XMAudio && window.XMAudio.player && window.XMAudio.player.context) {
+        const ctxRate = window.XMAudio.player.context.sampleRate;
+        if (ctxRate === 44100 || ctxRate === 48000 || ctxRate === 32000) {
+          targetSampleRate = ctxRate;
+        }
+      }
 
       const copy = buffer.slice(0);
       self.worker.postMessage({
