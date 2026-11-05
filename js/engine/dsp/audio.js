@@ -162,6 +162,9 @@
   }
 
   function unload() {
+    currentLoadId++;
+    if (window.AudioCompiler) window.AudioCompiler.cancel();
+    if (window.XMExport && window.XMExport.cancelExport) window.XMExport.cancelExport();
     player.stop();
     audioEl.pause();
     try { audioEl.currentTime = 0; } catch (e) {}

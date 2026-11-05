@@ -307,6 +307,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   btnUnload.addEventListener('click', () => {
+    if (window.XMExport && window.XMExport.cancelExport) {
+      window.XMExport.cancelExport();
+    }
     window.XMAudio.unload();
     if (window.XMVisualizer) window.XMVisualizer.clear();
     songTitle.textContent = 'No Module Loaded';
@@ -318,6 +321,8 @@ document.addEventListener('DOMContentLoaded', () => {
       badgeEngine.classList.remove('engine-error');
     }
     channels.textContent = '--';
+    const rateBadge = document.getElementById('rateBadge');
+    if (rateBadge) rateBadge.textContent = '--';
     resetTimeline();
     document.getElementById('btnDownload').disabled = true;
     setPlaybackStatus('idle');

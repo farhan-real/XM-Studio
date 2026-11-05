@@ -59,6 +59,13 @@
     setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
   }
 
+  function cancelExport() {
+    isUserDownloadPending = false;
+    if (window.AudioCompiler) window.AudioCompiler.cancel();
+    if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
+    if (readoutProgressBar) readoutProgressBar.style.width = '0%';
+  }
+
   function startInitialCompile(raw, targetTrackId) {
     if (!raw || !window.AudioCompiler) return;
     const format = activeFormat || 'mp3';
@@ -296,6 +303,7 @@
 
   window.XMExport = {
     getActiveFormat: () => activeFormat,
-    startInitialCompile
+    startInitialCompile,
+    cancelExport
   };
 })(window);
