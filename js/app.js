@@ -113,30 +113,40 @@ document.addEventListener('DOMContentLoaded', () => {
     const dur = window.XMAudio.getDuration();
     const cur = window.XMAudio.getPosition();
     if (dur > 0 && isFinite(dur)) {
+      if (progressBar.disabled) progressBar.disabled = false;
       const safeCur = Math.min(dur, Math.max(0, cur));
       progressBar.value = (safeCur / dur) * 100;
       const curSec = safeCur | 0;
       const totSec = dur | 0;
-      if (curSec !== lastReportedSec) { lastReportedSec = curSec; timeCurrent.textContent = formatTime(safeCur); }
-      if (totSec !== lastReportedTotalSec) { lastReportedTotalSec = totSec; timeTotal.textContent = formatTime(dur); }
+      if (curSec !== lastReportedSec) {
+        lastReportedSec = curSec;
+        timeCurrent.textContent = formatTime(safeCur);
+      }
+      if (totSec !== lastReportedTotalSec) {
+        lastReportedTotalSec = totSec;
+        timeTotal.textContent = formatTime(dur);
+      }
     } else {
       const curSec = Math.max(0, cur) | 0;
-      if (curSec !== lastReportedSec) { lastReportedSec = curSec; timeCurrent.textContent = formatTime(cur); }
+      if (curSec !== lastReportedSec) {
+        lastReportedSec = curSec;
+        timeCurrent.textContent = formatTime(cur);
+      }
     }
   }
 
   function startProgressLoop() {
     if (!progressTimerId && !document.hidden) {
       updateProgress();
-      progressTimerId = setInterval(() => {
-        if (!window.XMAudio.isPlaying()) stopProgressLoop();
-        else updateProgress();
-      }, 250);
+      progressTimerId = setInterval(updateProgress, 150);
     }
   }
 
   function stopProgressLoop() {
-    if (progressTimerId) { clearInterval(progressTimerId); progressTimerId = null; }
+    if (progressTimerId) {
+      clearInterval(progressTimerId);
+      progressTimerId = null;
+    }
   }
 
   function setPlayingState(isPlaying) {
@@ -155,6 +165,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.XMVisualizer) window.XMVisualizer.sleep();
     }
   }
+
+  audioEl.addEventListener('timeupdate', updateProgress);
+  audioEl.addEventListener('durationchange', () => {
+    const d = window.XMAudio.getDuration();
+    if (d > 0) window.XMApp.updateDuration(d);
+  });
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {

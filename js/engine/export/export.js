@@ -77,7 +77,7 @@
         window.XMVisualizer.setVisualizerCache(cached.visData, cached.visFps);
       }
       if (window.XMAudio && window.XMAudio.handoffToCompiled) {
-        window.XMAudio.handoffToCompiled(cached.blob, format, targetTrackId, cached.visData, cached.visFps);
+        window.XMAudio.handoffToCompiled(cached.blob, format, targetTrackId, cached.visData, cached.visFps, cached.duration);
       }
       return;
     }
@@ -95,11 +95,10 @@
           window.XMApp.setCompileStatus('compiling', progress);
         }
       },
-      (blob, visData, visFps) => {
+      (blob, visData, visFps, duration) => {
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
         if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
 
-        // Immediately decouple visualizer handoff so O(1) cache takes over right at current frame
         if (visData && window.XMVisualizer) {
           window.XMVisualizer.setVisualizerCache(visData, visFps);
         }
@@ -111,7 +110,7 @@
         }
 
         if (window.XMAudio && window.XMAudio.handoffToCompiled) {
-          window.XMAudio.handoffToCompiled(blob, format, targetTrackId, visData, visFps);
+          window.XMAudio.handoffToCompiled(blob, format, targetTrackId, visData, visFps, duration);
         }
       },
       (err) => {
@@ -134,7 +133,6 @@
     const outExt = (activeFormat === 'raw') ? ext : activeFormat;
     const downloadFilename = `${info.artist} - ${info.title}.${outExt}`.replace(/[/\\?%*:|"<>]/g, '_');
 
-    // 1. Direct Tracker / Raw file download
     if (activeFormat === 'raw') {
       let blob = window.XMAudio.currentAudioBlob;
       if (!blob && window.XMAudio.currentRawBuffer) {
@@ -146,13 +144,10 @@
           blob = await res.blob();
         } catch (e) {}
       }
-      if (blob) {
-        triggerBlobDownload(blob, downloadFilename);
-      }
+      if (blob) triggerBlobDownload(blob, downloadFilename);
       return;
     }
 
-    // 2. Check if this track is ALREADY compiled in cache -> instant zero-delay download!
     const cached = window.XMAudio.getCachedCompiled ? window.XMAudio.getCachedCompiled(targetTrackId, activeFormat) : null;
     if (cached && cached.blob) {
       if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
@@ -160,14 +155,12 @@
       return;
     }
 
-    // 3. If currently playing compiled/native audio and format matches, download directly!
     if (window.XMAudio.currentAudioBlob && ext.toLowerCase() === activeFormat.toLowerCase()) {
       if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
       triggerBlobDownload(window.XMAudio.currentAudioBlob, downloadFilename);
       return;
     }
 
-    // 4. Fallback for non-tracker native streams (e.g. FLAC)
     const TRACKER_EXTS = new Set(['xm', 'mod', 'it', 's3m', 'mtm', 'mo3', 'med', '669', 'far', 'ptm', 'v2m', 'ahx', 'sid']);
     const isTracker = TRACKER_EXTS.has(ext.toLowerCase());
     if (!isTracker && (window.XMAudio.currentAudioBlob || window.XMAudio.currentAudioSrc)) {
@@ -184,18 +177,14 @@
       }
     }
 
-    // 5. If compilation is already in flight, queue download for completion
     if (window.AudioCompiler && window.AudioCompiler.isCompiling) {
       isUserDownloadPending = true;
       return;
     }
 
-    // 6. Retrieve source ArrayBuffer for off-thread compilation
     let raw = window.XMAudio ? window.XMAudio.currentRawBuffer : null;
     if (!raw && window.XMAudio.currentAudioBlob) {
-      try {
-        raw = await window.XMAudio.currentAudioBlob.arrayBuffer();
-      } catch (e) {}
+      try { raw = await window.XMAudio.currentAudioBlob.arrayBuffer(); } catch (e) {}
     } else if (!raw && window.XMAudio.currentAudioSrc) {
       try {
         const res = await fetch(window.XMAudio.currentAudioSrc);
@@ -204,7 +193,6 @@
     }
     if (!raw) return;
 
-    // 7. Background compile with progress reporting and smooth post-export handoff
     isUserDownloadPending = true;
     if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('compiling');
     if (readoutProgressTrack) readoutProgressTrack.classList.remove('hide');
@@ -219,11 +207,10 @@
           window.XMApp.setCompileStatus('compiling', progress);
         }
       },
-      (blob, visData, visFps) => {
+      (blob, visData, visFps, duration) => {
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
         if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
 
-        // Decouple visualizer handoff immediately
         if (visData && window.XMVisualizer) {
           window.XMVisualizer.setVisualizerCache(visData, visFps);
         }
@@ -234,7 +221,7 @@
         }
 
         if (window.XMAudio && window.XMAudio.handoffToCompiled) {
-          window.XMAudio.handoffToCompiled(blob, activeFormat, targetTrackId, visData, visFps);
+          window.XMAudio.handoffToCompiled(blob, activeFormat, targetTrackId, visData, visFps, duration);
         }
       },
       (err) => {

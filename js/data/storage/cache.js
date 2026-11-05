@@ -92,7 +92,8 @@
             blob: item.blob,
             ext: item.format || 'mp3',
             visData: item.visData,
-            visFps: item.visFps || CURRENT_VIS_FPS
+            visFps: item.visFps || CURRENT_VIS_FPS,
+            duration: item.duration || 0
           });
         }
 
@@ -139,7 +140,7 @@
     return null;
   }
 
-  async function set(trackId, format, blob, visData, visFps) {
+  async function set(trackId, format, blob, visData, visFps, duration) {
     if (!trackId || !blob) return;
     const fmt = (format || 'mp3').toLowerCase();
     const key = `${trackId}_${fmt}`;
@@ -148,7 +149,8 @@
       blob,
       ext: fmt,
       visData: visData ? (visData instanceof Uint8Array ? visData : new Uint8Array(visData)) : null,
-      visFps: visFps || CURRENT_VIS_FPS
+      visFps: visFps || CURRENT_VIS_FPS,
+      duration: (typeof duration === 'number' && duration > 0) ? duration : 0
     };
 
     ramCache.set(key, entry);
@@ -165,6 +167,7 @@
         blob,
         visData: entry.visData,
         visFps: entry.visFps,
+        duration: entry.duration,
         timestamp: Date.now()
       });
       tx.oncomplete = () => {

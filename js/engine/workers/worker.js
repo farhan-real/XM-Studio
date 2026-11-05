@@ -303,7 +303,8 @@ function runCompilation(data) {
       type: 'complete',
       blob: finalBlob,
       visData: trimmedVisBuffer.buffer,
-      visFps: VIS_FPS
+      visFps: VIS_FPS,
+      duration: duration
     }, [trimmedVisBuffer.buffer]);
   } catch (err) {
     self.postMessage({ type: 'error', message: err.message });
