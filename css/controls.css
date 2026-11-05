@@ -69,22 +69,24 @@
   transition: all 0.12s ease;
 }
 
-.t-btn:hover:not([disabled]) {
+.t-btn:hover:not([disabled]):not(.active) {
   background: var(--surface-elevated);
   border-color: var(--border-strong);
   color: var(--text-primary);
 }
 
-.t-btn.active {
-  border-color: var(--accent-border);
-  color: var(--accent);
-  background: var(--accent-dim);
+.t-btn.active,
+.t-btn.active:hover:not([disabled]) {
+  border-color: var(--accent-border) !important;
+  color: var(--accent) !important;
+  background: var(--accent-dim) !important;
 }
 
-#btnDeckFav.active {
-  border-color: rgba(234, 179, 8, 0.4);
-  color: var(--col-gold);
-  background: rgba(234, 179, 8, 0.12);
+#btnDeckFav.active,
+#btnDeckFav.active:hover:not([disabled]) {
+  border-color: rgba(234, 179, 8, 0.4) !important;
+  color: var(--col-gold) !important;
+  background: rgba(234, 179, 8, 0.12) !important;
 }
 
 #btnDeckFav.active svg {

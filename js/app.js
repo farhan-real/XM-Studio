@@ -46,6 +46,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const dropZone = document.getElementById('dropZone');
   const readoutPanel = document.getElementById('readoutPanel');
 
+  function syncTransportButtons() {
+    if (btnLoop) btnLoop.classList.toggle('active', window.XMAudio.isLooping);
+    if (btnShuffle) btnShuffle.classList.toggle('active', window.XMAudio.isShuffle);
+  }
+  syncTransportButtons();
+
   function showMobileArchiveView() {
     btnToggleLeft.classList.add('active');
     btnToggleRight.classList.remove('active');
@@ -246,8 +252,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnPlayPause.addEventListener('click', () => { window.XMAudio.togglePlayPause(); });
   btnStop.addEventListener('click', () => { window.XMAudio.stopPlayback(); });
-  btnLoop.addEventListener('click', () => btnLoop.classList.toggle('active', window.XMAudio.toggleLoop()));
-  btnShuffle.addEventListener('click', () => btnShuffle.classList.toggle('active', window.XMAudio.toggleShuffle()));
+
+  btnLoop.addEventListener('click', () => {
+    window.XMAudio.toggleLoop();
+    syncTransportButtons();
+  });
+
+  btnShuffle.addEventListener('click', () => {
+    window.XMAudio.toggleShuffle();
+    syncTransportButtons();
+  });
+
   if (btnPrev) btnPrev.addEventListener('click', () => window.XMAudio.playPrevTrack());
   if (btnNext) btnNext.addEventListener('click', () => window.XMAudio.playNextTrack(true));
 
