@@ -1,5 +1,5 @@
 /**
- * js/data/catalog/catalog.js - Catalog indexing, sorting, remote repository fetching, and search index.
+ * js/data/catalog/catalog.js - Catalog indexing, sorting, track number search, and filtering.
  */
 (function(window) {
   let fullCatalog = [];
@@ -8,61 +8,23 @@
   let customCatalog = [];
 
   const FALLBACK_DEMO_TRACKS = [
-    {
-      id: 'demo_chipsounds',
-      title: 'Chipsounds',
-      artist: 'Dubmood',
-      ext: 'MOD',
-      path: 'tunes/chipsounds.mod',
-      url: 'https://deskjet.github.io/chiptune2.js/tunes/chipsounds.mod',
-      repoId: 'repo_default',
-      repoName: 'Default Repository',
-      folder: 'Demoscene'
-    },
-    {
-      id: 'demo_mysterysterium',
-      title: 'Mysterysterium',
-      artist: 'Maktone',
-      ext: 'MOD',
-      path: 'tunes/mysterysterium.mod',
-      url: 'https://deskjet.github.io/chiptune2.js/tunes/mysterysterium.mod',
-      repoId: 'repo_default',
-      repoName: 'Default Repository',
-      folder: 'Demoscene'
-    },
-    {
-      id: 'demo_cydonian_sky',
-      title: 'Cydonian Sky',
-      artist: 'Dubmood',
-      ext: 'MOD',
-      path: 'tunes/cydonian_sky.mod',
-      url: 'https://deskjet.github.io/chiptune2.js/tunes/cydonian_sky.mod',
-      repoId: 'repo_default',
-      repoName: 'Default Repository',
-      folder: 'Demoscene'
-    },
-    {
-      id: 'demo_rf_chip',
-      title: 'RF Chip #001',
-      artist: 'Dubmood & Bliss',
-      ext: 'MOD',
-      path: 'tunes/rf_chip_001.mod',
-      url: 'https://deskjet.github.io/chiptune2.js/tunes/rf_chip_001.mod',
-      repoId: 'repo_default',
-      repoName: 'Default Repository',
-      folder: 'Demoscene'
-    }
+    { id: 'demo_chipsounds', title: 'Chipsounds', artist: 'Dubmood', ext: 'MOD', path: 'tunes/chipsounds.mod', url: 'https://deskjet.github.io/chiptune2.js/tunes/chipsounds.mod', repoId: 'repo_default', repoName: 'Default Repository', folder: 'Demoscene' },
+    { id: 'demo_mysterysterium', title: 'Mysterysterium', artist: 'Maktone', ext: 'MOD', path: 'tunes/mysterysterium.mod', url: 'https://deskjet.github.io/chiptune2.js/tunes/mysterysterium.mod', repoId: 'repo_default', repoName: 'Default Repository', folder: 'Demoscene' },
+    { id: 'demo_cydonian_sky', title: 'Cydonian Sky', artist: 'Dubmood', ext: 'MOD', path: 'tunes/cydonian_sky.mod', url: 'https://deskjet.github.io/chiptune2.js/tunes/cydonian_sky.mod', repoId: 'repo_default', repoName: 'Default Repository', folder: 'Demoscene' },
+    { id: 'demo_rf_chip', title: 'RF Chip #001', artist: 'Dubmood & Bliss', ext: 'MOD', path: 'tunes/rf_chip_001.mod', url: 'https://deskjet.github.io/chiptune2.js/tunes/rf_chip_001.mod', repoId: 'repo_default', repoName: 'Default Repository', folder: 'Demoscene' }
   ];
 
-  function indexTrack(track) {
-    if (!track._search) {
-      const a = (track.artist || '').toLowerCase();
-      const ti = (track.title || '').toLowerCase();
-      const f = (track.folder || '').toLowerCase();
-      track._sortArtist = a;
-      track._sortTitle = ti;
-      track._search = `${a}\0${ti}\0${f}`;
+  function indexTrack(track, idx) {
+    const a = (track.artist || '').toLowerCase();
+    const ti = (track.title || '').toLowerCase();
+    const f = (track.folder || '').toLowerCase();
+    track._sortArtist = a;
+    track._sortTitle = ti;
+    if (typeof idx === 'number') {
+      track.catalogIndex = idx;
+      track._trackNum = idx;
     }
+    track._search = `${a}\0${ti}\0${f}`;
     return track;
   }
 
@@ -105,6 +67,10 @@
     }
     const combined = [...customCatalog, ...remoteCatalog];
     fullCatalog = sortAlphabetical(combined.length > 0 ? combined : [...FALLBACK_DEMO_TRACKS]);
+    for (let i = 0; i < fullCatalog.length; i++) {
+      fullCatalog[i].catalogIndex = i + 1;
+      fullCatalog[i]._trackNum = i + 1;
+    }
     displayCatalog = fullCatalog;
     return displayCatalog;
   }
@@ -122,9 +88,28 @@
     const q = (query || '').toLowerCase().trim();
     if (!q) {
       displayCatalog = fullCatalog;
-    } else {
-      displayCatalog = fullCatalog.filter((t) => t._search.includes(q));
+      return displayCatalog;
     }
+
+    let numTarget = null;
+    const numMatch = q.match(/^#?\s*(\d+)$/);
+    if (numMatch) {
+      numTarget = parseInt(numMatch[1], 10);
+    }
+
+    displayCatalog = fullCatalog.filter((t) => {
+      if (numTarget !== null && t.catalogIndex === numTarget) return true;
+      return t._search.includes(q);
+    });
+
+    if (numTarget !== null && displayCatalog.length > 1) {
+      displayCatalog.sort((a, b) => {
+        if (a.catalogIndex === numTarget) return -1;
+        if (b.catalogIndex === numTarget) return 1;
+        return 0;
+      });
+    }
+
     return displayCatalog;
   }
 

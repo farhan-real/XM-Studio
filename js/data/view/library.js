@@ -71,7 +71,8 @@
     const targetClass = `track-card ${(idx & 1) ? 'track-even' : ''} ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}`;
     if (el.className !== targetClass) el.className = targetClass;
 
-    const numStr = String(idx + 1);
+    const numVal = track.catalogIndex || (idx + 1);
+    const numStr = String(numVal);
     if (el._num.textContent !== numStr) el._num.textContent = numStr;
     if (el._title.textContent !== track.title) el._title.textContent = track.title;
 
@@ -201,9 +202,7 @@
 
   function playRandomArchiveTrack() {
     let catalog = window.XMCatalog ? window.XMCatalog.getDisplayCatalog() : [];
-    if (!catalog || catalog.length === 0) {
-      catalog = window.XMCatalog ? window.XMCatalog.getFullCatalog() : [];
-    }
+    if (!catalog || catalog.length === 0) catalog = window.XMCatalog ? window.XMCatalog.getFullCatalog() : [];
     if (!catalog || catalog.length === 0) {
       if (window.XMPlaylist) {
         const favs = window.XMPlaylist.getFavorites();
@@ -250,7 +249,7 @@
       tabArchive.classList.add('active');
       searchBarWrap.classList.remove('hide');
       paneTable.classList.remove('hide');
-      searchInput.placeholder = 'Filter artist (A-Z), title, or folder...';
+      searchInput.placeholder = 'Filter #, artist (A-Z), title, or folder...';
       const disp = window.XMCatalog.getDisplayCatalog();
       if (renderedTab !== 'archive') {
         renderTrackList(disp, true);
@@ -264,7 +263,7 @@
       tabFavs.classList.add('active');
       searchBarWrap.classList.remove('hide');
       paneTable.classList.remove('hide');
-      searchInput.placeholder = 'Filter favorites...';
+      searchInput.placeholder = 'Filter favorites by #, artist, title...';
       renderTrackList(window.XMCatalog.sortAlphabetical([...window.XMPlaylist.getFavorites()]), true);
       renderedTab = 'favorites';
     } else if (tabId === 'playlists') {
@@ -297,7 +296,23 @@
         renderTrackList(filtered, true);
       } else if (activeTab === 'favorites') {
         const favs = window.XMCatalog.sortAlphabetical([...window.XMPlaylist.getFavorites()]);
-        renderTrackList(q ? favs.filter((t) => t._search.includes(q)) : favs, true);
+        let numTarget = null;
+        const numMatch = q.match(/^#?\s*(\d+)$/);
+        if (numMatch) numTarget = parseInt(numMatch[1], 10);
+
+        const filtered = q ? favs.filter((t, idx) => {
+          if (numTarget !== null && (t.catalogIndex === numTarget || (idx + 1) === numTarget)) return true;
+          return t._search.includes(q);
+        }) : favs;
+
+        if (numTarget !== null && filtered.length > 1) {
+          filtered.sort((a, b) => {
+            if (a.catalogIndex === numTarget) return -1;
+            if (b.catalogIndex === numTarget) return 1;
+            return 0;
+          });
+        }
+        renderTrackList(filtered, true);
       }
     }, 60);
   });
