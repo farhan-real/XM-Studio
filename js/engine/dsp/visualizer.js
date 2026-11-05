@@ -1,5 +1,5 @@
 /**
- * js/engine/dsp/visualizer.js - Lightweight 10 FPS spectrum visualizer with precomputed O(1) cache priority.
+ * js/engine/dsp/visualizer.js - Lightweight 15 FPS spectrum visualizer with precomputed O(1) cache priority.
  */
 (function(window) {
   const canvas = document.getElementById('visualizer');
@@ -10,7 +10,7 @@
   const dataArray = new Uint8Array(32);
   const smoothedValues = new Float32Array(TOTAL_BARS);
   const frameBars = new Uint8Array(TOTAL_BARS);
-  const FRAME_INTERVAL = 100;
+  const FRAME_INTERVAL = Math.round(1000 / 15); // Strict 15 FPS (~67ms interval)
 
   const BIN_MAP = new Uint8Array(TOTAL_BARS);
   for (let i = 0; i < TOTAL_BARS; i++) {
@@ -37,7 +37,7 @@
   let cachedStep = 0;
 
   let cachedVisData = null;
-  let cachedVisFps = 10;
+  let cachedVisFps = 15;
 
   function isCanvasVisible() {
     return !document.hidden && canvas.offsetWidth > 0 && canvas.offsetHeight > 0;
@@ -85,7 +85,7 @@
 
   function setVisualizerCache(data, fps) {
     cachedVisData = data ? new Uint8Array(data) : null;
-    cachedVisFps = fps || 10;
+    cachedVisFps = fps || 15;
   }
 
   function clearVisualizerCache() {

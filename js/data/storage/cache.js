@@ -1,12 +1,12 @@
 /**
- * js/data/storage/cache.js - Persistent IndexedDB LRU cache for the last 10 compiled songs (audio Blob + visualizer).
+ * js/data/storage/cache.js - Persistent IndexedDB LRU cache for compiled songs & 15 FPS visualizer frames.
  */
 (function(window) {
   const DB_NAME = 'xm_studio_cache_db';
-  const DB_VERSION = 2; // Upgraded to v2 for 10 FPS visualizer migration
+  const DB_VERSION = 4;
   const STORE_NAME = 'compiled_songs';
   const MAX_ITEMS = 10;
-  const CURRENT_VIS_FPS = 10;
+  const CURRENT_VIS_FPS = 15;
 
   const ramCache = new Map();
   let dbPromise = null;
@@ -18,8 +18,7 @@
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
-        // Purge legacy v1 store with outdated visualizer data
-        if (e.oldVersion < 2 && db.objectStoreNames.contains(STORE_NAME)) {
+        if (e.oldVersion < 4 && db.objectStoreNames.contains(STORE_NAME)) {
           db.deleteObjectStore(STORE_NAME);
         }
         if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -79,7 +78,6 @@
         const validItems = [];
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
-          // Invalidate and delete any records not matching current 10 FPS visualizer
           if (item.visFps === CURRENT_VIS_FPS && item.visData) {
             validItems.push(item);
           } else {
@@ -111,6 +109,13 @@
     if (item) {
       if (item.visFps !== CURRENT_VIS_FPS) {
         ramCache.delete(key);
+        openDB().then((db) => {
+          if (!db) return;
+          try {
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).delete(key);
+          } catch (e) {}
+        });
         return null;
       }
 

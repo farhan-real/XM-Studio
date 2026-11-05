@@ -27,42 +27,26 @@ try {
   } catch (err2) {}
 }
 
-try {
-  if (self.USE_CDN) {
-    importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
-  } else {
-    importScripts('../../lame.min.js');
-  }
-} catch (e) {
-  try {
-    importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
-  } catch (err2) {}
-}
-
 function getLame() {
   if (typeof lamejs !== 'undefined' && lamejs.Mp3Encoder) return lamejs;
   if (self.lamejs && self.lamejs.Mp3Encoder) return self.lamejs;
   try {
-    if (self.USE_CDN) {
-      importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
-    } else {
-      importScripts('../../lame.min.js');
-    }
+    const url = self.USE_CDN
+      ? 'https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js'
+      : '../../lame.min.js';
+    importScripts(url);
   } catch (e) {
     try {
       importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
-    } catch (e2) {}
+    } catch (err2) {}
   }
   return (typeof lamejs !== 'undefined' && lamejs.Mp3Encoder) ? lamejs : (self.lamejs || null);
 }
 
 function isEngineReady() {
   try {
-    if (typeof libopenmpt === 'undefined') return false;
-    if (typeof libopenmpt._malloc !== 'function') return false;
-    if (typeof libopenmpt._openmpt_module_create_from_memory !== 'function') return false;
+    if (typeof libopenmpt === 'undefined' || typeof libopenmpt._malloc !== 'function') return false;
     if (!libopenmpt.HEAPU8 || libopenmpt.HEAPU8.length === 0) return false;
-
     const ptr = libopenmpt._malloc(4);
     if (!ptr) return false;
     libopenmpt._free(ptr);
@@ -227,7 +211,7 @@ function runCompilation(data) {
     const encodedChunks = [];
     let totalPcmBytes = 0;
 
-    const VIS_FPS = 10; // Locked strictly to 10 FPS
+    const VIS_FPS = 15;
     const visStep = Math.max(1, Math.round(sampleRate / VIS_FPS));
     const totalVisFrames = Math.ceil(totalFrames / visStep) + 16;
     const visBuffer = new Uint8Array(totalVisFrames * FFT_BARS);
