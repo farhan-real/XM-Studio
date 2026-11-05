@@ -288,6 +288,8 @@ document.addEventListener('DOMContentLoaded', () => {
     channels.textContent = '--';
     const rateBadge = document.getElementById('rateBadge');
     if (rateBadge) rateBadge.textContent = '--';
+    const qualityBadge = document.getElementById('qualityBadge');
+    if (qualityBadge) qualityBadge.textContent = '--';
     resetTimeline();
     const btnDownload = document.getElementById('btnDownload');
     if (btnDownload) btnDownload.disabled = true;
@@ -362,7 +364,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     },
     updateTrackUI: (title, artist, engine, channelCount, isNative, trackNum) => {
-      const isError = (engine === 'ERROR' || engine === 'UNSUPPORTED');
+      const isError = (engine === 'ERROR' || engine === 'UNSUPPORTED' || engine === 'NONE');
       songTitle.textContent = title;
       songArtist.textContent = artist;
       if (miniTrackNum) {
@@ -370,8 +372,8 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       modType.textContent = engine;
       if (badgeEngine) {
-        badgeEngine.classList.remove('engine-none');
-        badgeEngine.classList.toggle('engine-error', isError);
+        badgeEngine.classList.toggle('engine-none', engine === 'NONE');
+        badgeEngine.classList.toggle('engine-error', engine === 'ERROR' || engine === 'UNSUPPORTED');
       }
       if (channels) {
         const numOnly = String(channelCount || '').replace(/\s*ch/i, '').trim();
@@ -380,7 +382,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const fmt = window.XMExport ? window.XMExport.getActiveFormat() : 'mp3';
       const qualityBadge = document.getElementById('qualityBadge');
       if (qualityBadge) {
-        qualityBadge.textContent = isNative ? (fmt === 'wav' ? '16-BIT PCM' : '320 KBPS') : (fmt === 'raw' ? 'TRACKER' : (fmt === 'mp3' ? '320 KBPS' : '16-BIT PCM'));
+        qualityBadge.textContent = isError
+          ? '--'
+          : (isNative
+            ? (fmt === 'wav' ? '16-BIT PCM' : '320 KBPS')
+            : (fmt === 'raw' ? 'TRACKER' : (fmt === 'mp3' ? '320 KBPS' : '16-BIT PCM')));
       }
       const rateBadge = document.getElementById('rateBadge');
       if (rateBadge) rateBadge.textContent = isError ? '--' : '48 KHZ';

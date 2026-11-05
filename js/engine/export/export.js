@@ -24,11 +24,24 @@
     }
   }
 
+  function updateQualityBadgeDisplay() {
+    if (!qualityBadge) return;
+    const info = window.XMAudio ? window.XMAudio.getCurrentInfo() : null;
+    const hasTrack = Boolean(info && info.title && info.title !== 'No Module Loaded');
+    if (!hasTrack) {
+      qualityBadge.textContent = '--';
+      return;
+    }
+    if (activeFormat === 'wav') qualityBadge.textContent = '16-BIT PCM';
+    else if (activeFormat === 'raw') qualityBadge.textContent = 'TRACKER';
+    else qualityBadge.textContent = '320 KBPS';
+  }
+
   if (btnFmtMp3) {
     btnFmtMp3.addEventListener('click', () => {
       activeFormat = 'mp3';
       updateFmtButtons('btnFmtMp3');
-      if (qualityBadge) qualityBadge.textContent = '320 KBPS';
+      updateQualityBadgeDisplay();
     });
   }
 
@@ -36,7 +49,7 @@
     btnFmtWav.addEventListener('click', () => {
       activeFormat = 'wav';
       updateFmtButtons('btnFmtWav');
-      if (qualityBadge) qualityBadge.textContent = '16-BIT PCM';
+      updateQualityBadgeDisplay();
     });
   }
 
@@ -44,7 +57,7 @@
     btnFmtRaw.addEventListener('click', () => {
       activeFormat = 'raw';
       updateFmtButtons('btnFmtRaw');
-      if (qualityBadge) qualityBadge.textContent = 'TRACKER';
+      updateQualityBadgeDisplay();
     });
   }
 
