@@ -14,13 +14,6 @@ self.libopenmpt.locateFile = function(f) {
     : '../../' + f;
 };
 
-let runtimeInitialized = false;
-const prevInit = self.libopenmpt.onRuntimeInitialized;
-self.libopenmpt.onRuntimeInitialized = function() {
-  runtimeInitialized = true;
-  if (typeof prevInit === 'function') prevInit();
-};
-
 try {
   if (self.USE_CDN) {
     importScripts('https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js');
@@ -34,11 +27,27 @@ try {
   } catch (err2) {}
 }
 
-function ensureLame() {
+try {
+  if (self.USE_CDN) {
+    importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
+  } else {
+    importScripts('../../lame.min.js');
+  }
+} catch (e) {
+  try {
+    importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
+  } catch (err2) {}
+}
+
+function getLame() {
   if (typeof lamejs !== 'undefined' && lamejs.Mp3Encoder) return lamejs;
   if (self.lamejs && self.lamejs.Mp3Encoder) return self.lamejs;
   try {
-    importScripts('../../lame.min.js');
+    if (self.USE_CDN) {
+      importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
+    } else {
+      importScripts('../../lame.min.js');
+    }
   } catch (e) {
     try {
       importScripts('https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js');
@@ -48,13 +57,19 @@ function ensureLame() {
 }
 
 function isEngineReady() {
-  const mod = self.libopenmpt || self.Module;
-  if (!mod || typeof mod._malloc !== 'function') return false;
-  if (runtimeInitialized || mod.calledRun) return true;
-  if (mod.asm && (typeof mod.asm.wc === 'function' || Object.keys(mod.asm).length > 5)) {
+  try {
+    if (typeof libopenmpt === 'undefined') return false;
+    if (typeof libopenmpt._malloc !== 'function') return false;
+    if (typeof libopenmpt._openmpt_module_create_from_memory !== 'function') return false;
+    if (!libopenmpt.HEAPU8 || libopenmpt.HEAPU8.length === 0) return false;
+
+    const ptr = libopenmpt._malloc(4);
+    if (!ptr) return false;
+    libopenmpt._free(ptr);
     return true;
+  } catch (e) {
+    return false;
   }
-  return false;
 }
 
 function waitForEngine(callback, errback, attempts) {
@@ -146,34 +161,31 @@ function runCompilation(data) {
   let modulePtr = 0;
   let leftBufferPtr = 0;
   let rightBufferPtr = 0;
-  const mod = self.libopenmpt || self.Module;
 
   try {
     const byteArray = new Uint8Array(data.buffer);
-    const ptrToFile = mod._malloc(byteArray.byteLength);
+    const ptrToFile = libopenmpt._malloc(byteArray.byteLength);
     if (!ptrToFile) {
       self.postMessage({ type: 'error', message: 'Failed to allocate memory for module.' });
       return;
     }
-    mod.HEAPU8.set(byteArray, ptrToFile);
+    libopenmpt.HEAPU8.set(byteArray, ptrToFile);
 
-    modulePtr = mod._openmpt_module_create_from_memory(ptrToFile, byteArray.byteLength, 0, 0, 0);
-    mod._free(ptrToFile);
+    modulePtr = libopenmpt._openmpt_module_create_from_memory(ptrToFile, byteArray.byteLength, 0, 0, 0);
+    libopenmpt._free(ptrToFile);
     if (!modulePtr) {
       self.postMessage({ type: 'error', message: 'Unable to parse module.' });
       return;
     }
 
-    if (mod.ccall) {
-      mod.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 4]);
-      mod.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
-      mod.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 2, 100]);
-      mod.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [modulePtr, 0]);
-    }
+    libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 4]);
+    libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
+    libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 2, 100]);
+    libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [modulePtr, 0]);
 
-    const rawDur = mod._openmpt_module_get_duration_seconds
-      ? mod._openmpt_module_get_duration_seconds(modulePtr)
-      : (mod.ccall ? mod.ccall('openmpt_module_get_duration_seconds', 'number', ['number'], [modulePtr]) : 0);
+    const rawDur = libopenmpt._openmpt_module_get_duration_seconds
+      ? libopenmpt._openmpt_module_get_duration_seconds(modulePtr)
+      : (libopenmpt.ccall ? libopenmpt.ccall('openmpt_module_get_duration_seconds', 'number', ['number'], [modulePtr]) : 0);
     const duration = (isFinite(rawDur) && rawDur > 0) ? rawDur : 180;
     const sampleRate = data.sampleRate || 48000;
     const totalFrames = Math.ceil(duration * sampleRate);
@@ -182,10 +194,10 @@ function runCompilation(data) {
 
     let mp3encoder = null;
     if (isMp3) {
-      const Lame = ensureLame();
+      const Lame = getLame();
       if (!Lame || !Lame.Mp3Encoder) {
         self.postMessage({ type: 'error', message: 'LAME MP3 encoder could not be loaded.' });
-        if (mod._openmpt_module_destroy) mod._openmpt_module_destroy(modulePtr);
+        if (libopenmpt._openmpt_module_destroy) libopenmpt._openmpt_module_destroy(modulePtr);
         return;
       }
       mp3encoder = new Lame.Mp3Encoder(2, sampleRate, 320);
@@ -193,8 +205,8 @@ function runCompilation(data) {
 
     const BLOCK_SIZE = 1152;
     const chunkSize = BLOCK_SIZE * 4;
-    leftBufferPtr = mod._malloc(4 * chunkSize);
-    rightBufferPtr = mod._malloc(4 * chunkSize);
+    leftBufferPtr = libopenmpt._malloc(4 * chunkSize);
+    rightBufferPtr = libopenmpt._malloc(4 * chunkSize);
     const baseL = leftBufferPtr >> 2;
     const baseR = rightBufferPtr >> 2;
 
@@ -220,10 +232,10 @@ function runCompilation(data) {
     try {
       while (framesRendered < totalFrames) {
         const framesToRead = Math.min(chunkSize, totalFrames - framesRendered);
-        const actual = mod._openmpt_module_read_float_stereo(modulePtr, sampleRate, framesToRead, leftBufferPtr, rightBufferPtr);
+        const actual = libopenmpt._openmpt_module_read_float_stereo(modulePtr, sampleRate, framesToRead, leftBufferPtr, rightBufferPtr);
         if (!actual || actual <= 0) break;
 
-        const heapF32 = mod.HEAPF32;
+        const heapF32 = libopenmpt.HEAPF32;
         for (let i = 0; i < actual; i++) {
           let sL = heapF32[baseL + i];
           let sR = heapF32[baseR + i];
@@ -276,12 +288,11 @@ function runCompilation(data) {
       }
     } finally {
       if (modulePtr) {
-        if (mod._openmpt_module_destroy) mod._openmpt_module_destroy(modulePtr);
-        else if (mod.ccall) mod.ccall('openmpt_module_destroy', null, ['number'], [modulePtr]);
+        libopenmpt._openmpt_module_destroy(modulePtr);
         modulePtr = 0;
       }
-      if (leftBufferPtr) { mod._free(leftBufferPtr); leftBufferPtr = 0; }
-      if (rightBufferPtr) { mod._free(rightBufferPtr); rightBufferPtr = 0; }
+      if (leftBufferPtr) { libopenmpt._free(leftBufferPtr); leftBufferPtr = 0; }
+      if (rightBufferPtr) { libopenmpt._free(rightBufferPtr); rightBufferPtr = 0; }
     }
 
     let finalBlob = null;
