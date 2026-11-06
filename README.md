@@ -8,7 +8,7 @@
 
 XM-Studio runs directly in any modern web browser with zero installation:
 
-**Launch Online:** **[GitHub Pages](https://farhan-real.github.io/XM-Studio)** or **[Cloudflare Pages](https://xm-studio.pages.dev/)**
+**Launch Online:** **[farhan-real.github.io/XM-Studio](https://farhan-real.github.io/XM-Studio)** or **[xm-studio.pages.dev](https://xm-studio.pages.dev/)**
 
 * **Runs Everywhere:** Works seamlessly across Desktop and Android browsers (Chrome, Firefox, Safari, Edge).
 * **100% Client-Side Privacy:** All audio synthesis, DSP mixing, and file processing happen locally via WebAssembly and Web Audio. Nothing is uploaded to external servers.
