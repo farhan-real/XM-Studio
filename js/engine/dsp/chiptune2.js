@@ -70,6 +70,10 @@
           }
         };
 
+        if (this.workletNode.port.start) {
+          this.workletNode.port.start();
+        }
+
         this.dspWorker = new Worker('js/engine/workers/dspworker.js');
         this.bindWorkerEvents();
 

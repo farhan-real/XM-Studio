@@ -84,8 +84,9 @@ class XMAudioWorkletProcessor extends AudioWorkletProcessor {
       return true;
     }
 
-    const chunkPos = this.posQueue[0] || 0;
-    this.currentPosition = chunkPos + (this.readOffset / sampleRate);
+    const chunkPos = this.posQueue.length > 0 ? this.posQueue[0] : this.currentPosition;
+    const sr = (typeof sampleRate === 'number' && sampleRate > 0) ? sampleRate : 48000;
+    this.currentPosition = chunkPos + (this.readOffset / sr);
 
     let framesWritten = 0;
     while (framesWritten < framesNeeded && this.leftQueue.length > 0) {
@@ -131,7 +132,7 @@ class XMAudioWorkletProcessor extends AudioWorkletProcessor {
     }
 
     this.processTick = (this.processTick + 1) || 1;
-    if (this.processTick % 16 === 0) {
+    if (this.processTick % 8 === 0) {
       this.port.postMessage({ type: 'position', position: this.currentPosition });
     }
 

@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (mobileInstallRow) mobileInstallRow.classList.add('hide');
         }
       } else {
-        alert('To install XM-Studio:\n\n• On Android Chrome: Tap the three dots (⋮) menu and select "Install app" or "Add to Home screen".\n• On iOS Safari: Tap the Share button and select "Add to Home Screen".');
+        alert('To install XM-Studio:\n\n• On Android Chrome: Tap the three dots (⋮) menu and select "Install app".\n• On iOS Safari: Tap Share and select "Add to Home Screen".');
       }
     });
   }
@@ -110,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function resetTimeline() {
     progressBar.value = 0;
+    progressBar.style.setProperty('--progress', '0%');
     progressBar.disabled = true;
     timeCurrent.textContent = '00:00';
     timeTotal.textContent = '00:00';
@@ -127,7 +128,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dur > 0 && isFinite(dur)) {
       if (progressBar.disabled) progressBar.disabled = false;
       const safeCur = Math.min(dur, Math.max(0, cur));
-      progressBar.value = (safeCur / dur) * 100;
+      const pct = (safeCur / dur) * 100;
+      progressBar.value = pct;
+      progressBar.style.setProperty('--progress', `${pct}%`);
       const curSec = safeCur | 0, totSec = dur | 0;
       if (curSec !== lastReportedSec) { lastReportedSec = curSec; timeCurrent.textContent = formatTime(safeCur); }
       if (totSec !== lastReportedTotalSec) { lastReportedTotalSec = totSec; timeTotal.textContent = formatTime(dur); }
@@ -140,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function startProgressLoop() {
     if (!progressTimerId && !document.hidden) {
       updateProgress();
-      progressTimerId = setInterval(updateProgress, 150);
+      progressTimerId = setInterval(updateProgress, 100);
     }
   }
 
@@ -304,7 +307,11 @@ document.addEventListener('DOMContentLoaded', () => {
   progressBar.addEventListener('input', () => {
     isSeeking = true;
     const dur = window.XMAudio.getDuration();
-    if (dur > 0 && isFinite(dur)) timeCurrent.textContent = formatTime((progressBar.value / 100) * dur);
+    if (dur > 0 && isFinite(dur)) {
+      const targetSec = (progressBar.value / 100) * dur;
+      timeCurrent.textContent = formatTime(targetSec);
+      progressBar.style.setProperty('--progress', `${progressBar.value}%`);
+    }
   });
 
   progressBar.addEventListener('change', () => {
@@ -315,7 +322,7 @@ document.addEventListener('DOMContentLoaded', () => {
       timeCurrent.textContent = formatTime(targetSec);
       lastReportedSec = targetSec | 0;
     }
-    setTimeout(() => { isSeeking = false; updateProgress(); }, 150);
+    setTimeout(() => { isSeeking = false; updateProgress(); }, 120);
   });
 
   volSlider.addEventListener('input', (e) => {
