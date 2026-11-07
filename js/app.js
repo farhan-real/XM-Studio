@@ -1,5 +1,5 @@
 /**
- * js/app.js - Main workstation controller with visualizer sleep state and dual status indicators.
+ * js/app.js - Main workstation transport coordinator and deck status manager.
  */
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(() => {});
@@ -257,7 +257,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnPlayRandom) {
     btnPlayRandom.addEventListener('click', () => {
-      if (window.innerWidth <= 900) showMobileArchiveView();
       let played = window.XMLibrary && window.XMLibrary.playRandomArchiveTrack ? Boolean(window.XMLibrary.playRandomArchiveTrack()) : false;
       if (!played && window.XMAudio && window.XMAudio.playRandomTrack) window.XMAudio.playRandomTrack();
     });

@@ -201,7 +201,9 @@
   }
 
   function playRandomArchiveTrack() {
-    let catalog = window.XMCatalog ? window.XMCatalog.getDisplayCatalog() : [];
+    let catalog = (activeRenderQueue && activeRenderQueue.length > 0)
+      ? activeRenderQueue
+      : (window.XMCatalog ? window.XMCatalog.getDisplayCatalog() : []);
     if (!catalog || catalog.length === 0) catalog = window.XMCatalog ? window.XMCatalog.getFullCatalog() : [];
     if (!catalog || catalog.length === 0) {
       if (window.XMPlaylist) {
@@ -219,24 +221,14 @@
     const track = catalog[randIdx];
     if (!track) return false;
 
-    if (activeTab !== 'archive') switchTab('archive');
-    if (searchInput && searchInput.value) {
-      searchInput.value = '';
-      const full = window.XMCatalog.getFullCatalog();
-      window.XMCatalog.setDisplayCatalog(full);
-      renderTrackList(full, false);
-    }
-
-    if (!activeRenderQueue || activeRenderQueue.length === 0) {
-      const disp = window.XMCatalog.getDisplayCatalog();
-      renderTrackList(disp && disp.length > 0 ? disp : [track], false);
-    }
-
-    const queueIdx = activeRenderQueue.findIndex((t) => t.id === track.id);
+    const queue = (activeRenderQueue && activeRenderQueue.length > 0) ? activeRenderQueue : catalog;
+    const queueIdx = queue.findIndex((t) => t.id === track.id);
     const targetIdx = queueIdx >= 0 ? queueIdx : randIdx;
 
-    playTrack(track, activeRenderQueue, targetIdx);
-    if (scroller) requestAnimationFrame(() => scroller.scrollToIndex(targetIdx));
+    playTrack(track, queue, targetIdx);
+    if (activeTab === 'archive' && scroller) {
+      requestAnimationFrame(() => scroller.scrollToIndex(targetIdx));
+    }
     return track;
   }
 
@@ -292,8 +284,7 @@
     searchDebounceTimer = setTimeout(() => {
       const q = e.target.value.toLowerCase().trim();
       if (activeTab === 'archive') {
-        const filtered = window.XMCatalog.filter(q);
-        renderTrackList(filtered, true);
+        renderTrackList(window.XMCatalog.filter(q), true);
       } else if (activeTab === 'favorites') {
         const favs = window.XMCatalog.sortAlphabetical([...window.XMPlaylist.getFavorites()]);
         let numTarget = null;
