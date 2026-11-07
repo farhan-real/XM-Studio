@@ -2,12 +2,16 @@
  * js/engine/dsp/queue.js - Dedicated queue navigation, shuffle sequence, and lookahead preview coordinator.
  */
 (function(window) {
-  let isLooping = false;
-  let isShuffle = false;
-
+  let playMode = 'next';
   try {
-    isLooping = localStorage.getItem('xm_loop') === '1';
-    isShuffle = localStorage.getItem('xm_shuffle') === '1';
+    const saved = localStorage.getItem('xm_play_mode');
+    if (['stop', 'next', 'repeat', 'shuffle'].includes(saved)) {
+      playMode = saved;
+    } else if (localStorage.getItem('xm_loop') === '1') {
+      playMode = 'repeat';
+    } else if (localStorage.getItem('xm_shuffle') === '1') {
+      playMode = 'shuffle';
+    }
   } catch (e) {}
 
   let currentQueue = null;
@@ -37,6 +41,26 @@
     shufflePos = 0;
   }
 
+  function setPlayMode(mode) {
+    if (!['stop', 'next', 'repeat', 'shuffle'].includes(mode)) return playMode;
+    playMode = mode;
+    const isLooping = (mode === 'repeat');
+    const isShuffle = (mode === 'shuffle');
+    try {
+      localStorage.setItem('xm_play_mode', mode);
+      localStorage.setItem('xm_loop', isLooping ? '1' : '0');
+      localStorage.setItem('xm_shuffle', isShuffle ? '1' : '0');
+    } catch (e) {}
+
+    if (window.XMAudio) {
+      window.XMAudio.audioEl.loop = isLooping;
+      window.XMAudio.player.setRepeat(isLooping);
+    }
+    if (isShuffle) rebuildShuffleSequence();
+    if (window.XMApp?.syncPlayModeUI) window.XMApp.syncPlayModeUI(playMode);
+    return playMode;
+  }
+
   function setQueue(queue, idx, queueId) {
     currentQueue = queue || null;
     currentQueueIdx = (idx !== undefined) ? idx : -1;
@@ -55,7 +79,7 @@
     if (!currentQueue || currentQueue.length <= 1) return [];
     const targetCount = Math.min(count, currentQueue.length - 1);
     const upcoming = [];
-    if (isShuffle) {
+    if (playMode === 'shuffle') {
       if (shuffleSequence.length === 0 || shufflePos >= shuffleSequence.length) {
         rebuildShuffleSequence();
       }
@@ -111,10 +135,14 @@
   }
 
   function playNextTrack(force) {
-    if (isLooping && !force && !isShuffle) return;
+    if (playMode === 'repeat' && !force) return;
+    if (playMode === 'stop' && !force) {
+      if (window.XMAudio) window.XMAudio.stopPlayback();
+      return;
+    }
     ensureQueue();
     if (currentQueue && currentQueue.length > 0) {
-      if (isShuffle) {
+      if (playMode === 'shuffle') {
         if (shuffleSequence.length === 0 || shufflePos >= shuffleSequence.length) {
           rebuildShuffleSequence();
         }
@@ -135,7 +163,7 @@
   function playPrevTrack() {
     ensureQueue();
     if (!currentQueue || currentQueue.length === 0) return;
-    if (isShuffle) {
+    if (playMode === 'shuffle') {
       if (shuffleSequence.length > 0) {
         shufflePos = (shufflePos - 1 + shuffleSequence.length) % shuffleSequence.length;
         playTrackAt(shuffleSequence[shufflePos]);
@@ -169,32 +197,11 @@
   }
 
   function toggleLoop() {
-    isLooping = !isLooping;
-    if (isLooping && isShuffle) {
-      isShuffle = false;
-      try { localStorage.setItem('xm_shuffle', '0'); } catch (e) {}
-    }
-    try { localStorage.setItem('xm_loop', isLooping ? '1' : '0'); } catch (e) {}
-    if (window.XMAudio) {
-      window.XMAudio.audioEl.loop = isLooping;
-      window.XMAudio.player.setRepeat(isLooping);
-    }
-    return isLooping;
+    return setPlayMode(playMode === 'repeat' ? 'next' : 'repeat') === 'repeat';
   }
 
   function toggleShuffle() {
-    isShuffle = !isShuffle;
-    if (isShuffle && isLooping) {
-      isLooping = false;
-      try { localStorage.setItem('xm_loop', '0'); } catch (e) {}
-      if (window.XMAudio) {
-        window.XMAudio.audioEl.loop = false;
-        window.XMAudio.player.setRepeat(false);
-      }
-    }
-    try { localStorage.setItem('xm_shuffle', isShuffle ? '1' : '0'); } catch (e) {}
-    rebuildShuffleSequence();
-    return isShuffle;
+    return setPlayMode(playMode === 'shuffle' ? 'next' : 'shuffle') === 'shuffle';
   }
 
   window.XMQueue = {
@@ -208,9 +215,11 @@
     playNextTrack,
     playPrevTrack,
     playRandomTrack,
+    setPlayMode,
     toggleLoop,
     toggleShuffle,
-    get isLooping() { return isLooping; },
-    get isShuffle() { return isShuffle; }
+    get playMode() { return playMode; },
+    get isLooping() { return playMode === 'repeat'; },
+    get isShuffle() { return playMode === 'shuffle'; }
   };
 })(window);

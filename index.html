@@ -168,11 +168,35 @@
           </div>
         </div>
         <div class="transport-row transport-row-sub">
-          <button class="t-btn" id="btnShuffle" title="Toggle Shuffle Mode" aria-label="Shuffle"><svg viewBox="0 0 24 24" class="t-icon-sm"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg></button>
-          <button class="t-btn" id="btnLoop" title="Toggle Loop Mode" aria-label="Loop"><svg viewBox="0 0 24 24" class="t-icon-sm"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg></button>
+          <div class="fader-cluster">
+            <button class="fader-btn" id="btnMute" aria-label="Mute Audio">
+              <svg id="svgVol" viewBox="0 0 24 24" class="t-icon-sm"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+            </button>
+            <div class="slider-wrap vol-slider-wrap">
+              <input type="range" id="volSlider" min="0" max="1" step="0.02" value="0.85" aria-label="Master Volume" />
+            </div>
+            <span class="vol-readout" id="volPercent">85%</span>
+          </div>
           <button class="t-btn" id="btnStop" title="Stop Playback" aria-label="Stop"><svg viewBox="0 0 24 24" class="t-icon-sm" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg></button>
           <button class="t-btn" id="btnDownload" title="Export Audio" aria-label="Download File" disabled><svg viewBox="0 0 24 24" class="t-icon-sm"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>
-          <div class="fader-cluster"><button class="fader-btn" id="btnMute" aria-label="Mute Audio"><svg id="svgVol" viewBox="0 0 24 24" class="t-icon-sm"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg></button><div class="slider-wrap vol-slider-wrap"><input type="range" id="volSlider" min="0" max="1" step="0.02" value="0.85" aria-label="Master Volume" /></div><span class="vol-readout" id="volPercent">85%</span></div>
+          <div class="mode-switch-slider" id="modeSwitchSlider" role="radiogroup" aria-label="Playback Mode">
+            <button class="mode-switch-btn" data-mode="stop" title="Mode: Stop when track ends" aria-label="Stop">
+              <svg viewBox="0 0 24 24" class="mode-icon" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg>
+              <span class="mode-text">STOP</span>
+            </button>
+            <button class="mode-switch-btn active" data-mode="next" title="Mode: Play next track" aria-label="Play Next">
+              <svg viewBox="0 0 24 24" class="mode-icon"><polygon points="5 4 15 12 5 20 5 4" fill="currentColor"></polygon><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></line></svg>
+              <span class="mode-text">NEXT</span>
+            </button>
+            <button class="mode-switch-btn" data-mode="repeat" title="Mode: Repeat track" aria-label="Repeat">
+              <svg viewBox="0 0 24 24" class="mode-icon"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+              <span class="mode-text">LOOP</span>
+            </button>
+            <button class="mode-switch-btn" data-mode="shuffle" title="Mode: Shuffle tracks" aria-label="Shuffle">
+              <svg viewBox="0 0 24 24" class="mode-icon"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+              <span class="mode-text">RAND</span>
+            </button>
+          </div>
         </div>
       </div>
       <div class="ingest-deck">

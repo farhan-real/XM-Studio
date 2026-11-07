@@ -15,10 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnPlayPause = document.getElementById('btnPlayPause');
   const svgPlay = document.getElementById('svgPlay'), svgPause = document.getElementById('svgPause');
-  const btnStop = document.getElementById('btnStop'), btnLoop = document.getElementById('btnLoop');
-  const btnShuffle = document.getElementById('btnShuffle'), btnPrev = document.getElementById('btnPrev');
+  const btnStop = document.getElementById('btnStop'), btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext'), btnPlayRandom = document.getElementById('btnPlayRandom');
   const btnLocateTrack = document.getElementById('btnLocateTrack');
+  const modeSwitchSlider = document.getElementById('modeSwitchSlider');
   const btnDeckFav = document.getElementById('btnDeckFav'), btnDeckAddPl = document.getElementById('btnDeckAddPl');
   const btnUnload = document.getElementById('btnUnload'), progressBar = document.getElementById('progressBar');
   const timeCurrent = document.getElementById('timeCurrent'), timeTotal = document.getElementById('timeTotal');
@@ -58,16 +58,42 @@ document.addEventListener('DOMContentLoaded', () => {
           if (mobileInstallRow) mobileInstallRow.classList.add('hide');
         }
       } else {
-        alert('To install XM-Studio:\n\n• On Android Chrome: Tap the three dots (⋮) menu and select "Install app".\n• On iOS Safari: Tap Share and select "Add to Home Screen".');
+        alert('To install XM-Studio:\n\n• On Android Chrome: Tap the three dots (⋮) menu and select "Install app" or "Add to Home screen".\n• On iOS Safari: Tap Share and select "Add to Home Screen".');
       }
     });
   }
 
-  function syncTransportButtons() {
-    if (btnLoop) btnLoop.classList.toggle('active', window.XMAudio.isLooping);
-    if (btnShuffle) btnShuffle.classList.toggle('active', window.XMAudio.isShuffle);
+  function syncPlayModeUI(mode) {
+    const active = mode || (window.XMQueue ? window.XMQueue.playMode : 'next');
+    document.querySelectorAll('.mode-switch-btn').forEach((b) => {
+      b.classList.toggle('active', b.dataset.mode === active);
+    });
   }
-  syncTransportButtons();
+  syncPlayModeUI();
+
+  if (modeSwitchSlider) {
+    function setModeFromPointer(clientX) {
+      const btns = Array.from(modeSwitchSlider.querySelectorAll('.mode-switch-btn'));
+      for (const btn of btns) {
+        const rect = btn.getBoundingClientRect();
+        if (clientX >= rect.left && clientX <= rect.right) {
+          if (window.XMQueue) window.XMQueue.setPlayMode(btn.dataset.mode);
+          break;
+        }
+      }
+    }
+
+    modeSwitchSlider.addEventListener('pointerdown', (e) => {
+      setModeFromPointer(e.clientX);
+      function onMove(me) { setModeFromPointer(me.clientX); }
+      function onUp() {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+      }
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+    });
+  }
 
   function showMobileArchiveView() {
     btnToggleLeft.classList.add('active');
@@ -260,8 +286,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnPlayPause.addEventListener('click', () => window.XMAudio.togglePlayPause());
   btnStop.addEventListener('click', () => window.XMAudio.stopPlayback());
-  btnLoop.addEventListener('click', () => { window.XMAudio.toggleLoop(); syncTransportButtons(); });
-  btnShuffle.addEventListener('click', () => { window.XMAudio.toggleShuffle(); syncTransportButtons(); });
   if (btnPrev) btnPrev.addEventListener('click', () => window.XMAudio.playPrevTrack());
   if (btnNext) btnNext.addEventListener('click', () => window.XMAudio.playNextTrack(true));
 
@@ -351,6 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     setPlaybackStatus,
     setCompileStatus,
+    syncPlayModeUI,
     updateDeckFav: updateDeckFavState,
     showMobileArchiveView,
     showMobilePlayerView,
