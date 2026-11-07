@@ -1,5 +1,5 @@
 /**
- * js/engine/queue.js - Dedicated queue navigation, history, and shuffle/loop coordinator.
+ * js/engine/dsp/queue.js - Dedicated queue navigation, shuffle sequence, and lookahead preview coordinator.
  */
 (function(window) {
   let isLooping = false;
@@ -13,17 +13,64 @@
   let currentQueue = null;
   let currentQueueIdx = -1;
   let currentTrackNum = 0;
+  let currentQueueId = null;
+  let shuffleSequence = [];
+  let shufflePos = 0;
 
-  function setQueue(queue, idx) {
+  function rebuildShuffleSequence() {
+    if (!currentQueue || currentQueue.length === 0) {
+      shuffleSequence = [];
+      shufflePos = 0;
+      return;
+    }
+    const indices = [];
+    for (let i = 0; i < currentQueue.length; i++) {
+      if (i !== currentQueueIdx) indices.push(i);
+    }
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const temp = indices[i];
+      indices[i] = indices[j];
+      indices[j] = temp;
+    }
+    shuffleSequence = indices;
+    shufflePos = 0;
+  }
+
+  function setQueue(queue, idx, queueId) {
     currentQueue = queue || null;
     currentQueueIdx = (idx !== undefined) ? idx : -1;
+    currentQueueId = queueId || (queue && queue._playlistId) || null;
     const cur = (queue && typeof idx === 'number' && queue[idx]) ? queue[idx] : null;
     currentTrackNum = (cur && cur.catalogIndex) ? cur.catalogIndex : ((typeof idx === 'number' && idx >= 0) ? (idx + 1) : 0);
+    rebuildShuffleSequence();
   }
 
   function getQueue() { return currentQueue; }
   function getIndex() { return currentQueueIdx; }
   function getTrackNum() { return currentTrackNum; }
+  function getQueueId() { return currentQueueId; }
+
+  function getUpcomingTracks(count = 2) {
+    if (!currentQueue || currentQueue.length <= 1) return [];
+    const targetCount = Math.min(count, currentQueue.length - 1);
+    const upcoming = [];
+    if (isShuffle) {
+      if (shuffleSequence.length === 0 || shufflePos >= shuffleSequence.length) {
+        rebuildShuffleSequence();
+      }
+      for (let i = 0; i < targetCount; i++) {
+        const idx = shuffleSequence[(shufflePos + i) % shuffleSequence.length];
+        if (currentQueue[idx]) upcoming.push(currentQueue[idx]);
+      }
+    } else {
+      for (let i = 1; i <= targetCount; i++) {
+        const idx = (currentQueueIdx + i) % currentQueue.length;
+        if (currentQueue[idx]) upcoming.push(currentQueue[idx]);
+      }
+    }
+    return upcoming;
+  }
 
   function resolveTrackUrl(item) {
     if (item.url) return item.url;
@@ -56,6 +103,8 @@
         if (cat && cat.length > 0) {
           currentQueue = cat;
           currentQueueIdx = -1;
+          currentQueueId = cat._playlistId || null;
+          rebuildShuffleSequence();
         }
       }
     }
@@ -66,12 +115,15 @@
     ensureQueue();
     if (currentQueue && currentQueue.length > 0) {
       if (isShuffle) {
-        let randIdx = Math.floor(Math.random() * currentQueue.length);
-        if (currentQueue.length > 1 && randIdx === currentQueueIdx) {
-          randIdx = (randIdx + 1) % currentQueue.length;
+        if (shuffleSequence.length === 0 || shufflePos >= shuffleSequence.length) {
+          rebuildShuffleSequence();
         }
-        playTrackAt(randIdx);
-        return;
+        if (shuffleSequence.length > 0) {
+          const nextIdx = shuffleSequence[shufflePos % shuffleSequence.length];
+          shufflePos = (shufflePos + 1) % shuffleSequence.length;
+          playTrackAt(nextIdx);
+          return;
+        }
       }
       playTrackAt(currentQueueIdx >= 0 && currentQueueIdx + 1 < currentQueue.length ? currentQueueIdx + 1 : 0);
       return;
@@ -84,12 +136,11 @@
     ensureQueue();
     if (!currentQueue || currentQueue.length === 0) return;
     if (isShuffle) {
-      let randIdx = Math.floor(Math.random() * currentQueue.length);
-      if (currentQueue.length > 1 && randIdx === currentQueueIdx) {
-        randIdx = (randIdx + currentQueue.length - 1) % currentQueue.length;
+      if (shuffleSequence.length > 0) {
+        shufflePos = (shufflePos - 1 + shuffleSequence.length) % shuffleSequence.length;
+        playTrackAt(shuffleSequence[shufflePos]);
+        return;
       }
-      playTrackAt(randIdx);
-      return;
     }
     playTrackAt(currentQueueIdx > 0 ? currentQueueIdx - 1 : currentQueue.length - 1);
   }
@@ -142,6 +193,7 @@
       }
     }
     try { localStorage.setItem('xm_shuffle', isShuffle ? '1' : '0'); } catch (e) {}
+    rebuildShuffleSequence();
     return isShuffle;
   }
 
@@ -150,6 +202,8 @@
     getQueue,
     getIndex,
     getTrackNum,
+    getQueueId,
+    getUpcomingTracks,
     playTrackAt,
     playNextTrack,
     playPrevTrack,

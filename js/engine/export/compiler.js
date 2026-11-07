@@ -4,6 +4,8 @@
 (function(window) {
   function AudioCompiler() {
     this.isCompiling = false;
+    this.isPreload = false;
+    this.activeTrackId = null;
     this.worker = null;
   }
 
@@ -20,6 +22,7 @@
     this.cancel();
     const self = this;
     self.isCompiling = true;
+    self.isPreload = false;
 
     try {
       const workerUrl = 'js/engine/workers/worker.js' + (window.USE_CDN ? '?cdn=1' : '');
@@ -27,7 +30,7 @@
 
       self.worker.onmessage = function(e) {
         const msg = e.data;
-        if (!self.isCompiling) return;
+        if (!self.isCompiling || self.isPreload) return;
 
         if (msg.type === 'progress') {
           if (onProgress) onProgress(msg.progress);
@@ -70,6 +73,60 @@
     }
   };
 
+  AudioCompiler.prototype.compilePreload = function(buffer, format, trackId, onComplete, onError) {
+    if (this.isCompiling && !this.isPreload) return;
+    this.cancel();
+    const self = this;
+    self.isCompiling = true;
+    self.isPreload = true;
+    self.activeTrackId = trackId;
+
+    try {
+      const workerUrl = 'js/engine/workers/worker.js' + (window.USE_CDN ? '?cdn=1' : '');
+      self.worker = new Worker(workerUrl);
+
+      self.worker.onmessage = function(e) {
+        const msg = e.data;
+        if (!self.isCompiling || !self.isPreload || self.activeTrackId !== trackId) return;
+
+        if (msg.type === 'complete') {
+          self.isCompiling = false;
+          self.isPreload = false;
+          self.activeTrackId = null;
+          self.cleanup();
+          if (onComplete) onComplete(msg.blob, msg.visData, msg.visFps, msg.duration);
+        } else if (msg.type === 'error') {
+          self.isCompiling = false;
+          self.isPreload = false;
+          self.activeTrackId = null;
+          self.cleanup();
+          if (onError) onError(new Error(msg.message));
+        }
+      };
+
+      self.worker.onerror = function(err) {
+        self.isCompiling = false;
+        self.isPreload = false;
+        self.activeTrackId = null;
+        self.cleanup();
+        if (onError) onError(err);
+      };
+
+      const copy = buffer.slice(0);
+      self.worker.postMessage({
+        type: 'compile',
+        buffer: copy,
+        format: format || 'mp3',
+        sampleRate: 48000
+      }, [copy]);
+    } catch (e) {
+      self.isCompiling = false;
+      self.isPreload = false;
+      self.cleanup();
+      if (onError) onError(e);
+    }
+  };
+
   AudioCompiler.prototype.cleanup = function() {
     if (this.worker) {
       this.worker.terminate();
@@ -79,8 +136,14 @@
 
   AudioCompiler.prototype.cancel = function() {
     this.isCompiling = false;
+    this.isPreload = false;
+    this.activeTrackId = null;
     this.cleanup();
   };
+
+  Object.defineProperty(AudioCompiler.prototype, 'isCompilingActive', {
+    get: function() { return this.isCompiling && !this.isPreload; }
+  });
 
   window.AudioCompiler = new AudioCompiler();
 })(window);

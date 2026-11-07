@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (window.XMVisualizer && window.XMVisualizer.start) window.XMVisualizer.start(player);
   if (window.AudioCompiler && window.AudioCompiler.init) window.AudioCompiler.init();
   if (window.XMCache && window.XMCache.init) window.XMCache.init();
+  if (window.XMPrecompiler && window.XMPrecompiler.init) window.XMPrecompiler.init();
 
   let isSeeking = false;
   let prevVolume = 0.85;
@@ -265,6 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnUnload.addEventListener('click', () => {
     try {
       if (window.XMExport && window.XMExport.cancelExport) window.XMExport.cancelExport();
+      if (window.XMPrecompiler) window.XMPrecompiler.cancel();
       window.XMAudio.unload();
     } catch (e) {
       console.warn('Unload error caught:', e);

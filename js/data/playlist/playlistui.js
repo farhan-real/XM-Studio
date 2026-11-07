@@ -74,6 +74,7 @@
     currentPlaylistId = plId;
     const pl = window.XMPlaylist.getPlaylists().find(p => p.id === plId);
     if (!pl) return;
+    pl.tracks._playlistId = pl.id;
     playlistCreateRow.classList.add('hide');
     playlistDetailToolbar.classList.remove('hide');
     playlistDetailTitle.textContent = pl.name;
@@ -115,6 +116,7 @@
         window.XMPlaylist.savePlaylists(pls);
         viewPlaylist(currentPlaylistId);
       } else if (window.XMLibrary && window.XMLibrary.playTrackDirect) {
+        pl.tracks._playlistId = pl.id;
         window.XMLibrary.playTrackDirect(pl.tracks[idx], pl.tracks, idx);
       }
     }
@@ -212,13 +214,17 @@
   btnPlayAllPlaylist.addEventListener('click', () => {
     if (!currentPlaylistId) return;
     const pl = window.XMPlaylist.getPlaylists().find(p => p.id === currentPlaylistId);
-    if (pl && pl.tracks.length > 0 && window.XMLibrary.playTrackDirect) window.XMLibrary.playTrackDirect(pl.tracks[0], pl.tracks, 0);
+    if (pl && pl.tracks.length > 0 && window.XMLibrary.playTrackDirect) {
+      pl.tracks._playlistId = pl.id;
+      window.XMLibrary.playTrackDirect(pl.tracks[0], pl.tracks, 0);
+    }
   });
   if (btnShufflePlaylist) {
     btnShufflePlaylist.addEventListener('click', () => {
       if (!currentPlaylistId) return;
       const pl = window.XMPlaylist.getPlaylists().find(p => p.id === currentPlaylistId);
       if (pl && pl.tracks.length > 0 && window.XMLibrary.playTrackDirect) {
+        pl.tracks._playlistId = pl.id;
         if (window.XMAudio && !window.XMAudio.isShuffle) { window.XMAudio.toggleShuffle(); const b = document.getElementById('btnShuffle'); if (b) b.classList.add('active'); }
         const s = Math.floor(Math.random() * pl.tracks.length);
         window.XMLibrary.playTrackDirect(pl.tracks[s], pl.tracks, s);

@@ -1,15 +1,36 @@
 /**
- * js/data/storage/cache.js - Persistent IndexedDB LRU cache for compiled songs & 15 FPS visualizer frames.
+ * js/data/storage/cache.js - Persistent IndexedDB LRU cache with multi-tier playlist quotas.
  */
 (function(window) {
   const DB_NAME = 'xm_studio_cache_db';
-  const DB_VERSION = 4;
+  const DB_VERSION = 5;
   const STORE_NAME = 'compiled_songs';
-  const MAX_ITEMS = 10;
+  const MAX_GLOBAL_ITEMS = 35;
+  const MAX_PER_PLAYLIST = 10;
+  const MAX_ACTIVE_PLAYLISTS = 3;
   const CURRENT_VIS_FPS = 15;
 
   const ramCache = new Map();
   let dbPromise = null;
+
+  function getRecentPlaylists() {
+    try {
+      const list = JSON.parse(localStorage.getItem('xm_recent_playlists'));
+      return Array.isArray(list) ? list : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function touchRecentPlaylist(playlistId) {
+    if (!playlistId || playlistId === 'catalog' || playlistId === 'queue') return;
+    let list = getRecentPlaylists().filter((id) => id !== playlistId);
+    list.unshift(playlistId);
+    if (list.length > MAX_ACTIVE_PLAYLISTS) {
+      list = list.slice(0, MAX_ACTIVE_PLAYLISTS);
+    }
+    try { localStorage.setItem('xm_recent_playlists', JSON.stringify(list)); } catch (e) {}
+  }
 
   function openDB() {
     if (dbPromise) return dbPromise;
@@ -35,30 +56,60 @@
     return dbPromise;
   }
 
-  async function pruneOldEntries(db) {
+  async function enforceQuotas(db) {
     if (!db) return;
     try {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      const index = store.index('timestamp');
-      const countReq = store.count();
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const records = req.result || [];
+        if (records.length === 0) return;
 
-      countReq.onsuccess = () => {
-        const count = countReq.result;
-        if (count > MAX_ITEMS) {
-          const excess = count - MAX_ITEMS;
-          let deleted = 0;
-          const cursorReq = index.openCursor();
-          cursorReq.onsuccess = (e) => {
-            const cursor = e.target.result;
-            if (cursor && deleted < excess) {
-              ramCache.delete(cursor.primaryKey);
-              cursor.delete();
-              deleted++;
-              cursor.continue();
+        const activePlaylists = new Set(getRecentPlaylists());
+        const toDelete = new Set();
+
+        if (activePlaylists.size > 0) {
+          for (let i = 0; i < records.length; i++) {
+            const r = records[i];
+            if (r.playlistId && !activePlaylists.has(r.playlistId) && r.playlistId !== 'favorites' && r.playlistId !== 'archive') {
+              toDelete.add(r.id);
             }
-          };
+          }
         }
+
+        const byPlaylist = new Map();
+        for (let i = 0; i < records.length; i++) {
+          const r = records[i];
+          if (toDelete.has(r.id)) continue;
+          const pid = r.playlistId || '__general__';
+          if (!byPlaylist.has(pid)) byPlaylist.set(pid, []);
+          byPlaylist.get(pid).push(r);
+        }
+
+        for (const [pid, list] of byPlaylist.entries()) {
+          if (pid !== '__general__' && list.length > MAX_PER_PLAYLIST) {
+            list.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            const excess = list.length - MAX_PER_PLAYLIST;
+            for (let j = 0; j < excess; j++) {
+              toDelete.add(list[j].id);
+            }
+          }
+        }
+
+        const remaining = records.filter((r) => !toDelete.has(r.id));
+        if (remaining.length > MAX_GLOBAL_ITEMS) {
+          remaining.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          const excess = remaining.length - MAX_GLOBAL_ITEMS;
+          for (let j = 0; j < excess; j++) {
+            toDelete.add(remaining[j].id);
+          }
+        }
+
+        toDelete.forEach((id) => {
+          ramCache.delete(id);
+          store.delete(id);
+        });
       };
     } catch (e) {}
   }
@@ -85,7 +136,7 @@
           }
         }
 
-        const keep = validItems.slice(0, MAX_ITEMS);
+        const keep = validItems.slice(0, MAX_GLOBAL_ITEMS);
         for (let i = 0; i < keep.length; i++) {
           const item = keep[i];
           ramCache.set(item.id, {
@@ -93,15 +144,21 @@
             ext: item.format || 'mp3',
             visData: item.visData,
             visFps: item.visFps || CURRENT_VIS_FPS,
-            duration: item.duration || 0
+            duration: item.duration || 0,
+            playlistId: item.playlistId || null
           });
         }
 
-        if (validItems.length > MAX_ITEMS) {
-          pruneOldEntries(db);
+        if (validItems.length > MAX_GLOBAL_ITEMS) {
+          enforceQuotas(db);
         }
       };
     } catch (e) {}
+  }
+
+  function has(trackId, format) {
+    const key = `${trackId}_${(format || 'mp3').toLowerCase()}`;
+    return ramCache.has(key);
   }
 
   function get(trackId, format) {
@@ -140,17 +197,19 @@
     return null;
   }
 
-  async function set(trackId, format, blob, visData, visFps, duration) {
+  async function set(trackId, format, blob, visData, visFps, duration, playlistId) {
     if (!trackId || !blob) return;
     const fmt = (format || 'mp3').toLowerCase();
     const key = `${trackId}_${fmt}`;
+    if (playlistId) touchRecentPlaylist(playlistId);
 
     const entry = {
       blob,
       ext: fmt,
       visData: visData ? (visData instanceof Uint8Array ? visData : new Uint8Array(visData)) : null,
       visFps: visFps || CURRENT_VIS_FPS,
-      duration: (typeof duration === 'number' && duration > 0) ? duration : 0
+      duration: (typeof duration === 'number' && duration > 0) ? duration : 0,
+      playlistId: playlistId || null
     };
 
     ramCache.set(key, entry);
@@ -168,11 +227,10 @@
         visData: entry.visData,
         visFps: entry.visFps,
         duration: entry.duration,
+        playlistId: entry.playlistId,
         timestamp: Date.now()
       });
-      tx.oncomplete = () => {
-        pruneOldEntries(db);
-      };
+      tx.oncomplete = () => enforceQuotas(db);
     } catch (err) {}
   }
 
@@ -187,5 +245,5 @@
     });
   }
 
-  window.XMCache = { init, get, set, clear };
+  window.XMCache = { init, get, has, set, clear, MAX_PER_PLAYLIST, MAX_GLOBAL_ITEMS };
 })(window);
