@@ -78,26 +78,34 @@ XM-Studio solves this with an intelligent **three-phase playback pipeline**:
 * **25 Hz DC-Blocking Highpass Filter:** Biquad highpass filter cuts sub-audible infrasound and DC bias inherent in retro tracker instruments before reaching the output stage.
 * **Lossless FLAC & Native Hardware Audio:** Direct hardware-accelerated playback for `.flac`, `.mp3`, and `.wav` with automatic `URL.revokeObjectURL` lifecycle cleanup.
 
-### Persistent 10-Song IndexedDB LRU Cache
+### 2-Track Lookahead Playlist Precompilation
 
-* **Automatic Song & Visualizer Persistence:** The last 10 compiled songs—including both their **audio Blobs** and precomputed **visualizer spectrum frames (`visData`)**—are stored in a dedicated IndexedDB database (`xm_studio_cache_db`).
-* **Instant Replay without Recompilation:** Returning to any of your last 10 played songs loads the compiled audio and spectrum instantly from local storage, starting immediately in **`LOADED`** mode with zero compile time.
-* **Automatic LRU Eviction:** When an 11th song is compiled, an automatic timestamp-indexed Least-Recently-Used eviction algorithm purges the oldest entry, keeping storage compact and within browser quotas.
+* **Proactive Sliding Window:** XM-Studio continuously precompiles the upcoming 2 tracks in the playlist ($N+1$ and $N+2$). Skipping songs is instantaneous (0ms) and starts directly in native battery-friendly `LOADED` mode.
+* **Deterministic Shuffle Synchronization:** In shuffle mode, the queue precomputes a deterministic shuffle sequence so background precompilation targets the exact randomized tracks that will play next.
+* **Serial Off-Thread Worker Architecture:** Runs precompilation on a dedicated background Web Worker (`worker.js`). Precompilation executes sequentially (one track at a time) to prevent CPU saturation, thermal throttling, and worklet buffer starvation on mobile devices.
+* **Zero-Latency Preemption:** The playing track always holds top compilation priority. If the user skips or seeks mid-precompilation, the in-flight precompile cancels instantly (0ms) with zero UI hitching.
+* **Battery & Visibility Gating:** Pauses precompilation when the browser tab is hidden or when mobile device battery drops below 15% on battery power.
+
+### Multi-Tier IndexedDB Cache Architecture
+
+* **Expanded 35-Song Global Ceiling:** Stores up to 35 fully compiled songs—including audio Blobs and calibrated 15 FPS FFT spectrum frames—in IndexedDB (`xm_studio_cache_db`), balancing instant replay with browser storage quotas (~210 MB cap).
+* **Per-Playlist Quota (Max 10 Tracks):** Caps each playlist's cached songs at 10 tracks, automatically evicting tracks furthest from the active playhead to prevent large playlists (500+ tracks) from exhausting disk space.
+* **Active Playlist Recency Quota (Last 3 Playlists):** Tracks playlist recency across sessions, automatically purging compiled assets belonging exclusively to older, inactive playlists.
 * **Instant 0ms Downloads:** Clicking **Download** on any track currently playing in `LOADED` state (or stored in the cache) saves the file immediately without re-encoding.
 
 ### Zero-Lag Visualizer & Offline Spectrum Caching
 
 * **$O(1)$ Memory Spectrum Lookup:** Once a track is compiled, the visualizer reads from precomputed 28-band frames rather than polling live Web Audio analysers. This eliminates audio thread synchronization overhead on weak devices.
 * **Calibrated Web Audio Decibel Curve:** The offline worker calculates FFT magnitudes matching native Web Audio decibel scaling ($-100\text{ dB}$ to $-30\text{ dB} \rightarrow 0..255$) and identical logarithmic bin mapping, ensuring a seamless visual transition during handoff.
-* **20 FPS Frame Pacing:** Hardware-paced at 20 FPS (50ms interval) to eliminate up to 83% of redundant draw calls.
+* **15 FPS Frame Pacing:** Paced at 15 FPS (~67ms interval) to eliminate up to 83% of redundant draw calls.
 * **1.25× DPR Resolution Cap:** Caps canvas pixel density to 1.25× on high-density mobile screens, saving over 60% of GPU fill-rate overhead.
-* **Scroll Throttling (10 FPS):** Drops frame rate to 10 FPS during active touch scrolling or dragging to keep Android momentum scrolling silky smooth.
+* **Scroll Throttling:** Pauses non-critical canvas re-renders during active touch scrolling or dragging to keep Android momentum scrolling silky smooth.
 * **Pristine Canvas Clearing:** Unloading a track (`btnUnload`), pausing, or stopping immediately wipes frozen spectrum bars and restores the dark grid chassis.
 
 ### Workstation Deck & Status Badges
 
 * **Dual Right-Aligned Status Cluster:**
-  * **PLAYBACK Badge:** Displays **`LIVE`** (phosphor green, real-time DSP synthesis), **`LOADED`** (cyan/blue, native hardware stream), or **`IDLE`** (slate gray). Permanently styled with translucent tinted backgrounds and glowing borders.
+  * **PLAYBACK Badge:** Displays **`LIVE`** (phosphor green, real-time DSP synthesis), **`LOADED`** (cyan/blue, native hardware stream), or **`IDLE`** (slate gray).
   * **COMPILE Badge:** Displays **`COMPILING`** (gold, live rendering percentage and pulse animation), **`READY`** (green), or **`IDLE`** (slate gray).
 * **Streamlined Channel Badge:** Displays channel count directly as **`32CH`**, **`16CH`**, **`4CH`**, or **`2CH`** without redundant labels.
 * **Hardware Fader & Scrubber:** Interactive timeline progress bar with elapsed/total time readouts, master volume fader with mute toggle, and sample rate indicators.
@@ -201,11 +209,12 @@ Open `http://localhost:8080` in your web browser.
     │   │   ├── audio.js        # Master audio coordinator & 3-phase handoff
     │   │   ├── background.js   # MediaSession, lock screen & carrier audio
     │   │   ├── chiptune2.js    # AudioWorklet player manager & event bus
-    │   │   ├── queue.js        # Playback queue, shuffle & loop manager
+    │   │   ├── queue.js        # Playback queue, shuffle sequence & preview
     │   │   └── visualizer.js   # O(1) spectrum cache visualizer loop
     │   ├── export/
-    │   │   ├── compiler.js     # Background export worker coordinator
-    │   │   └── export.js       # Export formats, background compiler & ingest
+    │   │   ├── compiler.js     # Background export & preload worker coordinator
+    │   │   ├── export.js       # Export formats, background compiler & ingest
+    │   │   └── precompiler.js  # 2-track lookahead playlist precompiler
     │   └── workers/
     │       ├── dspworker.js    # Background libopenmpt synthesis worker
     │       ├── worker.js       # Background MP3/WAV render & FFT worker
@@ -219,7 +228,7 @@ Open `http://localhost:8080` in your web browser.
         │   └── playlistui.js   # Playlist UI rendering & modals
         ├── storage/
         │   ├── backup.js       # Full workstation ZIP export & restore
-        │   ├── cache.js        # Persistent 10-song IndexedDB LRU cache
+        │   ├── cache.js        # Multi-tier 35-song IndexedDB LRU cache
         │   ├── custom.js       # IndexedDB track metadata & blob storage
         │   └── zip.js          # Pure JS binary ZIP writer & reader
         └── view/
