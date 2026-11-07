@@ -5,50 +5,62 @@ document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(() => {});
 
   const { player, audioEl } = window.XMAudio;
-  if (window.XMVisualizer && window.XMVisualizer.start) window.XMVisualizer.start(player);
-  if (window.AudioCompiler && window.AudioCompiler.init) window.AudioCompiler.init();
-  if (window.XMCache && window.XMCache.init) window.XMCache.init();
-  if (window.XMPrecompiler && window.XMPrecompiler.init) window.XMPrecompiler.init();
+  if (window.XMVisualizer?.start) window.XMVisualizer.start(player);
+  if (window.AudioCompiler?.init) window.AudioCompiler.init();
+  if (window.XMCache?.init) window.XMCache.init();
+  if (window.XMPrecompiler?.init) window.XMPrecompiler.init();
 
-  let isSeeking = false;
-  let prevVolume = 0.85;
-  let lastReportedSec = -1;
-  let lastReportedTotalSec = -1;
-  let progressTimerId = null;
+  let isSeeking = false, prevVolume = 0.85, lastReportedSec = -1, lastReportedTotalSec = -1, progressTimerId = null;
+  let deferredInstallPrompt = null;
 
   const btnPlayPause = document.getElementById('btnPlayPause');
-  const svgPlay = document.getElementById('svgPlay');
-  const svgPause = document.getElementById('svgPause');
-  const btnStop = document.getElementById('btnStop');
-  const btnLoop = document.getElementById('btnLoop');
-  const btnShuffle = document.getElementById('btnShuffle');
-  const btnPrev = document.getElementById('btnPrev');
-  const btnNext = document.getElementById('btnNext');
-  const btnPlayRandom = document.getElementById('btnPlayRandom');
-  const btnDeckFav = document.getElementById('btnDeckFav');
-  const btnDeckAddPl = document.getElementById('btnDeckAddPl');
-  const btnUnload = document.getElementById('btnUnload');
-  const progressBar = document.getElementById('progressBar');
-  const timeCurrent = document.getElementById('timeCurrent');
-  const timeTotal = document.getElementById('timeTotal');
-  const volSlider = document.getElementById('volSlider');
-  const volPercent = document.getElementById('volPercent');
-  const btnMute = document.getElementById('btnMute');
-  const songTitle = document.getElementById('songTitle');
-  const songArtist = document.getElementById('songArtist');
-  const modType = document.getElementById('modType');
-  const badgeEngine = document.querySelector('.badge-engine');
-  const channels = document.getElementById('channels');
-  const playbackBadge = document.getElementById('playbackBadge');
-  const playbackStatus = document.getElementById('playbackStatus');
-  const compileBadge = document.getElementById('compileBadge');
-  const compileStatus = document.getElementById('compileStatus');
+  const svgPlay = document.getElementById('svgPlay'), svgPause = document.getElementById('svgPause');
+  const btnStop = document.getElementById('btnStop'), btnLoop = document.getElementById('btnLoop');
+  const btnShuffle = document.getElementById('btnShuffle'), btnPrev = document.getElementById('btnPrev');
+  const btnNext = document.getElementById('btnNext'), btnPlayRandom = document.getElementById('btnPlayRandom');
+  const btnDeckFav = document.getElementById('btnDeckFav'), btnDeckAddPl = document.getElementById('btnDeckAddPl');
+  const btnUnload = document.getElementById('btnUnload'), progressBar = document.getElementById('progressBar');
+  const timeCurrent = document.getElementById('timeCurrent'), timeTotal = document.getElementById('timeTotal');
+  const volSlider = document.getElementById('volSlider'), volPercent = document.getElementById('volPercent');
+  const btnMute = document.getElementById('btnMute'), songTitle = document.getElementById('songTitle');
+  const songArtist = document.getElementById('songArtist'), modType = document.getElementById('modType');
+  const badgeEngine = document.querySelector('.badge-engine'), channels = document.getElementById('channels');
+  const playbackBadge = document.getElementById('playbackBadge'), playbackStatus = document.getElementById('playbackStatus');
+  const compileBadge = document.getElementById('compileBadge'), compileStatus = document.getElementById('compileStatus');
   const miniTrackNum = document.getElementById('miniTrackNum');
-  const btnToggleLeft = document.getElementById('btnToggleLeft');
-  const btnToggleRight = document.getElementById('btnToggleRight');
-  const panelLeft = document.getElementById('panelLeft');
-  const dropZone = document.getElementById('dropZone');
+  const btnToggleLeft = document.getElementById('btnToggleLeft'), btnToggleRight = document.getElementById('btnToggleRight');
+  const panelLeft = document.getElementById('panelLeft'), dropZone = document.getElementById('dropZone');
   const readoutPanel = document.getElementById('readoutPanel');
+  const btnInstallApp = document.getElementById('btnInstallApp'), mobileInstallRow = document.getElementById('mobileInstallRow');
+
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (isStandalone && mobileInstallRow) mobileInstallRow.classList.add('hide');
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    if (mobileInstallRow && !isStandalone) mobileInstallRow.classList.remove('hide');
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    if (mobileInstallRow) mobileInstallRow.classList.add('hide');
+  });
+
+  if (btnInstallApp) {
+    btnInstallApp.addEventListener('click', async () => {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        const { outcome } = await deferredInstallPrompt.userChoice;
+        if (outcome === 'accepted') {
+          deferredInstallPrompt = null;
+          if (mobileInstallRow) mobileInstallRow.classList.add('hide');
+        }
+      } else {
+        alert('To install XM-Studio:\n\n• On Android Chrome: Tap the three dots (⋮) menu and select "Install app" or "Add to Home screen".\n• On iOS Safari: Tap the Share button and select "Add to Home Screen".');
+      }
+    });
+  }
 
   function syncTransportButtons() {
     if (btnLoop) btnLoop.classList.toggle('active', window.XMAudio.isLooping);
@@ -62,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     panelLeft.classList.remove('mobile-hide');
     dropZone.classList.remove('mobile-hide');
     dropZone.classList.add('mobile-mini');
-    if (window.XMLibrary && window.XMLibrary.refreshScroller) window.XMLibrary.refreshScroller();
+    if (window.XMLibrary?.refreshScroller) window.XMLibrary.refreshScroller();
     if (window.XMVisualizer) window.XMVisualizer.sleep();
   }
 
@@ -91,8 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
   function formatTime(sec) {
     if (!sec || isNaN(sec) || !isFinite(sec) || sec < 0) return '00:00';
     const totalSec = Math.floor(sec);
-    const m = Math.floor(totalSec / 60);
-    const s = totalSec % 60;
+    const m = Math.floor(totalSec / 60), s = totalSec % 60;
     return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
@@ -111,28 +122,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function updateProgress() {
     if (isSeeking || document.hidden) return;
-    const dur = window.XMAudio.getDuration();
-    const cur = window.XMAudio.getPosition();
+    const dur = window.XMAudio.getDuration(), cur = window.XMAudio.getPosition();
     if (dur > 0 && isFinite(dur)) {
       if (progressBar.disabled) progressBar.disabled = false;
       const safeCur = Math.min(dur, Math.max(0, cur));
       progressBar.value = (safeCur / dur) * 100;
-      const curSec = safeCur | 0;
-      const totSec = dur | 0;
-      if (curSec !== lastReportedSec) {
-        lastReportedSec = curSec;
-        timeCurrent.textContent = formatTime(safeCur);
-      }
-      if (totSec !== lastReportedTotalSec) {
-        lastReportedTotalSec = totSec;
-        timeTotal.textContent = formatTime(dur);
-      }
+      const curSec = safeCur | 0, totSec = dur | 0;
+      if (curSec !== lastReportedSec) { lastReportedSec = curSec; timeCurrent.textContent = formatTime(safeCur); }
+      if (totSec !== lastReportedTotalSec) { lastReportedTotalSec = totSec; timeTotal.textContent = formatTime(dur); }
     } else {
       const curSec = Math.max(0, cur) | 0;
-      if (curSec !== lastReportedSec) {
-        lastReportedSec = curSec;
-        timeCurrent.textContent = formatTime(cur);
-      }
+      if (curSec !== lastReportedSec) { lastReportedSec = curSec; timeCurrent.textContent = formatTime(cur); }
     }
   }
 
@@ -144,10 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function stopProgressLoop() {
-    if (progressTimerId) {
-      clearInterval(progressTimerId);
-      progressTimerId = null;
-    }
+    if (progressTimerId) { clearInterval(progressTimerId); progressTimerId = null; }
   }
 
   function setPlayingState(isPlaying) {
@@ -177,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.hidden) {
       stopProgressLoop();
       if (window.XMVisualizer) window.XMVisualizer.sleep();
-    } else if (window.XMAudio && window.XMAudio.isPlaying()) {
+    } else if (window.XMAudio?.isPlaying()) {
       startProgressLoop();
       updateProgress();
       if (window.XMVisualizer) window.XMVisualizer.wake(player);
@@ -195,9 +192,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!compileBadge || !compileStatus) return;
     const s = (state || 'idle').toLowerCase();
     compileBadge.className = `badge badge-compile status-${s}`;
-    compileStatus.textContent = (s === 'compiling' && typeof pct === 'number' && pct > 0)
-      ? `${Math.round(pct * 100)}%`
-      : s.toUpperCase();
+    compileStatus.textContent = (s === 'compiling' && typeof pct === 'number' && pct > 0) ? `${Math.round(pct * 100)}%` : s.toUpperCase();
   }
 
   function getCurrentDeckTrack() {
@@ -238,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!t || !window.XMPlaylist) return;
       window.XMPlaylist.toggleFavorite(t);
       updateDeckFavState();
-      if (window.XMLibrary && window.XMLibrary.renderCurrentTab) window.XMLibrary.renderCurrentTab();
+      if (window.XMLibrary?.renderCurrentTab) window.XMLibrary.renderCurrentTab();
     });
   }
 
@@ -265,27 +260,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnUnload.addEventListener('click', () => {
     try {
-      if (window.XMExport && window.XMExport.cancelExport) window.XMExport.cancelExport();
+      if (window.XMExport?.cancelExport) window.XMExport.cancelExport();
       if (window.XMPrecompiler) window.XMPrecompiler.cancel();
       window.XMAudio.unload();
-    } catch (e) {
-      console.warn('Unload error caught:', e);
-    }
+    } catch (e) {}
     try {
-      if (window.XMVisualizer) {
-        if (typeof window.XMVisualizer.clear === 'function') window.XMVisualizer.clear();
-        else if (typeof window.XMVisualizer.clearCanvas === 'function') window.XMVisualizer.clearCanvas();
-      }
+      if (window.XMVisualizer?.clear) window.XMVisualizer.clear();
+      else if (window.XMVisualizer?.clearCanvas) window.XMVisualizer.clearCanvas();
     } catch (e) {}
 
     songTitle.textContent = 'No Module Loaded';
     songArtist.textContent = 'Ready for FastTracker II / Audio input';
     if (miniTrackNum) miniTrackNum.textContent = '--';
     modType.textContent = 'NONE';
-    if (badgeEngine) {
-      badgeEngine.classList.add('engine-none');
-      badgeEngine.classList.remove('engine-error');
-    }
+    if (badgeEngine) { badgeEngine.classList.add('engine-none'); badgeEngine.classList.remove('engine-error'); }
     channels.textContent = '--';
     const rateBadge = document.getElementById('rateBadge');
     if (rateBadge) rateBadge.textContent = '--';
@@ -298,7 +286,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setCompileStatus('idle');
     setPlayingState(false);
     updateDeckFavState();
-    if (window.XMLibrary && window.XMLibrary.notifyPlaying) window.XMLibrary.notifyPlaying(null);
+    if (window.XMLibrary?.notifyPlaying) window.XMLibrary.notifyPlaying(null);
   });
 
   progressBar.addEventListener('input', () => {
