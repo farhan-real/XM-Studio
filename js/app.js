@@ -15,9 +15,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnPlayPause = document.getElementById('btnPlayPause');
   const svgPlay = document.getElementById('svgPlay'), svgPause = document.getElementById('svgPause');
-  const btnStop = document.getElementById('btnStop'), btnPrev = document.getElementById('btnPrev');
-  const btnNext = document.getElementById('btnNext'), btnPlayRandom = document.getElementById('btnPlayRandom');
-  const btnLocateTrack = document.getElementById('btnLocateTrack');
+  const btnPrev = document.getElementById('btnPrev'), btnNext = document.getElementById('btnNext');
+  const btnPlayRandom = document.getElementById('btnPlayRandom'), btnLocateTrack = document.getElementById('btnLocateTrack');
   const modeSwitchSlider = document.getElementById('modeSwitchSlider');
   const btnDeckFav = document.getElementById('btnDeckFav'), btnDeckAddPl = document.getElementById('btnDeckAddPl');
   const btnUnload = document.getElementById('btnUnload'), progressBar = document.getElementById('progressBar');
@@ -285,7 +284,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   btnPlayPause.addEventListener('click', () => window.XMAudio.togglePlayPause());
-  btnStop.addEventListener('click', () => window.XMAudio.stopPlayback());
   if (btnPrev) btnPrev.addEventListener('click', () => window.XMAudio.playPrevTrack());
   if (btnNext) btnNext.addEventListener('click', () => window.XMAudio.playNextTrack(true));
 

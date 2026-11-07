@@ -177,15 +177,13 @@
             </div>
             <span class="vol-readout" id="volPercent">85%</span>
           </div>
-          <button class="t-btn" id="btnStop" title="Stop Playback" aria-label="Stop"><svg viewBox="0 0 24 24" class="t-icon-sm" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg></button>
-          <button class="t-btn" id="btnDownload" title="Export Audio" aria-label="Download File" disabled><svg viewBox="0 0 24 24" class="t-icon-sm"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></button>
           <div class="mode-switch-slider" id="modeSwitchSlider" role="radiogroup" aria-label="Playback Mode">
             <button class="mode-switch-btn" data-mode="stop" title="Mode: Stop when track ends" aria-label="Stop">
               <svg viewBox="0 0 24 24" class="mode-icon" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg>
               <span class="mode-text">STOP</span>
             </button>
             <button class="mode-switch-btn active" data-mode="next" title="Mode: Play next track" aria-label="Play Next">
-              <svg viewBox="0 0 24 24" class="mode-icon"><polygon points="5 4 15 12 5 20 5 4" fill="currentColor"></polygon><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></line></svg>
+              <svg viewBox="0 0 24 24" class="mode-icon"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></line></svg>
               <span class="mode-text">NEXT</span>
             </button>
             <button class="mode-switch-btn" data-mode="repeat" title="Mode: Repeat track" aria-label="Repeat">
@@ -202,7 +200,7 @@
       <div class="ingest-deck">
         <input type="file" id="fileInput" accept=".xm,.mod,.it,.s3m,.mtm,.flac,.mp3,.ogg,.wav,.v2m,.mid,.ahx,.sid" />
         <button class="action-btn" id="btnBrowse"><svg viewBox="0 0 24 24" class="action-icon"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span>OPEN TRACK</span></button>
-        <button class="action-btn action-btn-secondary" id="btnDemo"><svg viewBox="0 0 24 24" class="action-icon"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg><span>SAMPLE AUDIO</span></button>
+        <button class="action-btn action-btn-secondary" id="btnDownload" disabled><svg viewBox="0 0 24 24" class="action-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg><span>EXPORT AUDIO</span></button>
       </div>
       <div class="mobile-install-row" id="mobileInstallRow">
         <button class="action-btn mobile-install-btn" id="btnInstallApp">

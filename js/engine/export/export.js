@@ -14,7 +14,6 @@
   const readoutProgressBar = document.getElementById('readoutProgressBar');
   const btnBrowse = document.getElementById('btnBrowse');
   const fileInput = document.getElementById('fileInput');
-  const btnDemo = document.getElementById('btnDemo');
   const dropZone = document.getElementById('dropZone');
 
   function updateFmtButtons(activeId) {
@@ -225,14 +224,6 @@
     fileInput.addEventListener('change', (e) => {
       if (e.target.files.length > 0 && window.XMAudio) {
         window.XMAudio.loadTrack(e.target.files[0], e.target.files[0].name);
-      }
-    });
-  }
-
-  if (btnDemo) {
-    btnDemo.addEventListener('click', () => {
-      if (window.XMAudio) {
-        window.XMAudio.loadTrack('https://deskjet.github.io/chiptune2.js/tunes/chipsounds.mod', 'Dubmood - Chipsounds.mod');
       }
     });
   }
