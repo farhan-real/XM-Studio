@@ -146,7 +146,7 @@
       const action = actionBtn.getAttribute('data-action');
       if (action === 'fav') {
         window.XMPlaylist.toggleFavorite(track);
-        if (window.XMApp && window.XMApp.updateDeckFav) window.XMApp.updateDeckFav();
+        if (window.XMApp?.updateDeckFav) window.XMApp.updateDeckFav();
         if (activeTab === 'favorites') {
           renderTrackList(window.XMCatalog.sortAlphabetical([...window.XMPlaylist.getFavorites()]), false);
         } else {
@@ -161,7 +161,7 @@
   });
 
   async function playTrack(track, queue, idx) {
-    if (window.XMAudio && window.XMAudio.player) window.XMAudio.player.unlock();
+    if (window.XMAudio?.player) window.XMAudio.player.unlock();
     currentlyPlayingId = track.id;
     updateActiveCards();
     if (track.isCustom || track.isFolderTrack) {
@@ -196,7 +196,9 @@
     }
     const idx = activeRenderQueue.findIndex((t) => t.id === trackId);
     if (idx >= 0 && scroller) {
-      requestAnimationFrame(() => scroller.scrollToIndex(idx));
+      setTimeout(() => {
+        if (scroller) scroller.scrollToIndex(idx);
+      }, 50);
     }
   }
 

@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnStop = document.getElementById('btnStop'), btnLoop = document.getElementById('btnLoop');
   const btnShuffle = document.getElementById('btnShuffle'), btnPrev = document.getElementById('btnPrev');
   const btnNext = document.getElementById('btnNext'), btnPlayRandom = document.getElementById('btnPlayRandom');
+  const btnLocateTrack = document.getElementById('btnLocateTrack');
   const btnDeckFav = document.getElementById('btnDeckFav'), btnDeckAddPl = document.getElementById('btnDeckAddPl');
   const btnUnload = document.getElementById('btnUnload'), progressBar = document.getElementById('progressBar');
   const timeCurrent = document.getElementById('timeCurrent'), timeTotal = document.getElementById('timeTotal');
@@ -213,11 +214,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateDeckFavState() {
-    if (!btnDeckFav) return;
     const t = getCurrentDeckTrack();
     const isLoaded = Boolean(t);
-    btnDeckFav.disabled = !isLoaded;
+    if (btnDeckFav) btnDeckFav.disabled = !isLoaded;
     if (btnDeckAddPl) btnDeckAddPl.disabled = !isLoaded;
+    if (btnLocateTrack) btnLocateTrack.disabled = !isLoaded;
+    if (!btnDeckFav) return;
     const isFav = isLoaded && window.XMPlaylist ? window.XMPlaylist.isFavorited(t.id) : false;
     btnDeckFav.classList.toggle('active', isFav);
     const svg = btnDeckFav.querySelector('svg');
@@ -241,6 +243,15 @@ document.addEventListener('DOMContentLoaded', () => {
     btnDeckAddPl.addEventListener('click', () => {
       const t = getCurrentDeckTrack();
       if (t && window.XMPlaylistUI) window.XMPlaylistUI.openPlaylistPicker(t);
+    });
+  }
+
+  if (btnLocateTrack) {
+    btnLocateTrack.addEventListener('click', () => {
+      const t = getCurrentDeckTrack();
+      if (!t || !t.id) return;
+      if (window.innerWidth <= 900) showMobileArchiveView();
+      if (window.XMLibrary?.jumpToArchiveTrack) window.XMLibrary.jumpToArchiveTrack(t.id);
     });
   }
 
@@ -282,6 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
     resetTimeline();
     const btnDownload = document.getElementById('btnDownload');
     if (btnDownload) btnDownload.disabled = true;
+    if (btnLocateTrack) btnLocateTrack.disabled = true;
     setPlaybackStatus('idle');
     setCompileStatus('idle');
     setPlayingState(false);
@@ -381,6 +393,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (rateBadge) rateBadge.textContent = isError ? '--' : '48 KHZ';
       const btnDownload = document.getElementById('btnDownload');
       if (btnDownload) btnDownload.disabled = isError;
+      if (btnLocateTrack) btnLocateTrack.disabled = isError;
       if (isError) {
         setPlaybackStatus('idle');
         setCompileStatus('error');

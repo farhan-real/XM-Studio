@@ -289,7 +289,9 @@ input[type="range"]::-webkit-slider-thumb {
   .chassis.mobile-mini .transport-row-sub,
   .chassis.mobile-mini .ingest-deck,
   .chassis.mobile-mini .mobile-install-row,
+  .chassis.mobile-mini .transport-right-group,
   .chassis.mobile-mini #btnPlayRandom,
+  .chassis.mobile-mini #btnLocateTrack,
   .chassis.mobile-mini .transport-left-group,
   .chassis.mobile-mini .readout-progress-track {
     display: none !important;

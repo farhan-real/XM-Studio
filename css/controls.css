@@ -45,9 +45,16 @@
   margin: 0 4px;
 }
 
-#btnPlayRandom {
+.transport-right-group {
   grid-column: 3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   justify-self: end;
+}
+
+#btnLocateTrack,
+#btnPlayRandom {
   width: 40px;
   height: 40px;
 }
