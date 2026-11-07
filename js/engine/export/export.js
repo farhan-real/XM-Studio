@@ -25,7 +25,7 @@
 
   function updateQualityBadgeDisplay() {
     if (!qualityBadge) return;
-    const info = window.XMAudio ? window.XMAudio.getCurrentInfo() : null;
+    const info = window.XMAudio?.getCurrentInfo();
     if (!info || !info.title || info.title === 'No Module Loaded') {
       qualityBadge.textContent = '--';
       return;
@@ -77,19 +77,21 @@
   function startInitialCompile(raw, targetTrackId) {
     if (!raw || !window.AudioCompiler) return;
     const format = activeFormat || 'mp3';
-    const cached = window.XMAudio.getCachedCompiled ? window.XMAudio.getCachedCompiled(targetTrackId, format) : null;
+    const cached = window.XMAudio?.getCachedCompiled ? window.XMAudio.getCachedCompiled(targetTrackId, format) : null;
     if (cached && cached.blob) {
-      if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
-      if (cached.visData && window.XMVisualizer) window.XMVisualizer.setVisualizerCache(cached.visData, cached.visFps);
-      if (window.XMAudio && window.XMAudio.handoffToCompiled) {
+      if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('ready');
+      if (cached.visData && window.XMVisualizer?.setVisualizerCache) {
+        window.XMVisualizer.setVisualizerCache(cached.visData, cached.visFps);
+      }
+      if (window.XMAudio?.handoffToCompiled) {
         window.XMAudio.handoffToCompiled(cached.blob, format, targetTrackId, cached.visData, cached.visFps, cached.duration);
       }
-      if (window.XMPrecompiler) window.XMPrecompiler.onTrackLoaded();
+      if (window.XMPrecompiler?.onTrackLoaded) window.XMPrecompiler.onTrackLoaded();
       return;
     }
 
-    if (window.XMPrecompiler) window.XMPrecompiler.cancel();
-    if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('compiling');
+    if (window.XMPrecompiler?.cancel) window.XMPrecompiler.cancel();
+    if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('compiling');
     if (readoutProgressTrack) readoutProgressTrack.classList.remove('hide');
     if (readoutProgressBar) readoutProgressBar.style.width = '0%';
 
@@ -98,35 +100,35 @@
       format,
       (progress) => {
         if (readoutProgressBar) readoutProgressBar.style.width = `${Math.round(progress * 100)}%`;
-        if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('compiling', progress);
+        if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('compiling', progress);
       },
       (blob, visData, visFps, duration) => {
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
-        if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
-        if (visData && window.XMVisualizer) window.XMVisualizer.setVisualizerCache(visData, visFps);
+        if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('ready');
+        if (visData && window.XMVisualizer?.setVisualizerCache) window.XMVisualizer.setVisualizerCache(visData, visFps);
 
         if (isUserDownloadPending) {
           isUserDownloadPending = false;
-          const info = window.XMAudio.getCurrentInfo();
-          triggerBlobDownload(blob, `${info.artist} - ${info.title}.${format}`.replace(/[/\\?%*:|"<>]/g, '_'));
+          const info = window.XMAudio?.getCurrentInfo();
+          triggerBlobDownload(blob, `${info?.artist || 'Artist'} - ${info?.title || 'Track'}.${format}`.replace(/[/\\?%*:|"<>]/g, '_'));
         }
-
-        if (window.XMAudio && window.XMAudio.handoffToCompiled) {
+        if (window.XMAudio?.handoffToCompiled) {
           window.XMAudio.handoffToCompiled(blob, format, targetTrackId, visData, visFps, duration);
         }
-        if (window.XMPrecompiler) window.XMPrecompiler.onActiveCompileComplete();
+        if (window.XMPrecompiler?.onActiveCompileComplete) window.XMPrecompiler.onActiveCompileComplete();
       },
-      (err) => {
+      () => {
+        if (!window.AudioCompiler?.isCompiling) return;
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
-        if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('error');
+        if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('error');
       }
     );
   }
 
   async function handleExportDownload() {
-    const info = window.XMAudio ? window.XMAudio.getCurrentInfo() : { title: 'track', artist: 'artist' };
-    const ext = window.XMAudio && window.XMAudio.getCurrentExtension ? window.XMAudio.getCurrentExtension() : 'xm';
-    const targetTrackId = (window.XMAudio.currentTrackItem && window.XMAudio.currentTrackItem.id) || window.XMAudio.currentAudioSrc || info.title;
+    const info = window.XMAudio?.getCurrentInfo() || { title: 'track', artist: 'artist' };
+    const ext = window.XMAudio?.getCurrentExtension ? window.XMAudio.getCurrentExtension() : 'xm';
+    const targetTrackId = window.XMAudio?.currentTrackItem?.id || window.XMAudio?.currentAudioSrc || info.title;
 
     if (!info || !info.title || info.title === 'No Module Loaded') return;
 
@@ -134,32 +136,32 @@
     const downloadFilename = `${info.artist} - ${info.title}.${outExt}`.replace(/[/\\?%*:|"<>]/g, '_');
 
     if (activeFormat === 'raw') {
-      let blob = window.XMAudio.currentAudioBlob;
-      if (!blob && window.XMAudio.currentRawBuffer) {
+      let blob = window.XMAudio?.currentAudioBlob;
+      if (!blob && window.XMAudio?.currentRawBuffer) {
         blob = new Blob([window.XMAudio.currentRawBuffer], { type: 'application/octet-stream' });
       }
-      if (!blob && window.XMAudio.currentAudioSrc) {
+      if (!blob && window.XMAudio?.currentAudioSrc) {
         try { const res = await fetch(window.XMAudio.currentAudioSrc); blob = await res.blob(); } catch (e) {}
       }
       if (blob) triggerBlobDownload(blob, downloadFilename);
       return;
     }
 
-    const cached = window.XMAudio.getCachedCompiled ? window.XMAudio.getCachedCompiled(targetTrackId, activeFormat) : null;
+    const cached = window.XMAudio?.getCachedCompiled ? window.XMAudio.getCachedCompiled(targetTrackId, activeFormat) : null;
     if (cached && cached.blob) {
-      if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
+      if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('ready');
       triggerBlobDownload(cached.blob, downloadFilename);
       return;
     }
 
-    if (window.XMAudio.currentAudioBlob && ext.toLowerCase() === activeFormat.toLowerCase()) {
-      if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
+    if (window.XMAudio?.currentAudioBlob && ext.toLowerCase() === activeFormat.toLowerCase()) {
+      if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('ready');
       triggerBlobDownload(window.XMAudio.currentAudioBlob, downloadFilename);
       return;
     }
 
     const isTracker = new Set(['xm', 'mod', 'it', 's3m', 'mtm', 'mo3', 'med', '669', 'far', 'ptm', 'v2m', 'ahx', 'sid']).has(ext.toLowerCase());
-    if (!isTracker && (window.XMAudio.currentAudioBlob || window.XMAudio.currentAudioSrc)) {
+    if (!isTracker && (window.XMAudio?.currentAudioBlob || window.XMAudio?.currentAudioSrc)) {
       let blob = window.XMAudio.currentAudioBlob;
       if (!blob && window.XMAudio.currentAudioSrc) {
         try { const res = await fetch(window.XMAudio.currentAudioSrc); blob = await res.blob(); } catch (e) {}
@@ -167,22 +169,22 @@
       if (blob) { triggerBlobDownload(blob, `${info.artist} - ${info.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_')); return; }
     }
 
-    if (window.AudioCompiler && window.AudioCompiler.isCompilingActive) {
+    if (window.AudioCompiler?.isCompilingActive) {
       isUserDownloadPending = true;
       return;
     }
 
-    let raw = window.XMAudio ? window.XMAudio.currentRawBuffer : null;
-    if (!raw && window.XMAudio.currentAudioBlob) {
+    let raw = window.XMAudio?.currentRawBuffer;
+    if (!raw && window.XMAudio?.currentAudioBlob) {
       try { raw = await window.XMAudio.currentAudioBlob.arrayBuffer(); } catch (e) {}
-    } else if (!raw && window.XMAudio.currentAudioSrc) {
+    } else if (!raw && window.XMAudio?.currentAudioSrc) {
       try { const res = await fetch(window.XMAudio.currentAudioSrc); raw = await res.arrayBuffer(); } catch (e) {}
     }
     if (!raw) return;
 
     isUserDownloadPending = true;
-    if (window.XMPrecompiler) window.XMPrecompiler.cancel();
-    if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('compiling');
+    if (window.XMPrecompiler?.cancel) window.XMPrecompiler.cancel();
+    if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('compiling');
     if (readoutProgressTrack) readoutProgressTrack.classList.remove('hide');
     if (readoutProgressBar) readoutProgressBar.style.width = '0%';
 
@@ -191,26 +193,27 @@
       activeFormat,
       (progress) => {
         if (readoutProgressBar) readoutProgressBar.style.width = `${Math.round(progress * 100)}%`;
-        if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('compiling', progress);
+        if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('compiling', progress);
       },
       (blob, visData, visFps, duration) => {
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
-        if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
-        if (visData && window.XMVisualizer) window.XMVisualizer.setVisualizerCache(visData, visFps);
+        if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('ready');
+        if (visData && window.XMVisualizer?.setVisualizerCache) window.XMVisualizer.setVisualizerCache(visData, visFps);
 
         if (isUserDownloadPending) {
           isUserDownloadPending = false;
           triggerBlobDownload(blob, downloadFilename);
         }
-        if (window.XMAudio && window.XMAudio.handoffToCompiled) {
+        if (window.XMAudio?.handoffToCompiled) {
           window.XMAudio.handoffToCompiled(blob, activeFormat, targetTrackId, visData, visFps, duration);
         }
-        if (window.XMPrecompiler) window.XMPrecompiler.onActiveCompileComplete();
+        if (window.XMPrecompiler?.onActiveCompileComplete) window.XMPrecompiler.onActiveCompileComplete();
       },
       () => {
+        if (!window.AudioCompiler?.isCompiling) return;
         isUserDownloadPending = false;
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
-        if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('error');
+        if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('error');
       }
     );
   }

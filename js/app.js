@@ -431,6 +431,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setCompileStatus('error');
       } else {
         setPlaybackStatus(isNative ? 'loaded' : 'live');
+        setCompileStatus(isNative ? 'ready' : 'compiling');
       }
       setPlayingState(!isError && (window.XMAudio ? window.XMAudio.isPlaying() : false));
       updateDeckFavState();

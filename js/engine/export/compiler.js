@@ -26,11 +26,13 @@
 
     try {
       const workerUrl = 'js/engine/workers/worker.js' + (window.USE_CDN ? '?cdn=1' : '');
-      self.worker = new Worker(workerUrl);
+      const currentWorker = new Worker(workerUrl);
+      self.worker = currentWorker;
 
-      self.worker.onmessage = function(e) {
+      currentWorker.onmessage = function(e) {
+        if (self.worker !== currentWorker || !self.isCompiling || self.isPreload) return;
         const msg = e.data;
-        if (!self.isCompiling || self.isPreload) return;
+        if (!msg) return;
 
         if (msg.type === 'progress') {
           if (onProgress) onProgress(msg.progress);
@@ -41,18 +43,19 @@
         } else if (msg.type === 'error') {
           self.isCompiling = false;
           self.cleanup();
-          if (onError) onError(new Error(msg.message));
+          if (onError) onError(new Error(msg.message || 'Compilation failed'));
         }
       };
 
-      self.worker.onerror = function(err) {
+      currentWorker.onerror = function(err) {
+        if (self.worker !== currentWorker || !self.isCompiling || self.isPreload) return;
         self.isCompiling = false;
         self.cleanup();
         if (onError) onError(err);
       };
 
       let targetSampleRate = 48000;
-      if (window.XMAudio && window.XMAudio.player && window.XMAudio.player.context) {
+      if (window.XMAudio?.player?.context) {
         const ctxRate = window.XMAudio.player.context.sampleRate;
         if (ctxRate === 44100 || ctxRate === 48000 || ctxRate === 32000) {
           targetSampleRate = ctxRate;
@@ -60,7 +63,7 @@
       }
 
       const copy = buffer.slice(0);
-      self.worker.postMessage({
+      currentWorker.postMessage({
         type: 'compile',
         buffer: copy,
         format: format || 'mp3',
@@ -83,11 +86,13 @@
 
     try {
       const workerUrl = 'js/engine/workers/worker.js' + (window.USE_CDN ? '?cdn=1' : '');
-      self.worker = new Worker(workerUrl);
+      const currentWorker = new Worker(workerUrl);
+      self.worker = currentWorker;
 
-      self.worker.onmessage = function(e) {
+      currentWorker.onmessage = function(e) {
+        if (self.worker !== currentWorker || !self.isCompiling || !self.isPreload || self.activeTrackId !== trackId) return;
         const msg = e.data;
-        if (!self.isCompiling || !self.isPreload || self.activeTrackId !== trackId) return;
+        if (!msg) return;
 
         if (msg.type === 'complete') {
           self.isCompiling = false;
@@ -100,11 +105,12 @@
           self.isPreload = false;
           self.activeTrackId = null;
           self.cleanup();
-          if (onError) onError(new Error(msg.message));
+          if (onError) onError(new Error(msg.message || 'Preload failed'));
         }
       };
 
-      self.worker.onerror = function(err) {
+      currentWorker.onerror = function(err) {
+        if (self.worker !== currentWorker || !self.isCompiling || !self.isPreload || self.activeTrackId !== trackId) return;
         self.isCompiling = false;
         self.isPreload = false;
         self.activeTrackId = null;
@@ -113,7 +119,7 @@
       };
 
       const copy = buffer.slice(0);
-      self.worker.postMessage({
+      currentWorker.postMessage({
         type: 'compile',
         buffer: copy,
         format: format || 'mp3',
@@ -129,6 +135,8 @@
 
   AudioCompiler.prototype.cleanup = function() {
     if (this.worker) {
+      this.worker.onmessage = null;
+      this.worker.onerror = null;
       this.worker.terminate();
       this.worker = null;
     }
