@@ -82,12 +82,27 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    modeSwitchSlider.addEventListener('click', (e) => {
+      const btn = e.target.closest('.mode-switch-btn');
+      if (btn?.dataset.mode && window.XMQueue) {
+        window.XMQueue.setPlayMode(btn.dataset.mode);
+      }
+    });
+
+    let isDragging = false, startX = 0;
     modeSwitchSlider.addEventListener('pointerdown', (e) => {
-      setModeFromPointer(e.clientX);
-      function onMove(me) { setModeFromPointer(me.clientX); }
-      function onUp() {
+      startX = e.clientX;
+      isDragging = false;
+      function onMove(me) {
+        if (Math.abs(me.clientX - startX) > 8) {
+          isDragging = true;
+          setModeFromPointer(me.clientX);
+        }
+      }
+      function onUp(ue) {
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
+        if (isDragging) setModeFromPointer(ue.clientX);
       }
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);

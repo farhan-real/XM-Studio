@@ -415,9 +415,17 @@
     }
   });
   audioEl.addEventListener('ended', () => {
+    if (window.XMQueue?.playMode === 'stop') {
+      stopPlayback();
+      return;
+    }
     if (isNativeStream && window.XMQueue) window.XMQueue.playNextTrack(false);
   });
   player.on('onEnded', () => {
+    if (window.XMQueue?.playMode === 'stop') {
+      stopPlayback();
+      return;
+    }
     if (!isNativeStream && window.XMQueue) window.XMQueue.playNextTrack(false);
   });
 

@@ -76,7 +76,7 @@
   function getQueueId() { return currentQueueId; }
 
   function getUpcomingTracks(count = 2) {
-    if (!currentQueue || currentQueue.length <= 1) return [];
+    if (playMode === 'stop' || !currentQueue || currentQueue.length <= 1) return [];
     const targetCount = Math.min(count, currentQueue.length - 1);
     const upcoming = [];
     if (playMode === 'shuffle') {
@@ -135,7 +135,13 @@
   }
 
   function playNextTrack(force) {
-    if (playMode === 'repeat' && !force) return;
+    if (playMode === 'repeat' && !force) {
+      if (window.XMAudio) {
+        window.XMAudio.seekTo(0);
+        window.XMAudio.setPaused(false);
+      }
+      return;
+    }
     if (playMode === 'stop' && !force) {
       if (window.XMAudio) window.XMAudio.stopPlayback();
       return;

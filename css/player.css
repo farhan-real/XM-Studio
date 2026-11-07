@@ -240,7 +240,7 @@
 input[type="range"] {
   width: 100%;
   -webkit-appearance: none;
-  background: #090a0d;
+  background-color: #090a0d;
   height: 4px;
   border-radius: 2px;
   border: 1px solid var(--border-subtle);
@@ -248,7 +248,10 @@ input[type="range"] {
 }
 
 #progressBar {
-  background: linear-gradient(to right, var(--accent) 0%, var(--accent) var(--progress, 0%), #090a0d var(--progress, 0%), #090a0d 100%);
+  background-color: #090a0d;
+  background-image: linear-gradient(to right, var(--accent) 0%, var(--accent) var(--progress, 0%), transparent var(--progress, 0%), transparent 100%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
   cursor: pointer;
 }
 
@@ -285,10 +288,8 @@ input[type="range"]::-moz-range-thumb {
   cursor: grab;
 }
 
-input[type="range"]::-moz-range-progress {
-  background-color: var(--accent);
-  height: 4px;
-  border-radius: 2px;
+#progressBar::-moz-range-progress {
+  background-color: transparent;
 }
 
 .mobile-install-row {
