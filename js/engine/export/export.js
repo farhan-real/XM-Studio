@@ -37,6 +37,7 @@
       activeFormat = 'mp3';
       updateFmtButtons('btnFmtMp3');
       updateQualityBadgeDisplay();
+      if (window.XMApp && window.XMApp.refreshPlaybackBadge) window.XMApp.refreshPlaybackBadge();
     });
   }
   if (btnFmtWav) {
@@ -44,6 +45,7 @@
       activeFormat = 'wav';
       updateFmtButtons('btnFmtWav');
       updateQualityBadgeDisplay();
+      if (window.XMApp && window.XMApp.refreshPlaybackBadge) window.XMApp.refreshPlaybackBadge();
     });
   }
   if (btnFmtRaw) {
@@ -51,6 +53,7 @@
       activeFormat = 'raw';
       updateFmtButtons('btnFmtRaw');
       updateQualityBadgeDisplay();
+      if (window.XMApp && window.XMApp.refreshPlaybackBadge) window.XMApp.refreshPlaybackBadge();
     });
   }
 

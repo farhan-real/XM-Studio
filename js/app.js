@@ -1,11 +1,9 @@
 /**
- * js/app.js - Main workstation transport coordinator and deck status manager without silent fallbacks.
+ * js/app.js - Main workstation transport coordinator and deck status manager.
  */
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js').catch((err) => {
-      console.error('[App] Service worker registration failed:', err);
-    });
+    navigator.serviceWorker.register('./service-worker.js').catch((err) => console.error('[App] SW registration failed:', err));
   }
 
   const { player, audioEl } = window.XMAudio;
@@ -46,22 +44,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mobileInstallRow && !isStandalone) mobileInstallRow.classList.remove('hide');
   });
 
-  window.addEventListener('appinstalled', () => {
-    deferredInstallPrompt = null;
-    if (mobileInstallRow) mobileInstallRow.classList.add('hide');
-  });
-
   if (btnInstallApp) {
     btnInstallApp.addEventListener('click', async () => {
-      if (deferredInstallPrompt) {
-        deferredInstallPrompt.prompt();
-        const { outcome } = await deferredInstallPrompt.userChoice;
-        if (outcome === 'accepted') {
-          deferredInstallPrompt = null;
-          if (mobileInstallRow) mobileInstallRow.classList.add('hide');
-        }
-      } else {
-        alert('To install XM-Studio:\n\n• On Android Chrome: Tap the three dots (⋮) menu and select "Install app".\n• On iOS Safari: Tap Share and select "Add to Home Screen".');
+      if (!deferredInstallPrompt) {
+        alert('To install XM-Studio:\n\n• On Android Chrome: Tap menu (⋮) and select "Install app".\n• On iOS Safari: Tap Share and select "Add to Home Screen".');
+        return;
+      }
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      if (outcome === 'accepted') {
+        deferredInstallPrompt = null;
+        if (mobileInstallRow) mobileInstallRow.classList.add('hide');
       }
     });
   }
@@ -69,46 +62,14 @@ document.addEventListener('DOMContentLoaded', () => {
   function syncPlayModeUI(mode) {
     if (!window.XMQueue) throw new Error('XMQueue module is not available.');
     const active = mode ? mode : window.XMQueue.playMode;
-    document.querySelectorAll('.mode-switch-btn').forEach((b) => {
-      b.classList.toggle('active', b.dataset.mode === active);
-    });
+    document.querySelectorAll('.mode-switch-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === active));
   }
   syncPlayModeUI();
 
   if (modeSwitchSlider) {
-    function setModeFromPointer(clientX) {
-      const btns = Array.from(modeSwitchSlider.querySelectorAll('.mode-switch-btn'));
-      for (const btn of btns) {
-        const rect = btn.getBoundingClientRect();
-        if (clientX >= rect.left && clientX <= rect.right) {
-          if (window.XMQueue) window.XMQueue.setPlayMode(btn.dataset.mode);
-          break;
-        }
-      }
-    }
-
     modeSwitchSlider.addEventListener('click', (e) => {
       const btn = e.target.closest('.mode-switch-btn');
       if (btn && btn.dataset.mode && window.XMQueue) window.XMQueue.setPlayMode(btn.dataset.mode);
-    });
-
-    let isDragging = false, startX = 0;
-    modeSwitchSlider.addEventListener('pointerdown', (e) => {
-      startX = e.clientX;
-      isDragging = false;
-      function onMove(me) {
-        if (Math.abs(me.clientX - startX) > 8) {
-          isDragging = true;
-          setModeFromPointer(me.clientX);
-        }
-      }
-      function onUp(ue) {
-        window.removeEventListener('pointermove', onMove);
-        window.removeEventListener('pointerup', onUp);
-        if (isDragging) setModeFromPointer(ue.clientX);
-      }
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
     });
   }
 
@@ -137,7 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
     btnToggleLeft.addEventListener('click', showMobileArchiveView);
     btnToggleRight.addEventListener('click', showMobilePlayerView);
   }
-
   if (readoutPanel) {
     readoutPanel.addEventListener('click', () => {
       if (window.innerWidth <= 900 && dropZone.classList.contains('mobile-mini')) showMobilePlayerView();
@@ -218,9 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   audioEl.addEventListener('error', () => {
     const err = audioEl.error;
-    const msg = err ? `Media Error Code ${err.code}: ${err.message}` : 'Unknown HTMLAudioElement error';
-    console.error('[Audio Error]', msg);
-    alert('Audio Stream Error: ' + msg);
+    console.error('[Audio Error]', err ? `Code ${err.code}: ${err.message}` : 'Media error');
     setPlaybackStatus('idle');
     setCompileStatus('error');
     setPlayingState(false);
@@ -241,7 +199,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!playbackBadge || !playbackStatus) return;
     const s = state ? state.toLowerCase() : 'idle';
     playbackBadge.className = `badge badge-playback status-${s}`;
-    playbackStatus.textContent = s.toUpperCase();
+    if (s === 'live' || s === 'engine') {
+      playbackBadge.classList.add('status-live', 'status-engine');
+      playbackStatus.textContent = 'ENGINE';
+    } else if (s === 'loaded' || s === 'mp3') {
+      playbackBadge.classList.add('status-loaded', 'status-mp3');
+      const fmt = (window.XMExport && window.XMExport.getActiveFormat) ? window.XMExport.getActiveFormat().toUpperCase() : 'MP3';
+      playbackStatus.textContent = (fmt === 'WAV') ? 'WAV' : 'MP3';
+    } else {
+      playbackStatus.textContent = s.toUpperCase();
+    }
   }
 
   function setCompileStatus(state, pct) {
@@ -259,14 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const ext = window.XMAudio.getCurrentExtension();
       if (!ext) throw new Error('Deck track error: Track extension is missing.');
       if (!window.XMAudio.currentAudioSrc) throw new Error('Deck track error: Track audio source is missing.');
-      t = {
-        id: window.XMAudio.currentAudioSrc,
-        title: info.title,
-        artist: info.artist,
-        ext: ext.toUpperCase(),
-        url: window.XMAudio.currentAudioSrc,
-        blob: window.XMAudio.currentAudioBlob
-      };
+      t = { id: window.XMAudio.currentAudioSrc, title: info.title, artist: info.artist, ext: ext.toUpperCase(), url: window.XMAudio.currentAudioSrc, blob: window.XMAudio.currentAudioBlob };
     }
     return t;
   }
@@ -407,6 +367,11 @@ document.addEventListener('DOMContentLoaded', () => {
     showMobileArchiveView,
     showMobilePlayerView,
     resetTimeline,
+    refreshPlaybackBadge: () => {
+      if (playbackBadge && (playbackBadge.classList.contains('status-loaded') || playbackBadge.classList.contains('status-mp3'))) {
+        setPlaybackStatus('loaded');
+      }
+    },
     updateDuration: (dur) => {
       if (dur > 0 && isFinite(dur)) {
         timeTotal.textContent = formatTime(dur);
