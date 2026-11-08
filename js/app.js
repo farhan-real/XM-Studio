@@ -35,17 +35,22 @@ document.addEventListener('DOMContentLoaded', () => {
     if (mobileInstallRow && !isStandalone) mobileInstallRow.classList.remove('hide');
   });
 
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    if (mobileInstallRow) mobileInstallRow.classList.add('hide');
+  });
+
   if (btnInstallApp) {
     btnInstallApp.addEventListener('click', async () => {
       if (!deferredInstallPrompt) {
-        alert('To install XM-Studio:\n\n• On Android Chrome: Tap menu (⋮) and select "Install app".\n• On iOS Safari: Tap Share and select "Add to Home Screen".');
+        alert('To install XM-Studio:\n\n• On Android Chrome: Tap menu (⋮) and select "Install app".\n• On Desktop Chrome/Edge: Click the install icon in the address bar.\n• On iOS Safari: Tap Share and select "Add to Home Screen".');
         return;
       }
       deferredInstallPrompt.prompt();
-      const { outcome } = await deferredInstallPrompt.userChoice;
-      if (outcome === 'accepted') {
-        deferredInstallPrompt = null;
-        if (mobileInstallRow) mobileInstallRow.classList.add('hide');
+      const choice = await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      if (choice.outcome === 'accepted' && mobileInstallRow) {
+        mobileInstallRow.classList.add('hide');
       }
     });
   }

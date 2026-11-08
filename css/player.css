@@ -1,4 +1,4 @@
-/* css/player.css - Chassis header, visualizer deck, metadata readout, and mobile miniplayer */
+/* css/player.css - Chassis header, visualizer deck, metadata readout, and install deck */
 .header {
   display: flex;
   flex-direction: column;
@@ -204,10 +204,7 @@
   gap: 4px;
 }
 
-.seg-btn:hover {
-  color: var(--text-secondary);
-}
-
+.seg-btn:hover { color: var(--text-secondary); }
 .seg-btn.active {
   background: var(--surface-elevated);
   color: var(--col-gold);
@@ -227,15 +224,8 @@
   min-width: 36px;
 }
 
-.time-dim {
-  color: var(--text-tertiary);
-}
-
-.slider-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-}
+.time-dim { color: var(--text-tertiary); }
+.slider-wrap { flex: 1; display: flex; align-items: center; }
 
 input[type="range"] {
   width: 100%;
@@ -288,37 +278,31 @@ input[type="range"]::-moz-range-thumb {
   cursor: grab;
 }
 
-#progressBar::-moz-range-progress {
-  background-color: transparent;
-}
+#progressBar::-moz-range-progress { background-color: transparent; }
 
 .mobile-install-row {
-  display: none;
+  display: flex;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.mobile-install-btn {
+  width: 100%;
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  color: var(--accent-light);
+  padding: 9px 12px;
+  gap: 8px;
+  font-size: 0.72rem;
+}
+
+.mobile-install-btn:hover {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: var(--accent);
+  color: #fff;
 }
 
 @media (max-width: 900px) {
-  .mobile-install-row {
-    display: flex;
-    width: 100%;
-    margin-top: 2px;
-  }
-
-  .mobile-install-btn {
-    width: 100%;
-    background: rgba(34, 197, 94, 0.08);
-    border: 1px solid rgba(34, 197, 94, 0.28);
-    color: var(--accent-light);
-    padding: 9px 12px;
-    gap: 8px;
-    font-size: 0.72rem;
-  }
-
-  .mobile-install-btn:hover {
-    background: rgba(34, 197, 94, 0.16);
-    border-color: var(--accent);
-    color: #fff;
-  }
-
   .chassis.mobile-mini .header,
   .chassis.mobile-mini .deck-container,
   .chassis.mobile-mini .segment-strip,
