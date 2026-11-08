@@ -3,7 +3,7 @@
  */
 (function(window) {
   const savedFmt = localStorage.getItem('xm_export_format');
-  let activeFormat = (savedFmt === 'mp3' || savedFmt === 'wav' || savedFmt === 'raw') ? savedFmt : 'wav';
+  let activeFormat = (savedFmt === 'mp3' || savedFmt === 'wav' || savedFmt === 'raw') ? savedFmt : 'mp3';
   let isUserDownloadPending = false;
 
   const btnFmtMp3 = document.getElementById('btnFmtMp3');
@@ -89,7 +89,7 @@
     if (!targetTrackId) throw new Error('Cannot start compilation: targetTrackId is missing.');
     if (!window.AudioCompiler) throw new Error('AudioCompiler engine is not available.');
 
-    const format = (activeFormat === 'mp3') ? 'mp3' : 'wav';
+    const format = (activeFormat === 'wav') ? 'wav' : 'mp3';
     const cached = window.XMAudio && window.XMAudio.getCachedCompiled ? window.XMAudio.getCachedCompiled(targetTrackId, format) : null;
     if (cached && cached.blob) {
       if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');

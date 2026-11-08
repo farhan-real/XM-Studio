@@ -58,14 +58,13 @@ XM-Studio solves this with an intelligent **three-phase playback pipeline**:
 * An independent compilation worker (`worker.js`) renders the full song in the background into 320k MP3 or 16-bit WAV audio using high-throughput 18,432-sample batches (16× 1152).
 * Simultaneously, a dedicated FFT engine (`fft.js`) precomputes 28-band frequency spectrum frames for every frame of the song into a typed array buffer (`visData`).
 * Because rendering executes on a separate CPU core, **the playing music never stutters, drops frames, or glitches**.
-* With the 16-bit studio WAV target, WebAssembly compiles the entire song in **under 1 second** on mobile and desktop without loading CPU efficiency cores.
-* Deck status pulses gold with live progress: **`COMPILE: COMPILING`** (e.g. `45%`) and transitions to green: **`COMPILE: READY`**.
+* Deck status pulses gold with live progress: **`COMPILE: COMPILING`** (e.g. `45%`).
 
-### Phase 3: Seamless Native Handoff (`PLAYBACK: MP3` or `WAV`)
+### Phase 3: Seamless Native Handoff
 * When compilation completes, the browser's native `<audio id="nativeAudio">` pre-seeks to the exact phase-aligned timestamp while muted.
 * An equal-power linear de-clicking micro-ramp smoothly transitions audio output from the Worklet to the native audio element.
 * The WebAssembly synthesis worker stops, cutting DSP CPU usage down to **0%**.
-* Deck status transitions to sky-blue: **`PLAYBACK: WAV`** (or **`MP3`** if MP3 export target is active), and compile status turns to green: **`COMPILE: READY`**.
+* Deck status transitions to sky-blue: **`PLAYBACK: MP3`** (or `WAV` if WAV export target is active), and compile status turns to green: **`COMPILE: READY`**.
 
 ---
 
@@ -98,7 +97,6 @@ XM-Studio solves this with an intelligent **three-phase playback pipeline**:
 * **1152-Sample Block Alignment (`worker.js`):** Encodes in 1152-sample MP3 frame blocks with soft limiting `[-1.0, 1.0]`, preventing bit reservoir underflow and clipping distortion.
 * **High-Throughput 18,432-Sample Batches:** Passes full 18,432-sample buffers (16× 1152) directly to `lamejs.Mp3Encoder.encodeBuffer` in single operations, eliminating ~15,000 temporary subarray allocations and garbage collection pauses during background rendering.
 * **Decoupled Inner Loop Optimization:** Separates float-to-int audio conversion from FFT spectrum extraction, eliminating 8.6M circular buffer writes and modulo operators (`% 64`), allowing the browser's JIT compiler to vectorize audio processing.
-* **Sub-Second 16-Bit WAV Default Target:** Delivers native WebAssembly compilation in under 1 second on mobile and desktop processors, enabling near-instant native handoff and terminating battery-draining DSP synthesis immediately.
 * **Radix-2 FFT Spectrum Precomputation (`fft.js`):** Standalone 64-point FFT with precomputed Hann window and bit-reversal lookup tables computes 28-band spectrum magnitudes during background rendering.
 * **Calibrated Decibel Curve:** FFT frames match native Web Audio decibel scaling ($-100\text{ dB}$ to $-30\text{ dB} \rightarrow 0..255$) with precomputed logarithmic bin lookup tables (`binMap`) and direct power-domain logarithm calculations ($10\log_{10} P - 30.103$) for seamless visual handoff.
 * **Serial 2-Track Lookahead Precompilation (`precompiler.js`):** Precompiles upcoming playlist tracks ($N+1$, $N+2$) serially in the background with `AbortController` preemption, battery gating (<15%), and visibility pausing matching the active export format.
@@ -134,7 +132,7 @@ XM-Studio solves this with an intelligent **three-phase playback pipeline**:
 ### 7. Workstation Deck, Transport & Status Badges
 
 * **Dual Right-Aligned Status Cluster:**
-  * **PLAYBACK Badge:** Displays **`ENGINE`** (phosphor green, real-time DSP synthesis), **`WAV`** / **`MP3`** (sky-blue, native hardware stream), or **`IDLE`** (slate gray).
+  * **PLAYBACK Badge:** Displays **`ENGINE`** (phosphor green, real-time DSP synthesis), **`MP3`** (sky-blue, native hardware stream), or **`IDLE`** (slate gray).
   * **COMPILE Badge:** Displays **`COMPILING`** (gold, live rendering percentage and pulse animation), **`READY`** (green), or **`IDLE`** (slate gray).
 * **Streamlined Channel Badge:** Displays channel count directly as **`32CH`**, **`16CH`**, **`4CH`**, or **`2CH`** without redundant labels.
 * **Hardware Fader & Scrubber:** Interactive timeline progress bar with elapsed/total time readouts, master volume fader with mute toggle, and sample rate indicators.

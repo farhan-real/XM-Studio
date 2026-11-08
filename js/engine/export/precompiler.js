@@ -55,8 +55,8 @@
     const upcoming = window.XMQueue.getUpcomingTracks(LOOKAHEAD_COUNT);
     if (!upcoming || upcoming.length === 0) return;
 
-    const activeFmt = (window.XMExport && window.XMExport.getActiveFormat) ? window.XMExport.getActiveFormat() : 'wav';
-    const targetFormat = (activeFmt === 'mp3') ? 'mp3' : 'wav';
+    const activeFmt = (window.XMExport && window.XMExport.getActiveFormat) ? window.XMExport.getActiveFormat() : 'mp3';
+    const targetFormat = (activeFmt === 'wav') ? 'wav' : 'mp3';
 
     let targetTrack = null;
     for (let i = 0; i < upcoming.length; i++) {
