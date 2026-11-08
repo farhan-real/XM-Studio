@@ -22,11 +22,24 @@
 
   AudioCompiler.prototype.compile = function(buffer, format, onProgress, onComplete, onError) {
     if (!buffer || buffer.byteLength === 0) {
-      const err = new Error('Cannot compile empty audio buffer.');
+      const err = new Error('Cannot compile: Audio buffer is empty or missing.');
       console.error('[AudioCompiler]', err);
       if (onError) onError(err);
       return;
     }
+    if (!format) {
+      const err = new Error('AudioCompiler.compile error: Target format parameter is required.');
+      console.error('[AudioCompiler]', err);
+      if (onError) onError(err);
+      return;
+    }
+    if (!window.XMAudio || !window.XMAudio.player || !window.XMAudio.player.context || typeof window.XMAudio.player.context.sampleRate !== 'number') {
+      const err = new Error('AudioCompiler error: AudioContext is not initialized or missing sampleRate.');
+      console.error('[AudioCompiler]', err);
+      if (onError) onError(err);
+      return;
+    }
+
     this.cancel();
     const self = this;
     self.isCompiling = true;
@@ -50,7 +63,7 @@
         } else if (msg.type === 'error') {
           self.isCompiling = false;
           self.cleanup();
-          const err = new Error(msg.message || 'Worker compilation failed');
+          const err = new Error(`Worker compilation failed: ${msg.message}`);
           console.error('[AudioCompiler]', err);
           if (onError) onError(err);
         }
@@ -64,12 +77,12 @@
         if (onError) onError(err);
       };
 
-      const targetSampleRate = window.XMAudio?.player?.context?.sampleRate || 48000;
+      const targetSampleRate = window.XMAudio.player.context.sampleRate;
       const copy = buffer.slice(0);
       currentWorker.postMessage({
         type: 'compile',
         buffer: copy,
-        format: format || 'mp3',
+        format: format,
         sampleRate: targetSampleRate
       }, [copy]);
     } catch (e) {
@@ -88,6 +101,19 @@
       if (onError) onError(err);
       return;
     }
+    if (!format) {
+      const err = new Error(`Cannot preload without format parameter for track ${trackId}.`);
+      console.error('[AudioCompiler]', err);
+      if (onError) onError(err);
+      return;
+    }
+    if (!trackId) {
+      const err = new Error('Cannot preload without valid trackId.');
+      console.error('[AudioCompiler]', err);
+      if (onError) onError(err);
+      return;
+    }
+
     this.cancel();
     const self = this;
     self.isCompiling = true;
@@ -114,7 +140,7 @@
           self.isPreload = false;
           self.activeTrackId = null;
           self.cleanup();
-          const err = new Error(msg.message || 'Worker preload failed');
+          const err = new Error(`Worker preload failed: ${msg.message}`);
           console.error('[AudioCompiler]', err);
           if (onError) onError(err);
         }
@@ -134,7 +160,7 @@
       currentWorker.postMessage({
         type: 'compile',
         buffer: copy,
-        format: format || 'mp3',
+        format: format,
         sampleRate: 48000
       }, [copy]);
     } catch (e) {

@@ -135,6 +135,7 @@
         console.error('[XMExport] Compilation error in startInitialCompile:', err);
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
         if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('error');
+        alert('Compilation Failed: ' + err.message);
       }
     );
   }

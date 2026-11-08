@@ -113,6 +113,7 @@
       audioEl.play().then(() => notifyPlayState(true)).catch((err) => {
         console.error('[XMAudio] Carrier audio playback failed:', err);
         notifyPlayState(false);
+        alert('Carrier Audio Error: ' + err.message);
       });
     }
   }
@@ -184,7 +185,8 @@
   }
 
   function getCachedCompiled(trackId, format) {
-    if (!trackId || !format) return null;
+    if (!trackId) throw new Error('getCachedCompiled: trackId is required.');
+    if (!format) throw new Error('getCachedCompiled: format is required.');
     if (window.XMCache) {
       const res = window.XMCache.get(trackId, format);
       if (res) return res;
@@ -193,7 +195,12 @@
   }
 
   function setCachedCompiled(trackId, format, blob, visData, visFps, duration, engine, channels) {
-    if (!trackId || !format || !engine || !channels) throw new Error('setCachedCompiled: parameters required.');
+    if (!trackId) throw new Error('setCachedCompiled: trackId is required.');
+    if (!format) throw new Error('setCachedCompiled: format is required.');
+    if (!blob) throw new Error('setCachedCompiled: blob is required.');
+    if (!engine) throw new Error('setCachedCompiled: engine is required.');
+    if (!channels) throw new Error('setCachedCompiled: channels is required.');
+    if (typeof duration !== 'number' || duration <= 0) throw new Error('setCachedCompiled: valid duration is required.');
     const fmt = format.toLowerCase();
     const qId = window.XMQueue && window.XMQueue.getQueueId ? window.XMQueue.getQueueId() : null;
     if (window.XMCache) window.XMCache.set(trackId, fmt, blob, visData, visFps, duration, qId, engine, channels);
@@ -201,9 +208,13 @@
   }
 
   function handoffToCompiled(blob, format, targetTrackId, visData, visFps, duration, engine, channels) {
-    if (!blob || !format || !targetTrackId || typeof duration !== 'number' || duration <= 0) {
-      throw new Error('Handoff error: Invalid compilation parameters.');
-    }
+    if (!blob) throw new Error('Handoff error: Compiled blob is missing.');
+    if (!format) throw new Error('Handoff error: Format parameter is missing.');
+    if (!targetTrackId) throw new Error('Handoff error: Target track ID is missing.');
+    if (typeof duration !== 'number' || duration <= 0) throw new Error(`Handoff error: Invalid duration: ${duration}`);
+    if (!engine && (!activeEngine || activeEngine === 'NONE')) throw new Error('Handoff error: Engine string is missing.');
+    if (!channels && (!activeChannels || activeChannels === '--')) throw new Error('Handoff error: Channel count missing.');
+
     activeDuration = duration;
     const isTracker = !window.XMMeta.NATIVE_STREAM_EXTS.has(`.${currentExt}`);
     const resolvedEngine = isTracker

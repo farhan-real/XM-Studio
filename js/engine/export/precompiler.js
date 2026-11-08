@@ -55,7 +55,10 @@
     const upcoming = window.XMQueue.getUpcomingTracks(LOOKAHEAD_COUNT);
     if (!upcoming || upcoming.length === 0) return;
 
-    const activeFmt = (window.XMExport && window.XMExport.getActiveFormat) ? window.XMExport.getActiveFormat() : 'mp3';
+    if (!window.XMExport || !window.XMExport.getActiveFormat) {
+      throw new Error('XMPrecompiler error: XMExport module is missing.');
+    }
+    const activeFmt = window.XMExport.getActiveFormat();
     const targetFormat = (activeFmt === 'wav') ? 'wav' : 'mp3';
 
     let targetTrack = null;
