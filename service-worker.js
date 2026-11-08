@@ -1,8 +1,21 @@
 // service-worker.js - Resilient offline PWA runtime caching with network-first app shell.
-const CACHE_NAME = 'xm-runtime-v52';
+const CACHE_NAME = 'xm-runtime-v53';
 
-self.addEventListener('install', () => {
-  self.skipWaiting();
+const PRECACHE_ASSETS = [
+  './',
+  'index.html'
+];
+
+self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(PRECACHE_ASSETS))
+      .then(() => self.skipWaiting())
+      .catch((err) => {
+        console.error('[ServiceWorker] Precache failed during install:', err);
+        self.skipWaiting();
+      })
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -39,13 +52,12 @@ async function fetchAssetWithRetry(req) {
   try {
     const res = await fetch(req);
     if (isValidResponse(req, res)) return res;
-    console.error('[ServiceWorker] Initial asset fetch returned invalid response:', req.url);
   } catch (err) {
-    console.error('[ServiceWorker] Initial asset fetch failed:', req.url, err);
+    // Retry once using direct URL string to bypass aborted or conflicting RequestInit state
   }
 
   await new Promise((r) => setTimeout(r, 60));
-  const retryRes = await fetch(req, { cache: 'reload' });
+  const retryRes = await fetch(req.url, { cache: 'reload' });
   if (!isValidResponse(req, retryRes)) {
     const err = new Error(`Asset fetch failed permanently for: ${req.url}`);
     console.error('[ServiceWorker]', err);
@@ -58,6 +70,9 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
 
+  // Prevent browser-level TypeError when DevTools or offline check requests only-if-cached
+  if (req.cache === 'only-if-cached' && req.mode !== 'same-origin') return;
+
   const url = req.url;
   const isDocNavigation = (
     req.mode === 'navigate' ||
@@ -66,30 +81,55 @@ self.addEventListener('fetch', (e) => {
     url.endsWith('/')
   );
 
-  const isAppShell = (
-    isDocNavigation ||
+  if (isDocNavigation) {
+    e.respondWith(
+      fetch(req).then((res) => {
+        if (isValidResponse(req, res)) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((c) => {
+            c.put(req, clone.clone());
+            c.put('./', clone);
+          });
+          return res;
+        }
+        throw new Error(`Invalid navigation response status: ${res ? res.status : 'null'}`);
+      }).catch(async (err) => {
+        const cached = (await caches.match(req, { ignoreSearch: true })) ||
+                       (await caches.match('./')) ||
+                       (await caches.match('./index.html'));
+        if (cached && isValidResponse(req, cached)) return cached;
+        console.error('[ServiceWorker] Navigation request failed and no offline cache available:', req.url, err);
+        return new Response(`Workstation Offline Error: ${err.message}`, {
+          status: 504,
+          statusText: 'Gateway Timeout',
+          headers: { 'Content-Type': 'text/plain' }
+        });
+      })
+    );
+    return;
+  }
+
+  const isAppShellAsset = (
     url.endsWith('.css') ||
+    url.includes('.css?') ||
     url.endsWith('.js') ||
+    url.includes('.js?') ||
     url.includes('/js/') ||
     url.endsWith('manifest.json') ||
     url.endsWith('icon.svg')
   );
 
-  if (isAppShell) {
+  if (isAppShellAsset) {
     e.respondWith(
       fetchAssetWithRetry(req).then((res) => {
         const clone = res.clone();
         caches.open(CACHE_NAME).then((c) => c.put(req, clone));
         return res;
       }).catch(async (err) => {
-        console.error('[ServiceWorker] App shell request failed:', req.url, err);
         const cached = await caches.match(req, { ignoreSearch: true });
         if (cached && isValidResponse(req, cached)) return cached;
-        if (isDocNavigation) {
-          const fallbackDoc = (await caches.match('./')) || (await caches.match('./index.html'));
-          if (fallbackDoc) return fallbackDoc;
-        }
-        return new Response(`Workstation ServiceWorker Offline Error: ${err.message}`, {
+        console.error('[ServiceWorker] Asset fetch failed and not cached:', req.url, err);
+        return new Response(`Workstation Asset Error: ${err.message}`, {
           status: 504,
           statusText: 'Gateway Timeout',
           headers: { 'Content-Type': 'text/plain' }
@@ -116,6 +156,9 @@ self.addEventListener('fetch', (e) => {
           caches.open(CACHE_NAME).then((c) => c.put(req, clone));
         }
         return res;
+      }).catch((err) => {
+        console.error('[ServiceWorker] Media fetch failed:', req.url, err);
+        throw err;
       });
     })
   );
