@@ -1,5 +1,5 @@
 /**
- * js/engine/workers/worker.js - Dedicated Web Worker for OpenMPT rendering and MP3/WAV compilation without fallbacks.
+ * js/engine/workers/worker.js - Dedicated Web Worker for OpenMPT rendering and MP3/WAV compilation without silent fallbacks.
  */
 /* global importScripts, libopenmpt, lamejs, computeFftBars, FFT_SIZE, FFT_BARS */
 self.libopenmpt = self.libopenmpt || {};
@@ -50,9 +50,9 @@ function isEngineReady() {
 }
 
 function waitForEngine(callback, errback, attempts) {
-  const tries = attempts || 0;
+  const tries = attempts ? attempts : 0;
   if (isRuntimeAborted) {
-    if (errback) errback(new Error(abortErrorMessage || 'libopenmpt memory initialization aborted.'));
+    if (errback) errback(new Error(abortErrorMessage ? abortErrorMessage : 'libopenmpt memory initialization aborted.'));
     return;
   }
   if (isEngineReady()) {
@@ -90,9 +90,20 @@ function runCompilation(data) {
   let modulePtr = 0, ptrToFile = 0, leftBufferPtr = 0, rightBufferPtr = 0;
 
   try {
+    if (!data.sampleRate) {
+      self.postMessage({ type: 'error', message: 'Worker compilation error: sampleRate is required.' });
+      return;
+    }
+    if (!data.format) {
+      self.postMessage({ type: 'error', message: 'Worker compilation error: format is required.' });
+      return;
+    }
+    const sampleRate = data.sampleRate;
+    const isMp3 = data.format === 'mp3';
+
     const byteArray = new Uint8Array(data.buffer);
     if (!byteArray || byteArray.byteLength === 0) {
-      self.postMessage({ type: 'error', message: 'Empty module buffer.' });
+      self.postMessage({ type: 'error', message: 'Empty module buffer received.' });
       return;
     }
     ptrToFile = libopenmpt._malloc(byteArray.byteLength);
@@ -115,24 +126,26 @@ function runCompilation(data) {
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 2, 100]);
     libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [modulePtr, 0]);
 
-    const typeLong = libopenmpt.ccall('openmpt_module_get_metadata', 'string', ['number', 'string'], [modulePtr, 'type_long']) || '';
+    const typeLong = libopenmpt.ccall('openmpt_module_get_metadata', 'string', ['number', 'string'], [modulePtr, 'type_long']);
+    if (!typeLong) throw new Error('OpenMPT failed to determine module type_long metadata.');
+    const engineName = typeLong.toUpperCase();
+
     const numCh = libopenmpt._openmpt_module_get_num_channels
       ? libopenmpt._openmpt_module_get_num_channels(modulePtr)
       : libopenmpt.ccall('openmpt_module_get_num_channels', 'number', ['number'], [modulePtr]);
-    const engineName = typeLong.toUpperCase();
+    if (typeof numCh !== 'number' || numCh <= 0) {
+      throw new Error(`OpenMPT reported invalid channel count: ${numCh}`);
+    }
     const channelsStr = `${numCh}CH`;
 
     const rawDur = libopenmpt._openmpt_module_get_duration_seconds
       ? libopenmpt._openmpt_module_get_duration_seconds(modulePtr)
       : libopenmpt.ccall('openmpt_module_get_duration_seconds', 'number', ['number'], [modulePtr]);
-
     if (!isFinite(rawDur) || rawDur <= 0) {
       throw new Error(`Invalid duration reported by OpenMPT during compilation: ${rawDur}s`);
     }
     const duration = rawDur;
-    const sampleRate = data.sampleRate || 48000;
     const totalFrames = Math.ceil(duration * sampleRate);
-    const isMp3 = (data.format || 'mp3') === 'mp3';
 
     let mp3encoder = null;
     if (isMp3) {

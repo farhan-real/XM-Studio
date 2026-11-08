@@ -1,5 +1,5 @@
 /**
- * js/app.js - Main workstation transport coordinator and deck status manager.
+ * js/app.js - Main workstation transport coordinator and deck status manager without silent fallbacks.
  */
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
@@ -9,10 +9,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const { player, audioEl } = window.XMAudio;
-  if (window.XMVisualizer?.start) window.XMVisualizer.start(player);
-  if (window.AudioCompiler?.init) window.AudioCompiler.init();
-  if (window.XMCache?.init) window.XMCache.init();
-  if (window.XMPrecompiler?.init) window.XMPrecompiler.init();
+  if (window.XMVisualizer && window.XMVisualizer.start) window.XMVisualizer.start(player);
+  if (window.AudioCompiler && window.AudioCompiler.init) window.AudioCompiler.init();
+  if (window.XMCache && window.XMCache.init) window.XMCache.init();
+  if (window.XMPrecompiler && window.XMPrecompiler.init) window.XMPrecompiler.init();
 
   let isSeeking = false, prevVolume = 0.85, lastReportedSec = -1, lastReportedTotalSec = -1, progressTimerId = null;
   let deferredInstallPrompt = null;
@@ -67,7 +67,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function syncPlayModeUI(mode) {
-    const active = mode || (window.XMQueue ? window.XMQueue.playMode : 'next');
+    if (!window.XMQueue) throw new Error('XMQueue module is not available.');
+    const active = mode ? mode : window.XMQueue.playMode;
     document.querySelectorAll('.mode-switch-btn').forEach((b) => {
       b.classList.toggle('active', b.dataset.mode === active);
     });
@@ -88,7 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     modeSwitchSlider.addEventListener('click', (e) => {
       const btn = e.target.closest('.mode-switch-btn');
-      if (btn?.dataset.mode && window.XMQueue) window.XMQueue.setPlayMode(btn.dataset.mode);
+      if (btn && btn.dataset.mode && window.XMQueue) window.XMQueue.setPlayMode(btn.dataset.mode);
     });
 
     let isDragging = false, startX = 0;
@@ -117,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
     panelLeft.classList.remove('mobile-hide');
     dropZone.classList.remove('mobile-hide');
     dropZone.classList.add('mobile-mini');
-    if (window.XMLibrary?.refreshScroller) window.XMLibrary.refreshScroller();
+    if (window.XMLibrary && window.XMLibrary.refreshScroller) window.XMLibrary.refreshScroller();
     if (window.XMVisualizer) window.XMVisualizer.sleep();
   }
 
@@ -144,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function formatTime(sec) {
-    if (!sec || isNaN(sec) || !isFinite(sec) || sec < 0) return '00:00';
+    if (typeof sec !== 'number' || isNaN(sec) || !isFinite(sec) || sec < 0) return '00:00';
     const totalSec = Math.floor(sec);
     const m = Math.floor(totalSec / 60), s = totalSec % 60;
     return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
@@ -217,7 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   audioEl.addEventListener('error', () => {
     const err = audioEl.error;
-    const msg = err ? `Media Error Code ${err.code}: ${err.message || 'Decode/Network failure'}` : 'Unknown HTMLAudioElement error';
+    const msg = err ? `Media Error Code ${err.code}: ${err.message}` : 'Unknown HTMLAudioElement error';
     console.error('[Audio Error]', msg);
     alert('Audio Stream Error: ' + msg);
     setPlaybackStatus('idle');
@@ -229,7 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.hidden) {
       stopProgressLoop();
       if (window.XMVisualizer) window.XMVisualizer.sleep();
-    } else if (window.XMAudio?.isPlaying()) {
+    } else if (window.XMAudio && window.XMAudio.isPlaying()) {
       startProgressLoop();
       updateProgress();
       if (window.XMVisualizer) window.XMVisualizer.wake(player);
@@ -238,14 +239,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function setPlaybackStatus(state) {
     if (!playbackBadge || !playbackStatus) return;
-    const s = (state || 'idle').toLowerCase();
+    const s = state ? state.toLowerCase() : 'idle';
     playbackBadge.className = `badge badge-playback status-${s}`;
     playbackStatus.textContent = s.toUpperCase();
   }
 
   function setCompileStatus(state, pct) {
     if (!compileBadge || !compileStatus) return;
-    const s = (state || 'idle').toLowerCase();
+    const s = state ? state.toLowerCase() : 'idle';
     compileBadge.className = `badge badge-compile status-${s}`;
     compileStatus.textContent = (s === 'compiling' && typeof pct === 'number' && pct > 0) ? `${Math.round(pct * 100)}%` : s.toUpperCase();
   }
@@ -255,13 +256,16 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!t) {
       const info = window.XMAudio.getCurrentInfo();
       if (!info || !info.title || info.title === 'No Module Loaded') return null;
+      const ext = window.XMAudio.getCurrentExtension();
+      if (!ext) throw new Error('Deck track error: Track extension is missing.');
+      if (!window.XMAudio.currentAudioSrc) throw new Error('Deck track error: Track audio source is missing.');
       t = {
-        id: window.XMAudio.currentAudioSrc || `track_${encodeURIComponent(info.title)}`,
+        id: window.XMAudio.currentAudioSrc,
         title: info.title,
         artist: info.artist,
-        ext: (window.XMAudio.getCurrentExtension() || 'XM').toUpperCase(),
-        url: window.XMAudio.currentAudioSrc || '',
-        blob: window.XMAudio.currentAudioBlob || null
+        ext: ext.toUpperCase(),
+        url: window.XMAudio.currentAudioSrc,
+        blob: window.XMAudio.currentAudioBlob
       };
     }
     return t;
@@ -289,7 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!t || !window.XMPlaylist) return;
       window.XMPlaylist.toggleFavorite(t);
       updateDeckFavState();
-      if (window.XMLibrary?.renderCurrentTab) window.XMLibrary.renderCurrentTab();
+      if (window.XMLibrary && window.XMLibrary.renderCurrentTab) window.XMLibrary.renderCurrentTab();
     });
   }
 
@@ -305,7 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const t = getCurrentDeckTrack();
       if (!t || !t.id) return;
       if (window.innerWidth <= 900) showMobileArchiveView();
-      if (window.XMLibrary?.jumpToArchiveTrack) window.XMLibrary.jumpToArchiveTrack(t.id);
+      if (window.XMLibrary && window.XMLibrary.jumpToArchiveTrack) window.XMLibrary.jumpToArchiveTrack(t.id);
     });
   }
 
@@ -322,13 +326,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnUnload.addEventListener('click', () => {
     try {
-      if (window.XMExport?.cancelExport) window.XMExport.cancelExport();
+      if (window.XMExport && window.XMExport.cancelExport) window.XMExport.cancelExport();
       if (window.XMPrecompiler) window.XMPrecompiler.cancel();
       window.XMAudio.unload();
     } catch (err) {
       console.error('[App] Error during track unload:', err);
     }
-    if (window.XMVisualizer?.clear) window.XMVisualizer.clear();
+    if (window.XMVisualizer && window.XMVisualizer.clear) window.XMVisualizer.clear();
 
     songTitle.textContent = 'No Module Loaded';
     songArtist.textContent = 'Ready for FastTracker II / Audio input';
@@ -348,7 +352,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setCompileStatus('idle');
     setPlayingState(false);
     updateDeckFavState();
-    if (window.XMLibrary?.notifyPlaying) window.XMLibrary.notifyPlaying(null);
+    if (window.XMLibrary && window.XMLibrary.notifyPlaying) window.XMLibrary.notifyPlaying(null);
   });
 
   progressBar.addEventListener('input', () => {
@@ -382,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnMute.addEventListener('click', () => {
     const curV = parseFloat(volSlider.value);
-    const target = curV > 0 ? 0 : (prevVolume || 0.85);
+    const target = curV > 0 ? 0 : (prevVolume ? prevVolume : 0.85);
     if (curV > 0) prevVolume = curV;
     audioEl.volume = target;
     player.setVolume(target);
@@ -432,10 +436,11 @@ document.addEventListener('DOMContentLoaded', () => {
         badgeEngine.classList.toggle('engine-error', engine === 'ERROR' || engine === 'UNSUPPORTED');
       }
       if (channels) {
-        const numOnly = String(channelCount || '').replace(/\s*ch/i, '').trim();
+        const numOnly = String(channelCount ? channelCount : '').replace(/\s*ch/i, '').trim();
         channels.textContent = (!isError && numOnly && numOnly !== '--') ? `${numOnly}CH` : '--';
       }
-      const fmt = window.XMExport ? window.XMExport.getActiveFormat() : 'mp3';
+      if (!window.XMExport) throw new Error('XMExport module is missing.');
+      const fmt = window.XMExport.getActiveFormat();
       const qualityBadge = document.getElementById('qualityBadge');
       if (qualityBadge) {
         qualityBadge.textContent = isError

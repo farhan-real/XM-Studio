@@ -11,9 +11,9 @@
 
   function isTrackerTrack(track) {
     if (!track) return false;
-    const ext = (track.ext || '').replace(/^\./, '').toLowerCase();
-    if (ext && NATIVE_EXTS.has(ext)) return false;
-    return true;
+    if (!track.ext) throw new Error(`Track "${track.title}" has no extension.`);
+    const ext = track.ext.replace(/^\./, '').toLowerCase();
+    return !NATIVE_EXTS.has(ext);
   }
 
   async function resolveTrackBuffer(track) {
@@ -24,7 +24,7 @@
       if (!blob) throw new Error(`Custom track blob not found in DB: ${track.id}`);
       return await blob.arrayBuffer();
     }
-    const resolvedUrl = track.url || (track.path ? (track.path.startsWith('http') ? track.path : 'https://farhan-real.github.io/XM-Music/' + encodeURI(track.path.replace(/^\/+/, ''))) : null);
+    const resolvedUrl = track.url ? track.url : (track.path ? (track.path.startsWith('http') ? track.path : 'https://farhan-real.github.io/XM-Music/' + encodeURI(track.path.replace(/^\/+/, ''))) : null);
     if (!resolvedUrl) throw new Error(`No path or URL found for track: ${track.title}`);
 
     const res = await fetch(resolvedUrl, { signal: abortController ? abortController.signal : undefined });
@@ -83,7 +83,9 @@
       }
 
       const qId = window.XMQueue.getQueueId();
-      const fallbackEngine = (targetTrack.ext || 'XM').replace(/^\./, '').toUpperCase();
+      if (!targetTrack.ext) throw new Error(`Precompile error: Extension missing on track "${targetTrack.title}".`);
+      const trackExtEngine = targetTrack.ext.replace(/^\./, '').toUpperCase();
+
       window.AudioCompiler.compilePreload(
         buf,
         'mp3',
@@ -91,8 +93,11 @@
         (blob, visData, visFps, duration, engine, channels) => {
           isRunning = false;
           currentPrecompileTrackId = null;
+          if (!engine) throw new Error(`Precompile error: Engine missing from render for "${targetTrack.title}".`);
+          if (!channels) throw new Error(`Precompile error: Channels missing from render for "${targetTrack.title}".`);
+
           if (window.XMCache && blob) {
-            const trackerEngine = (engine && engine !== 'MP3' && engine !== 'WAV') ? engine : fallbackEngine;
+            const trackerEngine = (engine !== 'MP3' && engine !== 'WAV') ? engine : trackExtEngine;
             window.XMCache.set(
               targetTrack.id,
               'mp3',
@@ -102,7 +107,7 @@
               duration,
               qId,
               trackerEngine,
-              channels || ''
+              channels
             );
           }
           schedule(400);

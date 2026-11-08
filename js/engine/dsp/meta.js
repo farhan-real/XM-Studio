@@ -11,28 +11,33 @@
   ]);
 
   function parseTrackInfo(filename, internalMeta) {
-    internalMeta = internalMeta || {};
-    let base = (filename || '').replace(/\.[a-z0-9]+$/i, '').trim();
+    if (!filename && (!internalMeta || !internalMeta.title)) {
+      throw new Error('Track metadata error: Both filename and internal metadata are missing.');
+    }
+    const meta = internalMeta ? internalMeta : {};
+    let base = filename ? filename.replace(/\.[a-z0-9]+$/i, '').trim() : '';
     if (base.includes('_-_')) base = base.replace(/_-_/g, ' - ').replace(/_/g, ' ');
     else if (!base.includes(' ') && base.includes('_')) base = base.replace(/_/g, ' ');
 
     const match = base.match(/^(.+?)\s+[-–—]\s+(.+)$/);
-    const title = match ? match[2].trim() : ((internalMeta.title || '').trim() || base);
-    const artist = match ? match[1].trim() : ((internalMeta.artist || '').trim() || (internalMeta.type_long || '').trim());
+    const title = match ? match[2].trim() : (meta.title ? meta.title.trim() : base);
+    const artist = match ? match[1].trim() : (meta.artist ? meta.artist.trim() : '');
 
     if (!title) {
-      throw new Error(`Unable to determine title for track from filename "${filename}" or metadata`);
+      throw new Error(`Track metadata error: Unable to determine title for track from "${filename}".`);
     }
-    return {
-      title,
-      artist: artist || 'Unknown Artist'
-    };
+    if (!artist) {
+      throw new Error(`Track metadata error: Unable to determine artist for "${title}". File must follow "Artist - Title.ext" format or contain metadata.`);
+    }
+
+    return { title, artist };
   }
 
   function resolveTrackerEngine(candidate, ext) {
-    const cleanExt = (ext || '').replace(/^\./, '').toUpperCase();
-    const cand = (candidate || '').trim().toUpperCase();
-    const isTracker = !NATIVE_STREAM_EXTS.has(`.${(ext || '').replace(/^\./, '').toLowerCase()}`);
+    if (!ext) throw new Error('Engine resolution error: Missing file extension.');
+    const cleanExt = ext.replace(/^\./, '').toUpperCase();
+    const cand = candidate ? candidate.trim().toUpperCase() : '';
+    const isTracker = !NATIVE_STREAM_EXTS.has(`.${cleanExt.toLowerCase()}`);
 
     if (isTracker) {
       if (cand && cand !== 'MP3' && cand !== 'WAV' && cand !== 'AUDIO' && cand !== 'NONE') {
@@ -41,12 +46,12 @@
       if (cleanExt && cleanExt !== 'MP3' && cleanExt !== 'WAV') {
         return cleanExt;
       }
-      return 'TRACKER';
+      throw new Error(`Tracker engine resolution failed: candidate="${candidate}", ext="${ext}".`);
     }
 
     if (cand && cand !== 'NONE') return cand;
     if (cleanExt) return cleanExt;
-    throw new Error('Unable to resolve engine type for audio track');
+    throw new Error(`Audio engine resolution failed: candidate="${candidate}", ext="${ext}".`);
   }
 
   window.XMMeta = {

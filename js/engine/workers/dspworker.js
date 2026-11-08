@@ -1,5 +1,5 @@
 /**
- * js/engine/workers/dspworker.js - Dedicated Web Worker hosting libopenmpt for off-main-thread DSP.
+ * js/engine/workers/dspworker.js - Dedicated Web Worker hosting libopenmpt for off-main-thread DSP without fallbacks.
  */
 /* global importScripts, libopenmpt */
 self.libopenmpt = self.libopenmpt || {};
@@ -32,7 +32,7 @@ self.libopenmpt.locateFile = function(f) {
 importScripts('../../libopenmpt.js');
 
 let directPort = null;
-let sampleRate = 48000;
+let sampleRate = 0;
 let modulePtr = 0;
 let ptrToFile = 0;
 let isPlaying = false;
@@ -88,11 +88,17 @@ function extractMetadata(mod) {
   const keys = ['title', 'artist', 'type_long', 'tracker', 'message'];
   for (let i = 0; i < keys.length; i++) {
     const k = keys[i];
-    meta[k] = libopenmpt.ccall('openmpt_module_get_metadata', 'string', ['number', 'string'], [mod, k]) || '';
+    meta[k] = libopenmpt.ccall('openmpt_module_get_metadata', 'string', ['number', 'string'], [mod, k]);
   }
-  meta.channels = libopenmpt._openmpt_module_get_num_channels
+  if (!meta.type_long) throw new Error('OpenMPT failed to detect tracker format (type_long).');
+
+  const ch = libopenmpt._openmpt_module_get_num_channels
     ? libopenmpt._openmpt_module_get_num_channels(mod)
     : libopenmpt.ccall('openmpt_module_get_num_channels', 'number', ['number'], [mod]);
+  if (typeof ch !== 'number' || ch <= 0) {
+    throw new Error(`OpenMPT reported invalid channel count: ${ch}`);
+  }
+  meta.channels = ch;
 
   libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [mod, 0]);
   const rawDur = libopenmpt._openmpt_module_get_duration_seconds
@@ -149,8 +155,7 @@ function renderAndSendChunk() {
   const rightArray = new Float32Array(actual);
 
   for (let i = 0; i < actual; i++) {
-    let sL = heapF32[baseL + i];
-    let sR = heapF32[baseR + i];
+    let sL = heapF32[baseL + i], sR = heapF32[baseR + i];
     if (sL > 1.0) sL = 1.0; else if (sL < -1.0) sL = -1.0;
     if (sR > 1.0) sR = 1.0; else if (sR < -1.0) sR = -1.0;
     leftArray[i] = sL;
@@ -169,7 +174,7 @@ function renderAndSendChunk() {
 }
 
 function renderBatch(count) {
-  const num = Math.min(16, Math.max(1, count || 1));
+  const num = Math.min(16, Math.max(1, count));
   for (let i = 0; i < num; i++) {
     if (!isPlaying || !modulePtr) break;
     renderAndSendChunk();
@@ -177,9 +182,9 @@ function renderBatch(count) {
 }
 
 function waitForEngine(callback, errback, attempts) {
-  const tries = attempts || 0;
+  const tries = attempts ? attempts : 0;
   if (isRuntimeAborted) {
-    if (errback) errback(new Error(abortErrorMessage || 'DSP engine aborted.'));
+    if (errback) errback(new Error(abortErrorMessage ? abortErrorMessage : 'DSP engine aborted.'));
     return;
   }
   if (isEngineReady()) {
@@ -196,11 +201,13 @@ self.onmessage = function(e) {
   if (!data) return;
 
   if (data.action === 'init-port') {
+    if (!data.sampleRate) throw new Error('dspworker init-port error: sampleRate is required');
+    if (!data.port) throw new Error('dspworker init-port error: port is required');
     directPort = data.port;
-    sampleRate = data.sampleRate || 48000;
+    sampleRate = data.sampleRate;
     directPort.onmessage = (msgEvent) => {
       if (!msgEvent.data) return;
-      if (msgEvent.data.type === 'pull') renderBatch(msgEvent.data.count || 1);
+      if (msgEvent.data.type === 'pull') renderBatch(msgEvent.data.count ? msgEvent.data.count : 1);
     };
   } else if (data.action === 'load') {
     freeModule();
@@ -231,7 +238,7 @@ self.onmessage = function(e) {
         libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 2, 100]);
 
         const meta = extractMetadata(modulePtr);
-        repeatCount = (data.repeatCount !== undefined) ? data.repeatCount : -1;
+        repeatCount = (typeof data.repeatCount === 'number') ? data.repeatCount : -1;
         libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [modulePtr, repeatCount]);
 
         renderedFrames = 0;

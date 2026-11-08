@@ -1,5 +1,5 @@
 /**
- * js/data/catalog/catalog.js - Catalog indexing, sorting, track number search, and filtering without fallbacks.
+ * js/data/catalog/catalog.js - Catalog indexing, sorting, track number search, and filtering without silent fallbacks.
  */
 (function(window) {
   let fullCatalog = [];
@@ -8,9 +8,11 @@
   let customCatalog = [];
 
   function indexTrack(track, idx) {
-    const a = (track.artist || '').toLowerCase();
-    const ti = (track.title || '').toLowerCase();
-    const f = (track.folder || '').toLowerCase();
+    if (!track.title) throw new Error(`Track index ${idx} is missing title.`);
+    if (!track.artist) throw new Error(`Track "${track.title}" is missing artist.`);
+    const a = track.artist.toLowerCase();
+    const ti = track.title.toLowerCase();
+    const f = track.folder ? track.folder.toLowerCase() : '';
     track._sortArtist = a;
     track._sortTitle = ti;
     if (typeof idx === 'number') {
@@ -23,7 +25,7 @@
 
   function sortAlphabetical(tracks) {
     for (let i = 0; i < tracks.length; i++) {
-      indexTrack(tracks[i]);
+      indexTrack(tracks[i], i + 1);
     }
     return tracks.sort((a, b) => {
       if (a._sortArtist < b._sortArtist) return -1;
@@ -35,7 +37,8 @@
   }
 
   function getFormatBadgeClass(ext) {
-    const e = (ext || 'xm').toLowerCase();
+    if (!ext) throw new Error('getFormatBadgeClass: Extension is required.');
+    const e = ext.toLowerCase();
     if (e === 'xm') return 'fmt-xm';
     if (e === 'mod') return 'fmt-mod';
     if (e === 'it') return 'fmt-it';
@@ -45,20 +48,18 @@
   }
 
   async function syncFullCatalog() {
-    try {
-      const allCustom = window.XMCustom ? await window.XMCustom.getTracks() : [];
-      const disabledFolders = new Set(
-        (window.XMSources && window.XMSources.getFolderSources)
-          ? window.XMSources.getFolderSources().filter(f => f.enabled === false).map(f => f.id)
-          : []
-      );
-      customCatalog = disabledFolders.size > 0
-        ? allCustom.filter(t => !t.folderSourceId || !disabledFolders.has(t.folderSourceId))
-        : allCustom;
-    } catch (err) {
-      console.error('[XMCatalog] Critical error retrieving custom library:', err);
-      throw err;
+    if (!window.XMCustom || !window.XMCustom.getTracks) {
+      throw new Error('XMCustom storage module is not available.');
     }
+    const allCustom = await window.XMCustom.getTracks();
+    const disabledFolders = new Set(
+      window.XMSources && window.XMSources.getFolderSources
+        ? window.XMSources.getFolderSources().filter(f => f.enabled === false).map(f => f.id)
+        : []
+    );
+    customCatalog = disabledFolders.size > 0
+      ? allCustom.filter(t => !t.folderSourceId || !disabledFolders.has(t.folderSourceId))
+      : allCustom;
 
     const combined = [...customCatalog, ...remoteCatalog];
     fullCatalog = sortAlphabetical(combined);
@@ -79,7 +80,7 @@
   }
 
   function filter(query) {
-    const q = (query || '').toLowerCase().trim();
+    const q = query ? query.toLowerCase().trim() : '';
     if (!q) {
       displayCatalog = fullCatalog;
       return displayCatalog;

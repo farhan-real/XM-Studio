@@ -1,5 +1,5 @@
 /**
- * js/data/custom.js - Persistent IndexedDB connection & lightweight metadata-only RAM cache.
+ * js/data/storage/custom.js - Persistent IndexedDB connection & metadata store without silent fallbacks.
  */
 (function(window) {
   const DB_NAME = 'xm_studio_custom_db';
@@ -28,13 +28,19 @@
   }
 
   function stripBlob(record) {
+    if (!record.id) throw new Error('Custom track record missing "id".');
+    if (!record.title) throw new Error(`Custom track "${record.id}" missing "title".`);
+    if (!record.artist) throw new Error(`Custom track "${record.title}" missing "artist".`);
+    if (!record.ext) throw new Error(`Custom track "${record.title}" missing "ext".`);
+    if (!record.dateAdded) throw new Error(`Custom track "${record.title}" missing "dateAdded".`);
+
     return {
       id: record.id,
       title: record.title,
       artist: record.artist,
       ext: record.ext,
-      folder: record.folder || '',
-      folderSourceId: record.folderSourceId || '',
+      folder: record.folder ? record.folder : '',
+      folderSourceId: record.folderSourceId ? record.folderSourceId : '',
       dateAdded: record.dateAdded,
       isCustom: Boolean(record.isCustom),
       isFolderTrack: Boolean(record.isFolderTrack)
@@ -52,7 +58,9 @@
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
       for (let i = 0; i < records.length; i++) {
-        store.put(records[i]);
+        const r = records[i];
+        if (!r.blob) throw new Error(`Custom track "${r.title}" has no audio blob.`);
+        store.put(r);
       }
       tx.oncomplete = () => resolve();
       tx.onerror = () => {
@@ -68,7 +76,7 @@
       const tx = db.transaction(STORE_NAME, 'readonly');
       const req = tx.objectStore(STORE_NAME).getAll();
       req.onsuccess = () => {
-        const raw = req.result || [];
+        const raw = req.result ? req.result : [];
         const light = new Array(raw.length);
         for (let i = 0; i < raw.length; i++) light[i] = stripBlob(raw[i]);
         resolve(light);
@@ -81,6 +89,7 @@
   }
 
   async function getTrackBlob(id) {
+    if (!id) throw new Error('getTrackBlob: Track id is required.');
     const db = await openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
@@ -101,6 +110,7 @@
   }
 
   async function deleteTrack(id) {
+    if (!id) throw new Error('deleteTrack: Track id is required.');
     const db = await openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -127,6 +137,7 @@
   }
 
   async function deleteTracksByFolder(folderId) {
+    if (!folderId) throw new Error('deleteTracksByFolder: folderId is required.');
     const db = await openDB();
     const tracks = await getTracks();
     const toDelete = tracks.filter(t => t.folderSourceId === folderId);
@@ -159,20 +170,20 @@
   }
 
   function parseFilename(filename) {
+    if (!filename) throw new Error('parseFilename: Filename is required.');
+    const extMatch = filename.match(/\.([a-z0-9]+)$/i);
+    if (!extMatch) throw new Error(`File "${filename}" has no extension.`);
+    const ext = extMatch[1].toUpperCase();
+
     let base = filename.replace(/\.[a-z0-9]+$/i, '').trim();
     if (base.includes('_-_')) base = base.replace(/_-_/g, ' - ').replace(/_/g, ' ');
     else if (!base.includes(' ') && base.includes('_')) base = base.replace(/_/g, ' ');
 
-    let artist = "Custom Artist";
-    let title = base;
     const match = base.match(/^(.+?)\s+[-–—]\s+(.+)$/);
-    if (match) {
-      artist = match[1].trim();
-      title = match[2].trim();
+    if (!match) {
+      throw new Error(`Custom file "${filename}" must follow "Artist - Title.${ext}" naming convention.`);
     }
-    const extMatch = filename.toLowerCase().match(/\.[a-z0-9]+$/);
-    const ext = extMatch ? extMatch[0].replace('.', '').toUpperCase() : 'XM';
-    return { artist, title, ext };
+    return { artist: match[1].trim(), title: match[2].trim(), ext };
   }
 
   const inputCustomFiles = document.getElementById('inputCustomFiles');
@@ -212,24 +223,31 @@
   if (btnAddCustomFile && inputCustomFiles) {
     btnAddCustomFile.addEventListener('click', () => inputCustomFiles.click());
     inputCustomFiles.addEventListener('change', async (e) => {
-      const files = Array.from(e.target.files || []);
-      const batch = files.map((file, i) => {
-        const meta = parseFilename(file.name);
-        return {
-          id: `custom_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`,
-          title: meta.title,
-          artist: meta.artist,
-          ext: meta.ext,
-          blob: file,
-          dateAdded: Date.now(),
-          isCustom: true,
-          isFolderTrack: false
-        };
-      });
-      await saveTracksBatch(batch);
-      inputCustomFiles.value = '';
-      await renderCustomManagerList();
-      if (window.XMLibrary) window.XMLibrary.refreshArchive();
+      try {
+        const files = Array.from(e.target.files ? e.target.files : []);
+        const now = Date.now();
+        const batch = files.map((file, i) => {
+          const meta = parseFilename(file.name);
+          return {
+            id: `custom_${now}_${i}_${Math.random().toString(36).slice(2, 7)}`,
+            title: meta.title,
+            artist: meta.artist,
+            ext: meta.ext,
+            blob: file,
+            dateAdded: now,
+            isCustom: true,
+            isFolderTrack: false
+          };
+        });
+        await saveTracksBatch(batch);
+        inputCustomFiles.value = '';
+        await renderCustomManagerList();
+        if (window.XMLibrary) window.XMLibrary.refreshArchive();
+      } catch (err) {
+        console.error('[XMCustom] File import error:', err);
+        alert('Track Import Error: ' + err.message);
+        inputCustomFiles.value = '';
+      }
     });
   }
 
