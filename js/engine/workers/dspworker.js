@@ -3,8 +3,11 @@
  */
 /* global importScripts, libopenmpt */
 self.libopenmpt = self.libopenmpt || {};
+self.libopenmpt.print = function() {};
+self.libopenmpt.printErr = function() {};
 
 let isRuntimeReady = false;
+let isRuntimeVerified = false;
 let isRuntimeAborted = false;
 let abortErrorMessage = '';
 
@@ -47,15 +50,19 @@ let renderedFrames = 0;
 const CHUNK_FRAMES = 4096;
 
 function isEngineReady() {
+  if (isRuntimeAborted) return false;
+  if (isRuntimeVerified) return true;
   try {
-    if (isRuntimeAborted) return false;
     if (typeof libopenmpt === 'undefined') return false;
     if (!libopenmpt.HEAPU8 || libopenmpt.HEAPU8.length === 0) return false;
-    if (typeof libopenmpt._malloc !== 'function') return false;
+    if (typeof libopenmpt._malloc !== 'function' || typeof libopenmpt._free !== 'function') return false;
     if (typeof libopenmpt._openmpt_module_create_from_memory !== 'function') return false;
     if (!isRuntimeReady && !libopenmpt.calledRun && !libopenmpt.asm) return false;
 
-    libopenmpt._openmpt_module_create_from_memory(0, 0, 0, 0, 0);
+    const probePtr = libopenmpt._malloc(4);
+    if (!probePtr) return false;
+    libopenmpt._free(probePtr);
+    isRuntimeVerified = true;
     return true;
   } catch (e) {
     return false;
@@ -207,18 +214,23 @@ self.onmessage = function(e) {
     waitForEngine(() => {
       try {
         const byteArray = new Uint8Array(data.buffer);
+        if (!byteArray || byteArray.byteLength === 0) {
+          self.postMessage({ type: 'error', message: 'Empty module buffer.' });
+          return;
+        }
         ptrToFile = libopenmpt._malloc(byteArray.byteLength);
         libopenmpt.HEAPU8.set(byteArray, ptrToFile);
 
         modulePtr = libopenmpt._openmpt_module_create_from_memory(ptrToFile, byteArray.byteLength, 0, 0, 0);
         if (!modulePtr) {
+          freeModule();
           self.postMessage({ type: 'error', message: 'Could not parse tracker module.' });
           return;
         }
 
-        libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number'], [modulePtr, 3, 4]);
-        libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number'], [modulePtr, 4, 5]);
-        libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number'], [modulePtr, 2, 100]);
+        libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 4]);
+        libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
+        libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 2, 100]);
 
         const meta = extractMetadata(modulePtr);
         repeatCount = (data.repeatCount !== undefined) ? data.repeatCount : -1;

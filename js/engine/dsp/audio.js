@@ -9,6 +9,7 @@
   let currentRawBuffer = null, currentAudioBlob = null, currentAudioSrc = '';
   let activeObjectUrl = null, currentExt = 'xm', isNativeStream = false, nativeAudioSource = null;
   let activeTitle = 'No Module Loaded', activeArtist = '', activeDuration = 0;
+  let activeEngine = 'NONE', activeChannels = '--';
   let currentTrackItem = null, currentLoadId = 0;
 
   const NATIVE_STREAM_EXTS = new Set(['.mp3', '.ogg', '.wav', '.flac', '.aac', '.m4a', '.weba']);
@@ -67,6 +68,15 @@
     };
   }
 
+  function resolveTrackerEngine(candidate, fallbackExt) {
+    const cleanExt = (fallbackExt || currentExt || 'XM').replace(/^\./, '').toUpperCase();
+    const cand = (candidate || '').trim().toUpperCase();
+    if (!cand || cand === 'MP3' || cand === 'WAV' || cand === 'AUDIO' || cand === 'NONE') {
+      return cleanExt || 'FT2';
+    }
+    return cand;
+  }
+
   function getDuration() {
     if (isNativeStream) {
       const d = audioEl.duration;
@@ -114,21 +124,19 @@
       audioEl.pause();
       if (!isNativeStream && player.currentPlayingNode && !player.currentPlayingNode.paused) player.togglePause();
       notifyPlayState(false);
+    } else if (isNativeStream) {
+      audioEl.play().then(() => notifyPlayState(true)).catch(() => {
+        if (currentRawBuffer) {
+          isNativeStream = false;
+          player.play(currentRawBuffer);
+          notifyPlayState(true);
+          if (window.XMApp?.setPlaybackStatus) window.XMApp.setPlaybackStatus('live');
+        } else notifyPlayState(false);
+      });
     } else {
-      if (isNativeStream) {
-        audioEl.play().then(() => notifyPlayState(true)).catch(() => {
-          if (currentRawBuffer) {
-            isNativeStream = false;
-            player.play(currentRawBuffer);
-            notifyPlayState(true);
-            if (window.XMApp?.setPlaybackStatus) window.XMApp.setPlaybackStatus('live');
-          } else notifyPlayState(false);
-        });
-      } else {
-        if (!player.currentPlayingNode && currentRawBuffer) player.play(currentRawBuffer);
-        else if (player.currentPlayingNode?.paused) player.togglePause();
-        audioEl.play().then(() => notifyPlayState(true)).catch(() => notifyPlayState(true));
-      }
+      if (!player.currentPlayingNode && currentRawBuffer) player.play(currentRawBuffer);
+      else if (player.currentPlayingNode?.paused) player.togglePause();
+      audioEl.play().then(() => notifyPlayState(true)).catch(() => notifyPlayState(true));
     }
   }
 
@@ -154,14 +162,7 @@
     unload();
     const displayExt = (ext || 'FILE').toUpperCase();
     if (window.XMApp) {
-      window.XMApp.updateTrackUI(
-        `${title || filename || 'Unknown'} (Unsupported)`,
-        `Format .${displayExt} is not supported by workstation`,
-        'UNSUPPORTED',
-        '--',
-        false,
-        0
-      );
+      window.XMApp.updateTrackUI(`${title || filename || 'Unknown'} (Unsupported)`, `Format .${displayExt} is not supported by workstation`, 'UNSUPPORTED', '--', false, 0);
     }
   }
 
@@ -188,6 +189,8 @@
       activeTitle = 'No Module Loaded';
       activeArtist = '';
       activeDuration = 0;
+      activeEngine = 'NONE';
+      activeChannels = '--';
       if (window.XMQueue?.setQueue) window.XMQueue.setQueue(null, -1);
       notifyPlayState(false);
     }
@@ -201,14 +204,14 @@
     return compiledCache.get(`${trackId}_${(format || 'mp3').toLowerCase()}`) || null;
   }
 
-  function setCachedCompiled(trackId, format, blob, visData, visFps, duration) {
+  function setCachedCompiled(trackId, format, blob, visData, visFps, duration, engine, channels) {
     const fmt = (format || 'mp3').toLowerCase();
     const qId = window.XMQueue?.getQueueId?.() || null;
-    if (window.XMCache) window.XMCache.set(trackId, fmt, blob, visData, visFps, duration, qId);
-    compiledCache.set(`${trackId}_${fmt}`, { blob, ext: fmt, visData, visFps, duration, playlistId: qId });
+    if (window.XMCache) window.XMCache.set(trackId, fmt, blob, visData, visFps, duration, qId, engine, channels);
+    compiledCache.set(`${trackId}_${fmt}`, { blob, ext: fmt, visData, visFps, duration, playlistId: qId, engine: engine || '', channels: channels || '' });
   }
 
-  function handoffToCompiled(blob, format, targetTrackId, visData, visFps, duration) {
+  function handoffToCompiled(blob, format, targetTrackId, visData, visFps, duration, engine, channels) {
     if (!blob) return;
     const currentId = currentTrackItem?.id || currentAudioSrc || activeTitle;
     const targetExt = (format || 'mp3').toLowerCase();
@@ -216,11 +219,15 @@
     if (typeof duration === 'number' && duration > 0) activeDuration = duration;
     else if (!activeDuration && visData) activeDuration = Math.round((visData.byteLength || visData.length) / 28 / (visFps || 15));
 
-    setCachedCompiled(targetTrackId || currentId, targetExt, blob, visData, visFps, activeDuration);
+    const resolvedEngine = resolveTrackerEngine(engine || activeEngine, currentTrackItem?.ext || currentExt);
+    const resolvedChannels = (activeChannels && activeChannels !== '--') ? activeChannels : (channels || '2CH');
+
+    setCachedCompiled(targetTrackId || currentId, targetExt, blob, visData, visFps, activeDuration, resolvedEngine, resolvedChannels);
     if (targetTrackId && targetTrackId !== currentId) return;
 
+    activeEngine = resolvedEngine;
+    activeChannels = resolvedChannels;
     currentAudioBlob = blob;
-    currentExt = targetExt;
     if (visData && window.XMVisualizer?.setVisualizerCache) window.XMVisualizer.setVisualizerCache(visData, visFps);
 
     const wasPlaying = isPlaying();
@@ -260,7 +267,7 @@
         if (window.XMApp && activeDuration > 0) window.XMApp.updateDuration(activeDuration);
       }
       const trackNum = window.XMQueue ? window.XMQueue.getTrackNum() : 1;
-      if (window.XMApp?.updateTrackUI) window.XMApp.updateTrackUI(activeTitle, activeArtist, currentExt.toUpperCase(), '2CH', true, trackNum);
+      if (window.XMApp?.updateTrackUI) window.XMApp.updateTrackUI(activeTitle, activeArtist, activeEngine, activeChannels, true, trackNum);
     };
 
     if (audioEl.readyState >= 2) onHandoffReady();
@@ -270,7 +277,8 @@
   function loadTrack(fileOrUrl, fallbackName, trackItemRef, queue, queueIdx) {
     const loadId = ++currentLoadId;
     const extMatch = (fallbackName || '').toLowerCase().match(/\.[a-z0-9]+$/);
-    currentExt = extMatch ? extMatch[0].replace('.', '').toLowerCase() : '';
+    const parsedExt = extMatch ? extMatch[0].replace('.', '').toLowerCase() : '';
+    currentExt = (trackItemRef?.ext ? String(trackItemRef.ext).replace(/^\./, '').toLowerCase() : '') || parsedExt;
 
     let targetTitle = trackItemRef?.title ? trackItemRef.title.trim() : '';
     let targetArtist = trackItemRef?.artist ? trackItemRef.artist.trim() : '';
@@ -285,6 +293,8 @@
       return;
     }
 
+    const isDirectNativeAudio = NATIVE_STREAM_EXTS.has(`.${currentExt}`);
+
     player.unlock();
     player.stop();
     audioEl.pause();
@@ -295,6 +305,8 @@
     activeTitle = targetTitle;
     activeArtist = targetArtist;
     activeDuration = 0;
+    activeEngine = currentExt.toUpperCase() || 'AUDIO';
+    activeChannels = isDirectNativeAudio ? '2CH' : '--';
     currentRawBuffer = null;
     currentAudioBlob = null;
     currentAudioSrc = (typeof fileOrUrl === 'string') ? fileOrUrl : '';
@@ -306,17 +318,18 @@
     if (window.XMLibrary && trackItemRef) window.XMLibrary.notifyPlaying(trackItemRef.id);
     if (window.XMApp) {
       window.XMApp.resetTimeline();
-      window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase() || 'AUDIO', '--', false, trackNum);
+      window.XMApp.updateTrackUI(targetTitle, targetArtist, activeEngine, activeChannels, false, trackNum);
     }
 
     const cacheKey = trackItemRef?.id || currentAudioSrc || targetTitle;
-    const cached = getCachedCompiled(cacheKey, 'mp3') || getCachedCompiled(cacheKey, 'wav');
+    const cached = !isDirectNativeAudio ? (getCachedCompiled(cacheKey, 'mp3') || getCachedCompiled(cacheKey, 'wav')) : null;
     if (cached && cached.blob) {
       isNativeStream = true;
       currentAudioBlob = cached.blob;
-      currentExt = cached.ext || 'mp3';
       activeDuration = cached.duration || 0;
       if (!activeDuration && cached.visData) activeDuration = Math.round((cached.visData.length / 28) / (cached.visFps || 15));
+      activeEngine = resolveTrackerEngine(cached.engine, currentExt);
+      activeChannels = cached.channels || '2CH';
 
       activeObjectUrl = URL.createObjectURL(cached.blob);
       audioEl.src = activeObjectUrl;
@@ -330,7 +343,7 @@
       }
       audioEl.play().then(() => notifyPlayState(true)).catch(() => notifyPlayState(false));
       if (window.XMApp) {
-        window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2CH', true, trackNum);
+        window.XMApp.updateTrackUI(targetTitle, targetArtist, activeEngine, activeChannels, true, trackNum);
         if (activeDuration > 0) window.XMApp.updateDuration(activeDuration);
         if (window.XMApp.setPlaybackStatus) window.XMApp.setPlaybackStatus('loaded');
         if (window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
@@ -339,7 +352,7 @@
       return;
     }
 
-    if (NATIVE_STREAM_EXTS.has(extMatch ? extMatch[0] : '')) {
+    if (isDirectNativeAudio) {
       isNativeStream = true;
       currentAudioBlob = (fileOrUrl instanceof File || fileOrUrl instanceof Blob) ? fileOrUrl : null;
       activeObjectUrl = currentAudioBlob ? URL.createObjectURL(currentAudioBlob) : null;
@@ -353,7 +366,7 @@
       }
       audioEl.play().then(() => notifyPlayState(true)).catch(() => notifyPlayState(false));
       if (window.XMApp) {
-        window.XMApp.updateTrackUI(targetTitle, targetArtist, currentExt.toUpperCase(), '2CH', true, trackNum);
+        window.XMApp.updateTrackUI(targetTitle, targetArtist, activeEngine, '2CH', true, trackNum);
         if (window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
       }
       return;
@@ -377,7 +390,8 @@
         return;
       }
       const meta = player.currentMetadata || {};
-      const engineName = (meta.type_long || currentExt || 'FT2').toUpperCase();
+      activeEngine = resolveTrackerEngine(meta.type_long, currentExt);
+      activeChannels = `${meta.channels || 8}CH`;
       const dur = (meta && isFinite(meta.duration) && meta.duration > 0) ? meta.duration : player.duration();
       if (dur > 0) activeDuration = dur;
 
@@ -387,7 +401,7 @@
       }
       notifyPlayState(true);
       if (window.XMApp) {
-        window.XMApp.updateTrackUI(targetTitle, targetArtist, engineName, `${meta.channels || 8}CH`, false, trackNum);
+        window.XMApp.updateTrackUI(targetTitle, targetArtist, activeEngine, activeChannels, false, trackNum);
         if (activeDuration > 0) window.XMApp.updateDuration(activeDuration);
         if (window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('compiling');
       }
@@ -415,42 +429,24 @@
     }
   });
   audioEl.addEventListener('ended', () => {
-    if (window.XMQueue?.playMode === 'stop') {
-      stopPlayback();
-      return;
-    }
+    if (window.XMQueue?.playMode === 'stop') { stopPlayback(); return; }
     if (isNativeStream && window.XMQueue) window.XMQueue.playNextTrack(false);
   });
   player.on('onEnded', () => {
-    if (window.XMQueue?.playMode === 'stop') {
-      stopPlayback();
-      return;
-    }
+    if (window.XMQueue?.playMode === 'stop') { stopPlayback(); return; }
     if (!isNativeStream && window.XMQueue) window.XMQueue.playNextTrack(false);
   });
 
   window.XMAudio = {
-    player,
-    audioEl,
-    unload,
-    setPaused,
-    togglePlayPause,
-    stopPlayback,
-    seekTo,
-    getDuration,
-    getPosition,
-    isPlaying,
-    notifyPlayState,
+    player, audioEl, unload, setPaused, togglePlayPause, stopPlayback, seekTo,
+    getDuration, getPosition, isPlaying, notifyPlayState,
     get isNativeStream() { return isNativeStream; },
     get currentRawBuffer() { return currentRawBuffer; },
     get currentAudioBlob() { return currentAudioBlob; },
     get currentAudioSrc() { return currentAudioSrc; },
     get currentTrackItem() { return currentTrackItem; },
     getCurrentExtension: () => currentExt,
-    loadTrack,
-    handoffToCompiled,
-    getCachedCompiled,
-    setCachedCompiled,
+    loadTrack, handoffToCompiled, getCachedCompiled, setCachedCompiled,
     playNextTrack: (f) => window.XMQueue?.playNextTrack(f),
     playPrevTrack: () => window.XMQueue?.playPrevTrack(),
     playRandomTrack: () => window.XMQueue?.playRandomTrack(),

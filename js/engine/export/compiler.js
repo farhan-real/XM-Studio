@@ -39,7 +39,7 @@
         } else if (msg.type === 'complete') {
           self.isCompiling = false;
           self.cleanup();
-          if (onComplete) onComplete(msg.blob, msg.visData, msg.visFps, msg.duration);
+          if (onComplete) onComplete(msg.blob, msg.visData, msg.visFps, msg.duration, msg.engine, msg.channels);
         } else if (msg.type === 'error') {
           self.isCompiling = false;
           self.cleanup();
@@ -99,7 +99,7 @@
           self.isPreload = false;
           self.activeTrackId = null;
           self.cleanup();
-          if (onComplete) onComplete(msg.blob, msg.visData, msg.visFps, msg.duration);
+          if (onComplete) onComplete(msg.blob, msg.visData, msg.visFps, msg.duration, msg.engine, msg.channels);
         } else if (msg.type === 'error') {
           self.isCompiling = false;
           self.isPreload = false;

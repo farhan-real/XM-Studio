@@ -145,7 +145,9 @@
             visData: item.visData,
             visFps: item.visFps || CURRENT_VIS_FPS,
             duration: item.duration || 0,
-            playlistId: item.playlistId || null
+            playlistId: item.playlistId || null,
+            engine: item.engine || '',
+            channels: item.channels || ''
           });
         }
 
@@ -197,11 +199,15 @@
     return null;
   }
 
-  async function set(trackId, format, blob, visData, visFps, duration, playlistId) {
+  async function set(trackId, format, blob, visData, visFps, duration, playlistId, engine, channels) {
     if (!trackId || !blob) return;
     const fmt = (format || 'mp3').toLowerCase();
     const key = `${trackId}_${fmt}`;
     if (playlistId) touchRecentPlaylist(playlistId);
+
+    const existing = ramCache.get(key);
+    const resolvedEngine = engine || (existing && existing.engine) || '';
+    const resolvedChannels = channels || (existing && existing.channels) || '';
 
     const entry = {
       blob,
@@ -209,7 +215,9 @@
       visData: visData ? (visData instanceof Uint8Array ? visData : new Uint8Array(visData)) : null,
       visFps: visFps || CURRENT_VIS_FPS,
       duration: (typeof duration === 'number' && duration > 0) ? duration : 0,
-      playlistId: playlistId || null
+      playlistId: playlistId || null,
+      engine: resolvedEngine,
+      channels: resolvedChannels
     };
 
     ramCache.set(key, entry);
@@ -228,6 +236,8 @@
         visFps: entry.visFps,
         duration: entry.duration,
         playlistId: entry.playlistId,
+        engine: entry.engine,
+        channels: entry.channels,
         timestamp: Date.now()
       });
       tx.oncomplete = () => enforceQuotas(db);

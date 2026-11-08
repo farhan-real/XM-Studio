@@ -75,7 +75,7 @@
 
   function startInitialCompile(raw, targetTrackId) {
     if (!raw || !window.AudioCompiler) return;
-    const format = activeFormat || 'mp3';
+    const format = (activeFormat === 'wav') ? 'wav' : 'mp3';
     const cached = window.XMAudio?.getCachedCompiled ? window.XMAudio.getCachedCompiled(targetTrackId, format) : null;
     if (cached && cached.blob) {
       if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('ready');
@@ -83,7 +83,7 @@
         window.XMVisualizer.setVisualizerCache(cached.visData, cached.visFps);
       }
       if (window.XMAudio?.handoffToCompiled) {
-        window.XMAudio.handoffToCompiled(cached.blob, format, targetTrackId, cached.visData, cached.visFps, cached.duration);
+        window.XMAudio.handoffToCompiled(cached.blob, format, targetTrackId, cached.visData, cached.visFps, cached.duration, cached.engine, cached.channels);
       }
       if (window.XMPrecompiler?.onTrackLoaded) window.XMPrecompiler.onTrackLoaded();
       return;
@@ -101,7 +101,7 @@
         if (readoutProgressBar) readoutProgressBar.style.width = `${Math.round(progress * 100)}%`;
         if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('compiling', progress);
       },
-      (blob, visData, visFps, duration) => {
+      (blob, visData, visFps, duration, engine, channels) => {
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
         if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('ready');
         if (visData && window.XMVisualizer?.setVisualizerCache) window.XMVisualizer.setVisualizerCache(visData, visFps);
@@ -112,7 +112,7 @@
           triggerBlobDownload(blob, `${info?.artist || 'Artist'} - ${info?.title || 'Track'}.${format}`.replace(/[/\\?%*:|"<>]/g, '_'));
         }
         if (window.XMAudio?.handoffToCompiled) {
-          window.XMAudio.handoffToCompiled(blob, format, targetTrackId, visData, visFps, duration);
+          window.XMAudio.handoffToCompiled(blob, format, targetTrackId, visData, visFps, duration, engine, channels);
         }
         if (window.XMPrecompiler?.onActiveCompileComplete) window.XMPrecompiler.onActiveCompileComplete();
       },
@@ -135,12 +135,15 @@
     const downloadFilename = `${info.artist} - ${info.title}.${outExt}`.replace(/[/\\?%*:|"<>]/g, '_');
 
     if (activeFormat === 'raw') {
-      let blob = window.XMAudio?.currentAudioBlob;
-      if (!blob && window.XMAudio?.currentRawBuffer) {
+      let blob = null;
+      if (window.XMAudio?.currentRawBuffer) {
         blob = new Blob([window.XMAudio.currentRawBuffer], { type: 'application/octet-stream' });
       }
       if (!blob && window.XMAudio?.currentAudioSrc) {
         try { const res = await fetch(window.XMAudio.currentAudioSrc); blob = await res.blob(); } catch (e) {}
+      }
+      if (!blob && window.XMAudio?.currentAudioBlob) {
+        blob = window.XMAudio.currentAudioBlob;
       }
       if (blob) triggerBlobDownload(blob, downloadFilename);
       return;
@@ -159,7 +162,7 @@
       return;
     }
 
-    const isTracker = new Set(['xm', 'mod', 'it', 's3m', 'mtm', 'mo3', 'med', '669', 'far', 'ptm', 'v2m', 'ahx', 'sid']).has(ext.toLowerCase());
+    const isTracker = !new Set(['mp3', 'ogg', 'wav', 'flac', 'aac', 'm4a', 'weba']).has(ext.toLowerCase());
     if (!isTracker && (window.XMAudio?.currentAudioBlob || window.XMAudio?.currentAudioSrc)) {
       let blob = window.XMAudio.currentAudioBlob;
       if (!blob && window.XMAudio.currentAudioSrc) {
@@ -174,10 +177,10 @@
     }
 
     let raw = window.XMAudio?.currentRawBuffer;
-    if (!raw && window.XMAudio?.currentAudioBlob) {
-      try { raw = await window.XMAudio.currentAudioBlob.arrayBuffer(); } catch (e) {}
-    } else if (!raw && window.XMAudio?.currentAudioSrc) {
+    if (!raw && window.XMAudio?.currentAudioSrc) {
       try { const res = await fetch(window.XMAudio.currentAudioSrc); raw = await res.arrayBuffer(); } catch (e) {}
+    } else if (!raw && window.XMAudio?.currentAudioBlob) {
+      try { raw = await window.XMAudio.currentAudioBlob.arrayBuffer(); } catch (e) {}
     }
     if (!raw) return;
 
@@ -194,7 +197,7 @@
         if (readoutProgressBar) readoutProgressBar.style.width = `${Math.round(progress * 100)}%`;
         if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('compiling', progress);
       },
-      (blob, visData, visFps, duration) => {
+      (blob, visData, visFps, duration, engine, channels) => {
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
         if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('ready');
         if (visData && window.XMVisualizer?.setVisualizerCache) window.XMVisualizer.setVisualizerCache(visData, visFps);
@@ -204,7 +207,7 @@
           triggerBlobDownload(blob, downloadFilename);
         }
         if (window.XMAudio?.handoffToCompiled) {
-          window.XMAudio.handoffToCompiled(blob, activeFormat, targetTrackId, visData, visFps, duration);
+          window.XMAudio.handoffToCompiled(blob, activeFormat, targetTrackId, visData, visFps, duration, engine, channels);
         }
         if (window.XMPrecompiler?.onActiveCompileComplete) window.XMPrecompiler.onActiveCompileComplete();
       },

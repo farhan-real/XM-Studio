@@ -7,6 +7,14 @@
   let scheduleTimer = null;
   let abortController = null;
   const LOOKAHEAD_COUNT = 2;
+  const NATIVE_EXTS = new Set(['mp3', 'ogg', 'wav', 'flac', 'aac', 'm4a', 'weba']);
+
+  function isTrackerTrack(track) {
+    if (!track) return false;
+    const ext = (track.ext || '').replace(/^\./, '').toLowerCase();
+    if (ext && NATIVE_EXTS.has(ext)) return false;
+    return true;
+  }
 
   async function resolveTrackBuffer(track) {
     if (!track) return null;
@@ -47,7 +55,7 @@
     let targetTrack = null;
     for (let i = 0; i < upcoming.length; i++) {
       const t = upcoming[i];
-      if (t && t.id && (!window.XMCache || !window.XMCache.has(t.id, 'mp3'))) {
+      if (t && t.id && isTrackerTrack(t) && (!window.XMCache || !window.XMCache.has(t.id, 'mp3'))) {
         targetTrack = t;
         break;
       }
@@ -72,15 +80,26 @@
       }
 
       const qId = window.XMQueue.getQueueId();
+      const fallbackEngine = (targetTrack.ext || 'XM').replace(/^\./, '').toUpperCase();
       window.AudioCompiler.compilePreload(
         buf,
         'mp3',
         targetTrack.id,
-        (blob, visData, visFps, duration) => {
+        (blob, visData, visFps, duration, engine, channels) => {
           isRunning = false;
           currentPrecompileTrackId = null;
           if (window.XMCache && blob) {
-            window.XMCache.set(targetTrack.id, 'mp3', blob, visData, visFps, duration, qId);
+            window.XMCache.set(
+              targetTrack.id,
+              'mp3',
+              blob,
+              visData,
+              visFps,
+              duration,
+              qId,
+              engine || fallbackEngine,
+              channels || ''
+            );
           }
           schedule(400);
         },
