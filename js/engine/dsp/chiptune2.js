@@ -1,16 +1,18 @@
 /**
- * js/engine/dsp/chiptune2.js - Multithreaded AudioWorklet + Web Worker DSP chiptune engine without fallbacks.
+ * js/engine/dsp/chiptune2.js - Multithreaded AudioWorklet + Web Worker DSP chiptune engine.
  */
 (function(window) {
   const ChiptuneAudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!ChiptuneAudioContext) {
-    throw new Error('Fatal: Web Audio API is not supported in this browser.');
-  }
+  if (!ChiptuneAudioContext) throw new Error('Fatal: Web Audio API is not supported in this browser.');
 
   function ChiptuneJsPlayer() {
     this.context = new ChiptuneAudioContext({ sampleRate: 48000, latencyHint: 'interactive' });
     this.sampleRate = this.context.sampleRate;
     this.gainNode = this.context.createGain();
+    this.workletGain = this.context.createGain();
+    this.workletGain.gain.value = 1.0;
+    this.workletGain.connect(this.gainNode);
+
     this.dcFilter = this.context.createBiquadFilter();
     this.dcFilter.type = 'highpass';
     this.dcFilter.frequency.value = 25;
@@ -52,7 +54,7 @@
           outputChannelCount: [2]
         });
         this.workletNode.paused = true;
-        this.workletNode.connect(this.gainNode);
+        this.workletNode.connect(this.workletGain);
 
         this.workletNode.port.onmessage = (e) => {
           if (!e.data) return;
@@ -68,9 +70,7 @@
           }
         };
 
-        if (this.workletNode.port.start) {
-          this.workletNode.port.start();
-        }
+        if (this.workletNode.port.start) this.workletNode.port.start();
 
         this.dspWorker = new Worker('js/engine/workers/dspworker.js');
         this.bindWorkerEvents();
@@ -98,7 +98,6 @@
         this.currentMetadata = data.meta;
         if (!data.meta || typeof data.meta.duration !== 'number' || data.meta.duration <= 0) {
           const err = new Error('Invalid metadata received: missing valid duration.');
-          console.error('[ChiptuneJsPlayer]', err);
           if (typeof this.pendingLoadErrback === 'function') {
             const eb = this.pendingLoadErrback;
             this.pendingLoadCallback = null;
@@ -117,7 +116,6 @@
         }
       } else if (data.type === 'error') {
         const err = new Error(`DSP Worker Error: ${data.message}`);
-        console.error('[ChiptuneJsPlayer]', err);
         if (typeof this.pendingLoadErrback === 'function') {
           const eb = this.pendingLoadErrback;
           this.pendingLoadCallback = null;
@@ -136,9 +134,7 @@
 
   ChiptuneJsPlayer.prototype.unlock = function() {
     if (this.context && this.context.state !== 'running') {
-      this.context.resume().catch((err) => {
-        console.error('[ChiptuneJsPlayer] AudioContext resume failed:', err);
-      });
+      this.context.resume().catch((err) => console.error('[ChiptuneJsPlayer] AudioContext resume failed:', err));
     }
   };
 
@@ -151,15 +147,11 @@
       this.initPipeline()
         .then(() => {
           this.pendingLoadCallback = () => callback(buf);
-          this.pendingLoadErrback = (err) => {
-            console.error('[ChiptuneJsPlayer] load error:', err);
-            if (errback) errback(err);
-          };
+          this.pendingLoadErrback = (err) => { if (errback) errback(err); };
           const copy = buf.slice(0);
           this.dspWorker.postMessage({ action: 'load', buffer: copy, repeatCount: this.repeatCount }, [copy]);
         })
         .catch((err) => {
-          console.error('[ChiptuneJsPlayer] initPipeline error on load:', err);
           if (errback) errback(err);
           this.fireEvent('onError', err);
         });
@@ -169,8 +161,7 @@
       const reader = new FileReader();
       reader.onload = () => finishLoad(reader.result);
       reader.onerror = () => {
-        const err = new Error(`Failed to read file: ${reader.error?.message || 'Unknown read error'}`);
-        console.error('[ChiptuneJsPlayer]', err);
+        const err = new Error(`Failed to read file: ${reader.error ? reader.error.message : 'Unknown'}`);
         if (errback) errback(err);
         this.fireEvent('onError', err);
       };
@@ -183,15 +174,13 @@
         })
         .then(finishLoad)
         .catch((err) => {
-          console.error('[ChiptuneJsPlayer] Fetch error:', err);
           if (errback) errback(err);
           this.fireEvent('onError', err);
         });
     } else if (input instanceof ArrayBuffer) {
       finishLoad(input);
     } else {
-      const err = new Error('Invalid input format provided to load(). Expected File, Blob, string URL, or ArrayBuffer.');
-      console.error('[ChiptuneJsPlayer]', err);
+      const err = new Error('Invalid input format provided to load().');
       if (errback) errback(err);
       this.fireEvent('onError', err);
     }
@@ -200,12 +189,12 @@
   ChiptuneJsPlayer.prototype.play = function(buffer) {
     this.unlock();
     if (!this.isPipelineReady || !this.dspWorker || !this.workletNode) {
-      const err = new Error('Cannot play: DSP pipeline is not ready.');
-      console.error('[ChiptuneJsPlayer]', err);
-      throw err;
+      throw new Error('Cannot play: DSP pipeline is not ready.');
     }
 
     this.currentPosition = 0;
+    this.workletGain.gain.cancelScheduledValues(this.context.currentTime);
+    this.workletGain.gain.setValueAtTime(1.0, this.context.currentTime);
     this.workletNode.port.postMessage({ type: 'flush', position: 0 });
     this.dspWorker.postMessage({ action: 'play' });
     this.workletNode.port.postMessage({ type: 'resume' });
@@ -249,9 +238,7 @@
   };
 
   ChiptuneJsPlayer.prototype.seek = function(seconds) {
-    if (typeof seconds !== 'number' || !isFinite(seconds) || seconds < 0) {
-      throw new Error(`Invalid seek time: ${seconds}`);
-    }
+    if (typeof seconds !== 'number' || !isFinite(seconds) || seconds < 0) throw new Error(`Invalid seek time: ${seconds}`);
     this.currentPosition = seconds;
     if (this.workletNode) this.workletNode.port.postMessage({ type: 'seek', position: seconds });
     if (this.dspWorker && this.currentPlayingNode) this.dspWorker.postMessage({ action: 'seek', seconds });

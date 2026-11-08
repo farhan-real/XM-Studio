@@ -1,5 +1,5 @@
 /**
- * js/engine/workers/dspworker.js - Dedicated Web Worker hosting libopenmpt for off-main-thread DSP without fallbacks.
+ * js/engine/workers/dspworker.js - Dedicated Web Worker hosting libopenmpt for off-main-thread DSP.
  */
 /* global importScripts, libopenmpt */
 self.libopenmpt = self.libopenmpt || {};
@@ -113,24 +113,10 @@ function extractMetadata(mod) {
 }
 
 function renderAndSendChunk() {
-  if (!isPlaying || !modulePtr || !directPort || !isEngineReady()) {
-    return;
-  }
-
+  if (!isPlaying || !modulePtr || !directPort || !isEngineReady()) return;
   ensureScratchBuffers();
 
-  let chunkPos = renderedFrames / sampleRate;
-  let rawPos = null;
-  if (typeof libopenmpt._openmpt_module_get_position_seconds === 'function') {
-    rawPos = libopenmpt._openmpt_module_get_position_seconds(modulePtr);
-  } else if (typeof libopenmpt.ccall === 'function') {
-    rawPos = libopenmpt.ccall('openmpt_module_get_position_seconds', 'number', ['number'], [modulePtr]);
-  }
-  if (typeof rawPos === 'number' && isFinite(rawPos) && rawPos > 0) {
-    chunkPos = rawPos;
-    renderedFrames = Math.round(rawPos * sampleRate);
-  }
-
+  const chunkPos = renderedFrames / sampleRate;
   const actual = libopenmpt._openmpt_module_read_float_stereo(
     modulePtr,
     sampleRate,
@@ -163,12 +149,7 @@ function renderAndSendChunk() {
   }
 
   directPort.postMessage(
-    {
-      type: 'chunk',
-      left: leftArray.buffer,
-      right: rightArray.buffer,
-      pos: chunkPos
-    },
+    { type: 'chunk', left: leftArray.buffer, right: rightArray.buffer, pos: chunkPos },
     [leftArray.buffer, rightArray.buffer]
   );
 }
