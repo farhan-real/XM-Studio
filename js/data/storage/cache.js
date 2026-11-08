@@ -1,9 +1,9 @@
 /**
- * js/data/storage/cache.js - Persistent IndexedDB LRU cache with multi-tier playlist quotas.
+ * js/data/storage/cache.js - Persistent IndexedDB cache with automatic stale record eviction.
  */
 (function(window) {
   const DB_NAME = 'xm_studio_cache_db';
-  const DB_VERSION = 6;
+  const DB_VERSION = 7;
   const STORE_NAME = 'compiled_songs';
   const MAX_GLOBAL_ITEMS = 35;
   const MAX_PER_PLAYLIST = 10;
@@ -12,6 +12,13 @@
 
   const ramCache = new Map();
   let dbPromise = null;
+
+  function isStaleEngine(engine, ext) {
+    if (!engine) return true;
+    const e = engine.trim().toUpperCase();
+    const cleanExt = (ext ? ext : '').replace(/^\./, '').toUpperCase();
+    return e === cleanExt || e === 'NONE' || e === 'AUDIO' || e === 'MP3' || e === 'WAV' || e === 'TRACKER';
+  }
 
   function getRecentPlaylists() {
     try {
@@ -44,7 +51,7 @@
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
-        if (e.oldVersion < 4 && db.objectStoreNames.contains(STORE_NAME)) {
+        if (e.oldVersion < e.newVersion && db.objectStoreNames.contains(STORE_NAME)) {
           db.deleteObjectStore(STORE_NAME);
         }
         if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -69,7 +76,7 @@
       const store = tx.objectStore(STORE_NAME);
       const req = store.getAll();
       req.onsuccess = () => {
-        const records = req.result || [];
+        const records = req.result ? req.result : [];
         if (records.length === 0) return;
 
         const activePlaylists = new Set(getRecentPlaylists());
@@ -88,28 +95,24 @@
         for (let i = 0; i < records.length; i++) {
           const r = records[i];
           if (toDelete.has(r.id)) continue;
-          const pid = r.playlistId || '__general__';
+          const pid = r.playlistId ? r.playlistId : '__general__';
           if (!byPlaylist.has(pid)) byPlaylist.set(pid, []);
           byPlaylist.get(pid).push(r);
         }
 
         for (const [pid, list] of byPlaylist.entries()) {
           if (pid !== '__general__' && list.length > MAX_PER_PLAYLIST) {
-            list.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+            list.sort((a, b) => (a.timestamp ? a.timestamp : 0) - (b.timestamp ? b.timestamp : 0));
             const excess = list.length - MAX_PER_PLAYLIST;
-            for (let j = 0; j < excess; j++) {
-              toDelete.add(list[j].id);
-            }
+            for (let j = 0; j < excess; j++) toDelete.add(list[j].id);
           }
         }
 
         const remaining = records.filter((r) => !toDelete.has(r.id));
         if (remaining.length > MAX_GLOBAL_ITEMS) {
-          remaining.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          remaining.sort((a, b) => (a.timestamp ? a.timestamp : 0) - (b.timestamp ? b.timestamp : 0));
           const excess = remaining.length - MAX_GLOBAL_ITEMS;
-          for (let j = 0; j < excess; j++) {
-            toDelete.add(remaining[j].id);
-          }
+          for (let j = 0; j < excess; j++) toDelete.add(remaining[j].id);
         }
 
         toDelete.forEach((id) => {
@@ -131,14 +134,15 @@
       const store = tx.objectStore(STORE_NAME);
       const req = store.getAll();
       req.onsuccess = () => {
-        const items = req.result || [];
-        items.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        const items = req.result ? req.result : [];
+        items.sort((a, b) => (b.timestamp ? b.timestamp : 0) - (a.timestamp ? a.timestamp : 0));
         ramCache.clear();
 
         const validItems = [];
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
-          if (item.visFps === CURRENT_VIS_FPS && item.visData) {
+          const hasStaleEngine = isStaleEngine(item.engine, item.format);
+          if (item.visFps === CURRENT_VIS_FPS && item.visData && !hasStaleEngine) {
             validItems.push(item);
           } else {
             store.delete(item.id);
@@ -150,19 +154,17 @@
           const item = keep[i];
           ramCache.set(item.id, {
             blob: item.blob,
-            ext: item.format || 'mp3',
+            ext: item.format,
             visData: item.visData,
-            visFps: item.visFps || CURRENT_VIS_FPS,
-            duration: item.duration || 0,
-            playlistId: item.playlistId || null,
-            engine: item.engine || '',
-            channels: item.channels || ''
+            visFps: item.visFps,
+            duration: item.duration,
+            playlistId: item.playlistId,
+            engine: item.engine,
+            channels: item.channels
           });
         }
 
-        if (validItems.length > MAX_GLOBAL_ITEMS) {
-          enforceQuotas(db);
-        }
+        if (validItems.length > MAX_GLOBAL_ITEMS) enforceQuotas(db);
       };
       req.onerror = () => console.error('[XMCache] Error loading cache entries on init:', req.error);
     } catch (err) {
@@ -171,24 +173,17 @@
   }
 
   function has(trackId, format) {
-    const key = `${trackId}_${(format || 'mp3').toLowerCase()}`;
-    return ramCache.has(key);
+    return ramCache.has(`${trackId}_${format.toLowerCase()}`);
   }
 
   function get(trackId, format) {
-    const key = `${trackId}_${(format || 'mp3').toLowerCase()}`;
+    const key = `${trackId}_${format.toLowerCase()}`;
     const item = ramCache.get(key);
     if (item) {
-      if (item.visFps !== CURRENT_VIS_FPS) {
-        ramCache.delete(key);
-        openDB().then((db) => {
-          if (!db) return;
-          const tx = db.transaction(STORE_NAME, 'readwrite');
-          tx.objectStore(STORE_NAME).delete(key);
-        }).catch((err) => console.error('[XMCache] Error deleting stale cache entry:', err));
+      if (item.visFps !== CURRENT_VIS_FPS || isStaleEngine(item.engine, item.ext)) {
+        clearKey(trackId, format);
         return null;
       }
-
       openDB().then((db) => {
         if (!db) return;
         const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -207,27 +202,31 @@
     return null;
   }
 
+  function clearKey(trackId, format) {
+    const key = `${trackId}_${format.toLowerCase()}`;
+    ramCache.delete(key);
+    openDB().then((db) => {
+      if (!db) return;
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).delete(key);
+    }).catch((err) => console.error('[XMCache] Clear key error:', err));
+  }
+
   async function set(trackId, format, blob, visData, visFps, duration, playlistId, engine, channels) {
-    if (!trackId || !blob) {
-      throw new Error(`Invalid cache set parameters: trackId="${trackId}", blob=${Boolean(blob)}`);
-    }
-    const fmt = (format || 'mp3').toLowerCase();
+    if (!trackId || !blob) throw new Error(`Invalid cache set parameters: trackId="${trackId}".`);
+    const fmt = format.toLowerCase();
     const key = `${trackId}_${fmt}`;
     if (playlistId) touchRecentPlaylist(playlistId);
-
-    const existing = ramCache.get(key);
-    const resolvedEngine = engine || (existing && existing.engine) || '';
-    const resolvedChannels = channels || (existing && existing.channels) || '';
 
     const entry = {
       blob,
       ext: fmt,
-      visData: visData ? (visData instanceof Uint8Array ? visData : new Uint8Array(visData)) : null,
-      visFps: visFps || CURRENT_VIS_FPS,
-      duration: (typeof duration === 'number' && duration > 0) ? duration : 0,
-      playlistId: playlistId || null,
-      engine: resolvedEngine,
-      channels: resolvedChannels
+      visData: visData instanceof Uint8Array ? visData : new Uint8Array(visData),
+      visFps: visFps,
+      duration: duration,
+      playlistId: playlistId ? playlistId : null,
+      engine: engine,
+      channels: channels
     };
 
     ramCache.set(key, entry);
@@ -266,5 +265,5 @@
     }).catch((err) => console.error('[XMCache] Clear cache error:', err));
   }
 
-  window.XMCache = { init, get, has, set, clear, MAX_PER_PLAYLIST, MAX_GLOBAL_ITEMS };
+  window.XMCache = { init, get, has, set, clear, clearKey, isStaleEngine, MAX_PER_PLAYLIST, MAX_GLOBAL_ITEMS };
 })(window);

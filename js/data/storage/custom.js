@@ -13,6 +13,9 @@
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
+        if (e.oldVersion < e.newVersion && db.objectStoreNames.contains(STORE_NAME)) {
+          db.deleteObjectStore(STORE_NAME);
+        }
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME, { keyPath: 'id' });
         }
@@ -47,6 +50,34 @@
     };
   }
 
+  async function healCustomTracks() {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.getAll();
+      req.onsuccess = () => {
+        const tracks = req.result ? req.result : [];
+        for (let i = 0; i < tracks.length; i++) {
+          const t = tracks[i];
+          let changed = false;
+          if (t.artist === 'Custom Artist' || t.artist === 'Local Artist' || t.artist === 'Unknown Artist') {
+            const filename = (t.blob && t.blob.name) ? t.blob.name : t.title;
+            const match = filename.replace(/\.[a-z0-9]+$/i, '').match(/^(.+?)\s+[-–—]\s+(.+)$/);
+            if (match) {
+              t.artist = match[1].trim();
+              t.title = match[2].trim();
+              changed = true;
+            }
+          }
+          if (changed) store.put(t);
+        }
+        resolve();
+      };
+      req.onerror = () => resolve();
+    });
+  }
+
   async function saveTrack(record) {
     return saveTracksBatch([record]);
   }
@@ -71,6 +102,7 @@
   }
 
   async function getTracks() {
+    await healCustomTracks();
     const db = await openDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');

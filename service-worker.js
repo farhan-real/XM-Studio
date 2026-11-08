@@ -52,9 +52,7 @@ async function fetchAssetWithRetry(req) {
   try {
     const res = await fetch(req);
     if (isValidResponse(req, res)) return res;
-  } catch (err) {
-    // Retry once using direct URL string to bypass aborted or conflicting RequestInit state
-  }
+  } catch (err) {}
 
   await new Promise((r) => setTimeout(r, 60));
   const retryRes = await fetch(req.url, { cache: 'reload' });
@@ -69,8 +67,6 @@ async function fetchAssetWithRetry(req) {
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
-
-  // Prevent browser-level TypeError when DevTools or offline check requests only-if-cached
   if (req.cache === 'only-if-cached' && req.mode !== 'same-origin') return;
 
   const url = req.url;

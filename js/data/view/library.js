@@ -71,12 +71,12 @@
     const targetClass = `track-card ${(idx & 1) ? 'track-even' : ''} ${isPlaying ? 'active-playing' : ''} ${isFav ? 'is-favorite' : ''}`;
     if (el.className !== targetClass) el.className = targetClass;
 
-    const numVal = track.catalogIndex || (idx + 1);
+    const numVal = track.catalogIndex ? track.catalogIndex : (idx + 1);
     const numStr = String(numVal);
     if (el._num.textContent !== numStr) el._num.textContent = numStr;
     if (el._title.textContent !== track.title) el._title.textContent = track.title;
 
-    const fmt = track.ext || 'XM';
+    const fmt = track.ext;
     if (el._fmt.textContent !== fmt) {
       el._fmt.className = `fmt-badge ${window.XMCatalog.getFormatBadgeClass(fmt)}`;
       el._fmt.textContent = fmt;
@@ -146,7 +146,7 @@
       const action = actionBtn.getAttribute('data-action');
       if (action === 'fav') {
         window.XMPlaylist.toggleFavorite(track);
-        if (window.XMApp?.updateDeckFav) window.XMApp.updateDeckFav();
+        if (window.XMApp && window.XMApp.updateDeckFav) window.XMApp.updateDeckFav();
         if (activeTab === 'favorites') {
           renderTrackList(window.XMCatalog.sortAlphabetical([...window.XMPlaylist.getFavorites()]), false);
         } else {
@@ -162,19 +162,19 @@
 
   async function playTrack(track, queue, idx) {
     if (!track) throw new Error('Cannot play track: null track provided to playTrack.');
-    if (window.XMAudio?.player) window.XMAudio.player.unlock();
+    if (window.XMAudio && window.XMAudio.player) window.XMAudio.player.unlock();
     currentlyPlayingId = track.id;
     updateActiveCards();
     if (track.isCustom || track.isFolderTrack) {
       let blob = track.blob;
       if (!blob && window.XMCustom) blob = await window.XMCustom.getTrackBlob(track.id);
       if (!blob) throw new Error(`Failed to load audio data for custom track: ${track.title}`);
-      window.XMAudio.loadTrack(blob, `${track.artist} - ${track.title}.${(track.ext || 'xm').toLowerCase()}`, track, queue, idx);
+      window.XMAudio.loadTrack(blob, `${track.artist} - ${track.title}.${track.ext.toLowerCase()}`, track, queue, idx);
       return;
     }
-    const resolvedUrl = track.url || (track.path ? (track.path.startsWith('http') ? track.path : 'https://farhan-real.github.io/XM-Music/' + encodeURI(track.path.replace(/^\/+/, ''))) : '');
+    const resolvedUrl = track.url ? track.url : (track.path ? (track.path.startsWith('http') ? track.path : 'https://farhan-real.github.io/XM-Music/' + encodeURI(track.path.replace(/^\/+/, ''))) : '');
     if (!resolvedUrl) throw new Error(`No audio URL or path defined for track: ${track.title}`);
-    window.XMAudio.loadTrack(resolvedUrl, `${track.artist} - ${track.title}.${(track.ext || 'xm').toLowerCase()}`, track, queue, idx);
+    window.XMAudio.loadTrack(resolvedUrl, `${track.artist} - ${track.title}.${track.ext.toLowerCase()}`, track, queue, idx);
   }
 
   function updateActiveCards() {
@@ -307,6 +307,9 @@
       emptyMsgEl.style.display = 'block';
       await window.XMCatalog.fetchRemoteCatalogs();
       const disp = await window.XMCatalog.syncFullCatalog();
+      if (window.XMPlaylist && window.XMPlaylist.syncSavedTrackMetadata) {
+        window.XMPlaylist.syncSavedTrackMetadata();
+      }
       renderedTab = 'archive';
       if (activeTab === 'archive') renderTrackList(disp, true);
     } catch (err) {
@@ -326,6 +329,9 @@
     refreshArchive: async () => {
       await window.XMCatalog.fetchRemoteCatalogs();
       const disp = await window.XMCatalog.syncFullCatalog();
+      if (window.XMPlaylist && window.XMPlaylist.syncSavedTrackMetadata) {
+        window.XMPlaylist.syncSavedTrackMetadata();
+      }
       if (activeTab === 'archive') renderTrackList(disp, true);
     },
     getDisplayCatalog: () => (activeRenderQueue && activeRenderQueue.length > 0) ? activeRenderQueue : window.XMCatalog.getDisplayCatalog(),

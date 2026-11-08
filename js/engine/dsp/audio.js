@@ -1,5 +1,5 @@
 /**
- * js/engine/dsp/audio.js - Master playback coordinator with detailed engine identification.
+ * js/engine/dsp/audio.js - Master playback coordinator with automatic cache invalidation on stale metadata.
  */
 (function(window) {
   const player = new ChiptuneJsPlayer();
@@ -324,36 +324,46 @@
     const activeFmt = window.XMExport.getActiveFormat();
     const cacheKey = trackItemRef ? trackItemRef.id : (currentAudioSrc ? currentAudioSrc : targetTitle);
     const cached = !isDirectNativeAudio ? getCachedCompiled(cacheKey, activeFmt) : null;
-    if (cached && cached.blob) {
-      isNativeStream = true;
-      currentAudioBlob = cached.blob;
-      activeDuration = cached.duration;
-      activeEngine = window.XMMeta.getDetailedTrackerEngine(cached.engine, '', currentExt);
-      activeChannels = cached.channels;
 
-      activeObjectUrl = URL.createObjectURL(cached.blob);
-      audioEl.src = activeObjectUrl;
-      audioEl.currentTime = 0;
-      audioEl.loop = window.XMQueue ? window.XMQueue.isLooping : false;
-      connectNativeSource();
-      if (cached.visData && window.XMVisualizer && window.XMVisualizer.setVisualizerCache) window.XMVisualizer.setVisualizerCache(cached.visData, cached.visFps);
-      if (window.XMBackground) {
-        window.XMBackground.updateMetadata(targetTitle, targetArtist);
-        window.XMBackground.setPlaybackState(true);
+    if (cached && cached.blob) {
+      const hasStaleEngine = window.XMCache && window.XMCache.isStaleEngine
+        ? window.XMCache.isStaleEngine(cached.engine, currentExt)
+        : (cached.engine === currentExt.toUpperCase() || cached.engine === 'TRACKER');
+
+      if (hasStaleEngine) {
+        if (window.XMCache && window.XMCache.clearKey) window.XMCache.clearKey(cacheKey, activeFmt);
+        compiledCache.delete(`${cacheKey}_${activeFmt.toLowerCase()}`);
+      } else {
+        isNativeStream = true;
+        currentAudioBlob = cached.blob;
+        activeDuration = cached.duration;
+        activeEngine = window.XMMeta.getDetailedTrackerEngine(cached.engine, '', currentExt);
+        activeChannels = cached.channels;
+
+        activeObjectUrl = URL.createObjectURL(cached.blob);
+        audioEl.src = activeObjectUrl;
+        audioEl.currentTime = 0;
+        audioEl.loop = window.XMQueue ? window.XMQueue.isLooping : false;
+        connectNativeSource();
+        if (cached.visData && window.XMVisualizer && window.XMVisualizer.setVisualizerCache) window.XMVisualizer.setVisualizerCache(cached.visData, cached.visFps);
+        if (window.XMBackground) {
+          window.XMBackground.updateMetadata(targetTitle, targetArtist);
+          window.XMBackground.setPlaybackState(true);
+        }
+        audioEl.play().then(() => notifyPlayState(true)).catch((err) => {
+          console.error('[XMAudio] Native audio play failed:', err);
+          notifyPlayState(false);
+          alert('Playback Error: ' + err.message);
+        });
+        if (window.XMApp) {
+          window.XMApp.updateTrackUI(targetTitle, targetArtist, activeEngine, activeChannels, true, trackNum);
+          if (activeDuration > 0) window.XMApp.updateDuration(activeDuration);
+          if (window.XMApp.setPlaybackStatus) window.XMApp.setPlaybackStatus('loaded');
+          if (window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
+        }
+        if (window.XMPrecompiler && window.XMPrecompiler.onTrackLoaded) window.XMPrecompiler.onTrackLoaded();
+        return;
       }
-      audioEl.play().then(() => notifyPlayState(true)).catch((err) => {
-        console.error('[XMAudio] Native audio play failed:', err);
-        notifyPlayState(false);
-        alert('Playback Error: ' + err.message);
-      });
-      if (window.XMApp) {
-        window.XMApp.updateTrackUI(targetTitle, targetArtist, activeEngine, activeChannels, true, trackNum);
-        if (activeDuration > 0) window.XMApp.updateDuration(activeDuration);
-        if (window.XMApp.setPlaybackStatus) window.XMApp.setPlaybackStatus('loaded');
-        if (window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');
-      }
-      if (window.XMPrecompiler && window.XMPrecompiler.onTrackLoaded) window.XMPrecompiler.onTrackLoaded();
-      return;
     }
 
     if (isDirectNativeAudio) {
