@@ -98,7 +98,7 @@
         safeSeekAudio(audioEl, 0);
       }
       audioEl.play().then(() => notifyPlayState(true)).catch((err) => {
-        console.error('[XMAudio] Native audio play failed:', err);
+        console.error('[XMAudio]', err);
         notifyPlayState(false);
         if (window.XMApp && window.XMApp.setStatus) window.XMApp.setStatus('error');
         alert('Audio Playback Error: ' + err.message);
@@ -111,7 +111,7 @@
         player.togglePause();
       }
       audioEl.play().then(() => notifyPlayState(true)).catch((err) => {
-        console.error('[XMAudio] Carrier audio playback failed:', err);
+        console.error('[XMAudio]', err);
         notifyPlayState(false);
         alert('Carrier Audio Error: ' + err.message);
       });
@@ -165,7 +165,7 @@
       if (window.XMBackground && window.XMBackground.clearMetadata) window.XMBackground.clearMetadata();
       if (window.XMVisualizer && window.XMVisualizer.clearVisualizerCache) window.XMVisualizer.clearVisualizerCache();
     } catch (err) {
-      console.error('[XMAudio] Error during unload:', err);
+      console.error('[XMAudio]', err);
     } finally {
       revokeActiveObjectUrl();
       isNativeStream = false;
@@ -311,7 +311,7 @@
         };
         audioEl.addEventListener('playing', onPlaying, { once: true });
         audioEl.play().catch((err) => {
-          console.error('[XMAudio] Native audio play failed:', err);
+          console.error('[XMAudio]', err);
           isHandoffPending = false;
           audioEl.removeEventListener('playing', onPlaying);
           if (player.workletGain) {
@@ -336,7 +336,7 @@
     currentExt = itemExt ? itemExt : parsedExt;
 
     if (!currentExt) throw new Error(`loadTrack error: Missing extension for "${fallbackName}".`);
-    if (!window.XMMeta.SUPPORTED_EXTS.has(currentExt)) {
+    if (!window.XMMeta.isSupportedFormat(currentExt)) {
       handleUnsupported(trackItemRef ? trackItemRef.title : fallbackName, currentExt, fallbackName);
       return;
     }
@@ -371,7 +371,8 @@
 
     const trackNum = window.XMQueue ? window.XMQueue.getTrackNum() : 1;
     if (window.XMVisualizer && window.XMVisualizer.clearVisualizerCache) window.XMVisualizer.clearVisualizerCache();
-    if (window.XMLibrary && trackItemRef) window.XMLibrary.notifyPlaying(trackItemRef.id);
+    const activeTrackId = trackItemRef ? trackItemRef.id : (currentAudioSrc ? currentAudioSrc : targetTitle);
+    if (window.XMLibrary) window.XMLibrary.notifyPlaying(activeTrackId, true);
     if (window.XMApp) {
       window.XMApp.resetTimeline();
       window.XMApp.updateTrackUI(targetTitle, targetArtist, activeEngine, activeChannels, false, trackNum);
@@ -409,7 +410,7 @@
           window.XMBackground.setPlaybackState(true);
         }
         audioEl.play().then(() => notifyPlayState(true)).catch((err) => {
-          console.error('[XMAudio] Native audio play failed:', err);
+          console.error('[XMAudio]', err);
           notifyPlayState(false);
           alert('Playback Error: ' + err.message);
         });
@@ -438,7 +439,7 @@
         window.XMBackground.setPlaybackState(true);
       }
       audioEl.play().then(() => notifyPlayState(true)).catch((err) => {
-        console.error('[XMAudio] Native audio play failed:', err);
+        console.error('[XMAudio]', err);
         notifyPlayState(false);
         alert('Playback Error: ' + err.message);
       });
@@ -489,7 +490,7 @@
       }
     }, (err) => {
       if (loadId !== currentLoadId) return;
-      console.error('[XMAudio] player.load failed:', err);
+      console.error('[XMAudio]', err);
       handleUnsupported(targetTitle, currentExt, fallbackName);
     });
   }

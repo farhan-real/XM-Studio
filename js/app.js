@@ -80,7 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
     panelLeft.classList.remove('mobile-hide');
     dropZone.classList.remove('mobile-hide');
     dropZone.classList.add('mobile-mini');
-    if (window.XMLibrary && window.XMLibrary.refreshScroller) window.XMLibrary.refreshScroller();
+    if (window.XMLibrary) {
+      if (window.XMLibrary.refreshScroller) window.XMLibrary.refreshScroller();
+      if (window.XMLibrary.scrollToPlayingTrack) window.XMLibrary.scrollToPlayingTrack();
+    }
     if (window.XMVisualizer) window.XMVisualizer.sleep();
   }
 
@@ -296,7 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.XMPrecompiler) window.XMPrecompiler.cancel();
       window.XMAudio.unload();
     } catch (err) {
-      console.error('[App] Error during track unload:', err);
+      console.error('[App]', err);
     }
     if (window.XMVisualizer && window.XMVisualizer.clear) window.XMVisualizer.clear();
 

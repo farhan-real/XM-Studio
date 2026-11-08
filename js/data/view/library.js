@@ -142,15 +142,16 @@
         window.XMPlaylistUI.openPlaylistPicker(track);
       }
     } else {
-      playTrack(track, activeRenderQueue, idx);
+      playTrack(track, activeRenderQueue, idx, false);
     }
   });
 
-  async function playTrack(track, queue, idx) {
+  async function playTrack(track, queue, idx, shouldScroll = true) {
     if (!track) throw new Error('Cannot play track: null track provided to playTrack.');
     if (window.XMAudio && window.XMAudio.player) window.XMAudio.player.unlock();
     currentlyPlayingId = track.id;
     updateActiveCards();
+    if (shouldScroll) scrollToTrack(track.id);
     if (track.isCustom || track.isFolderTrack) {
       let blob = track.blob;
       if (!blob && window.XMCustom) blob = await window.XMCustom.getTrackBlob(track.id);
@@ -172,6 +173,21 @@
     }
   }
 
+  function scrollToTrack(trackId) {
+    if (!trackId) return;
+    if (activeTab === 'archive' || activeTab === 'favorites') {
+      const idx = activeRenderQueue.findIndex((t) => t.id === trackId);
+      if (idx >= 0 && scroller) {
+        requestAnimationFrame(() => { if (scroller) scroller.scrollToIndex(idx); });
+      }
+    } else if (activeTab === 'playlists') {
+      const el = document.querySelector(`.playlist-items-wrap [data-track-id="${trackId}"]`);
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }
+
   function jumpToArchiveTrack(trackId) {
     if (!trackId) return;
     if (activeTab !== 'archive') switchTab('archive');
@@ -181,10 +197,7 @@
       window.XMCatalog.setDisplayCatalog(full);
       renderTrackList(full, false);
     }
-    const idx = activeRenderQueue.findIndex((t) => t.id === trackId);
-    if (idx >= 0 && scroller) {
-      setTimeout(() => { if (scroller) scroller.scrollToIndex(idx); }, 50);
-    }
+    scrollToTrack(trackId);
   }
 
   function playRandomArchiveTrack() {
@@ -216,10 +229,7 @@
 
     const randIdx = candidates[Math.floor(Math.random() * candidates.length)];
     const track = activeRenderQueue[randIdx];
-    playTrack(track, activeRenderQueue, randIdx);
-    if (activeTab === 'archive' && scroller) {
-      requestAnimationFrame(() => scroller.scrollToIndex(randIdx));
-    }
+    playTrack(track, activeRenderQueue, randIdx, true);
     return track;
   }
 
@@ -242,6 +252,7 @@
         updateActiveCards();
         if (scroller) scroller.refresh();
       }
+      if (currentlyPlayingId) scrollToTrack(currentlyPlayingId);
     } else if (tabId === 'favorites') {
       tabFavs.classList.add('active');
       searchBarWrap.classList.remove('hide');
@@ -249,6 +260,7 @@
       searchInput.placeholder = 'Filter favorites by #, artist, title...';
       renderTrackList(window.XMCatalog.sortAlphabetical([...window.XMPlaylist.getFavorites()]), true);
       renderedTab = 'favorites';
+      if (currentlyPlayingId) scrollToTrack(currentlyPlayingId);
     } else if (tabId === 'playlists') {
       tabPlaylists.classList.add('active');
       searchBarWrap.classList.add('hide');
@@ -312,7 +324,7 @@
       renderedTab = 'archive';
       if (activeTab === 'archive') renderTrackList(disp, true);
     } catch (err) {
-      console.error('[XMLibrary] Failed to load catalogs:', err);
+      console.error('[XMLibrary]', err);
       emptyMsgEl.textContent = 'Failed to load catalogs: ' + err.message;
       emptyMsgEl.style.display = 'block';
       alert('Catalog Sync Failed: ' + err.message);
@@ -322,7 +334,12 @@
   loadAllCatalogs();
 
   window.XMLibrary = {
-    notifyPlaying: (trackId) => { currentlyPlayingId = trackId; updateActiveCards(); },
+    notifyPlaying: (trackId, shouldScroll = true) => {
+      currentlyPlayingId = trackId;
+      updateActiveCards();
+      if (shouldScroll && trackId) scrollToTrack(trackId);
+    },
+    scrollToPlayingTrack: () => { if (currentlyPlayingId) scrollToTrack(currentlyPlayingId); },
     renderCurrentTab: () => switchTab(activeTab),
     refreshScroller: () => { if (scroller) scroller.refresh(); },
     refreshArchive: async () => {
