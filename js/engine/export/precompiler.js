@@ -55,10 +55,13 @@
     const upcoming = window.XMQueue.getUpcomingTracks(LOOKAHEAD_COUNT);
     if (!upcoming || upcoming.length === 0) return;
 
+    const activeFmt = (window.XMExport && window.XMExport.getActiveFormat) ? window.XMExport.getActiveFormat() : 'wav';
+    const targetFormat = (activeFmt === 'mp3') ? 'mp3' : 'wav';
+
     let targetTrack = null;
     for (let i = 0; i < upcoming.length; i++) {
       const t = upcoming[i];
-      if (t && t.id && isTrackerTrack(t) && (!window.XMCache || !window.XMCache.has(t.id, 'mp3'))) {
+      if (t && t.id && isTrackerTrack(t) && (!window.XMCache || !window.XMCache.has(t.id, targetFormat))) {
         targetTrack = t;
         break;
       }
@@ -87,7 +90,7 @@
 
       window.AudioCompiler.compilePreload(
         buf,
-        'mp3',
+        targetFormat,
         targetTrack.id,
         (blob, visData, visFps, duration, engine, channels) => {
           isRunning = false;
@@ -99,7 +102,7 @@
             const trackerEngine = window.XMMeta.getDetailedTrackerEngine(engine, '', targetTrack.ext);
             window.XMCache.set(
               targetTrack.id,
-              'mp3',
+              targetFormat,
               blob,
               visData,
               visFps,

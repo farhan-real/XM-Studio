@@ -2,7 +2,8 @@
  * js/engine/export/export.js - Audio export coordinator, format routing, and instant cache delivery without fallbacks.
  */
 (function(window) {
-  let activeFormat = 'mp3';
+  const savedFmt = localStorage.getItem('xm_export_format');
+  let activeFormat = (savedFmt === 'mp3' || savedFmt === 'wav' || savedFmt === 'raw') ? savedFmt : 'wav';
   let isUserDownloadPending = false;
 
   const btnFmtMp3 = document.getElementById('btnFmtMp3');
@@ -32,9 +33,12 @@
     qualityBadge.textContent = activeFormat === 'wav' ? '16-BIT PCM' : (activeFormat === 'raw' ? 'TRACKER' : '320 KBPS');
   }
 
+  updateFmtButtons(activeFormat === 'wav' ? 'btnFmtWav' : (activeFormat === 'raw' ? 'btnFmtRaw' : 'btnFmtMp3'));
+
   if (btnFmtMp3) {
     btnFmtMp3.addEventListener('click', () => {
       activeFormat = 'mp3';
+      localStorage.setItem('xm_export_format', 'mp3');
       updateFmtButtons('btnFmtMp3');
       updateQualityBadgeDisplay();
       if (window.XMApp && window.XMApp.refreshPlaybackBadge) window.XMApp.refreshPlaybackBadge();
@@ -43,6 +47,7 @@
   if (btnFmtWav) {
     btnFmtWav.addEventListener('click', () => {
       activeFormat = 'wav';
+      localStorage.setItem('xm_export_format', 'wav');
       updateFmtButtons('btnFmtWav');
       updateQualityBadgeDisplay();
       if (window.XMApp && window.XMApp.refreshPlaybackBadge) window.XMApp.refreshPlaybackBadge();
@@ -51,6 +56,7 @@
   if (btnFmtRaw) {
     btnFmtRaw.addEventListener('click', () => {
       activeFormat = 'raw';
+      localStorage.setItem('xm_export_format', 'raw');
       updateFmtButtons('btnFmtRaw');
       updateQualityBadgeDisplay();
       if (window.XMApp && window.XMApp.refreshPlaybackBadge) window.XMApp.refreshPlaybackBadge();
@@ -83,7 +89,7 @@
     if (!targetTrackId) throw new Error('Cannot start compilation: targetTrackId is missing.');
     if (!window.AudioCompiler) throw new Error('AudioCompiler engine is not available.');
 
-    const format = (activeFormat === 'wav') ? 'wav' : 'mp3';
+    const format = (activeFormat === 'mp3') ? 'mp3' : 'wav';
     const cached = window.XMAudio && window.XMAudio.getCachedCompiled ? window.XMAudio.getCachedCompiled(targetTrackId, format) : null;
     if (cached && cached.blob) {
       if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('ready');

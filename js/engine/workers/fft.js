@@ -9,6 +9,7 @@ const hannWindow = new Float32Array(FFT_SIZE);
 const cosTable = new Float32Array(FFT_SIZE / 2);
 const sinTable = new Float32Array(FFT_SIZE / 2);
 const bitRev = new Uint8Array(FFT_SIZE);
+const binMap = new Uint8Array(FFT_BARS);
 
 for (let i = 0; i < FFT_SIZE; i++) {
   hannWindow[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (FFT_SIZE - 1)));
@@ -19,6 +20,9 @@ for (let i = 0; i < FFT_SIZE; i++) {
 for (let i = 0; i < FFT_SIZE / 2; i++) {
   cosTable[i] = Math.cos((-2 * Math.PI * i) / FFT_SIZE);
   sinTable[i] = Math.sin((-2 * Math.PI * i) / FFT_SIZE);
+}
+for (let b = 0; b < FFT_BARS; b++) {
+  binMap[b] = Math.min(30, Math.floor(1 + Math.pow(b / (FFT_BARS - 1), 1.35) * 28));
 }
 
 function computeFftBars(inputSamples, outTarget, outOffset) {
@@ -44,12 +48,13 @@ function computeFftBars(inputSamples, outTarget, outOffset) {
     }
   }
   for (let b = 0; b < FFT_BARS; b++) {
-    const binIdx = Math.min(30, Math.floor(1 + Math.pow(b / (FFT_BARS - 1), 1.35) * 28));
-    const mag = Math.sqrt(fftRe[binIdx] * fftRe[binIdx] + fftIm[binIdx] * fftIm[binIdx]) / 32.0;
+    const binIdx = binMap[b];
+    const re = fftRe[binIdx], im = fftIm[binIdx];
+    const power = re * re + im * im;
     let val = 0;
-    if (mag > 0.00001) {
-      const db = 20 * Math.log10(mag);
-      val = Math.round(255 * (db + 100) / 70);
+    if (power > 1.024e-7) {
+      const db = 10 * Math.log10(power) - 30.103;
+      val = (255 * (db + 100) / 70 + 0.5) | 0;
       if (val < 10) val = 0;
       else if (val > 255) val = 255;
     }
