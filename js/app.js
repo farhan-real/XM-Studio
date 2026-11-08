@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const miniTrackNum = document.getElementById('miniTrackNum'), btnToggleLeft = document.getElementById('btnToggleLeft'), btnToggleRight = document.getElementById('btnToggleRight');
   const panelLeft = document.getElementById('panelLeft'), dropZone = document.getElementById('dropZone'), readoutPanel = document.getElementById('readoutPanel');
   const btnInstallApp = document.getElementById('btnInstallApp'), mobileInstallRow = document.getElementById('mobileInstallRow');
+  const btnShortcutsHelp = document.getElementById('btnShortcutsHelp');
 
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
   if (isStandalone && mobileInstallRow) mobileInstallRow.classList.add('hide');
@@ -41,6 +42,12 @@ document.addEventListener('DOMContentLoaded', () => {
     deferredInstallPrompt = null;
     if (mobileInstallRow) mobileInstallRow.classList.add('hide');
   });
+
+  if (btnShortcutsHelp) {
+    btnShortcutsHelp.addEventListener('click', () => {
+      if (window.XMShortcuts && window.XMShortcuts.openHelp) window.XMShortcuts.openHelp();
+    });
+  }
 
   if (btnInstallApp) {
     btnInstallApp.addEventListener('click', async () => {

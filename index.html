@@ -41,7 +41,7 @@
       <div class="panel-search-bar" id="searchBarWrap">
         <div class="search-input-box">
           <svg viewBox="0 0 24 24" class="t-icon-xs"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <input type="text" id="leftSearchInput" placeholder="Filter #, artist (A-Z), title, or folder..." />
+          <input type="text" id="leftSearchInput" placeholder="Filter #, artist (A-Z), title, folder... (/ to focus)" />
           <span class="badge" id="leftCountBadge">0 TRACKS</span>
         </div>
       </div>
@@ -131,7 +131,10 @@
       <header class="header">
         <div class="header-top">
           <div class="brand-cluster"><span class="status-pip" id="statusPip"></span><span class="brand-title">XM-Studio</span><span class="model-sub">Offline DSP</span></div>
-          <div class="header-top-right"><span class="badge badge-engine"><span class="spec-key">ENGINE:</span> <span id="modType">NONE</span></span><button class="btn-unload" id="btnUnload" title="Unload track" aria-label="Unload track"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div>
+          <div class="header-top-right">
+            <button class="btn-unload" id="btnShortcutsHelp" title="Keyboard Shortcuts (?)" aria-label="Keyboard Shortcuts"><svg viewBox="0 0 24 24" class="t-icon-xs"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></button>
+            <span class="badge badge-engine"><span class="spec-key">ENGINE:</span> <span id="modType">NONE</span></span><button class="btn-unload" id="btnUnload" title="Unload track" aria-label="Unload track"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+          </div>
         </div>
         <div class="header-badges">
           <div class="badges-group">
@@ -151,34 +154,34 @@
         <div class="readout-main"><h2 class="song-title" id="songTitle">No Module Loaded</h2><p class="song-artist" id="songArtist">Ready for FastTracker II / Audio input</p><div class="readout-progress-track hide" id="readoutProgressTrack"><div class="readout-progress-bar" id="readoutProgressBar"></div></div></div>
       </section>
       <div class="segment-strip"><span class="segment-label">EXPORT TARGET</span><div class="segmented-control" role="group" aria-label="Audio Export Format"><button class="seg-btn active" id="btnFmtMp3" data-format="mp3">320k MP3</button><button class="seg-btn" id="btnFmtWav" data-format="wav">16-Bit WAV</button><button class="seg-btn" id="btnFmtRaw" data-format="raw">Tracker</button></div></div>
-      <div class="timeline-row"><span class="time-readout" id="timeCurrent">00:00</span><div class="slider-wrap"><input type="range" id="progressBar" min="0" max="100" value="0" step="0.1" disabled aria-label="Playback Progress" /></div><span class="time-readout time-dim" id="timeTotal">00:00</span></div>
+      <div class="timeline-row"><span class="time-readout" id="timeCurrent">00:00</span><div class="slider-wrap"><input type="range" id="progressBar" min="0" max="100" value="0" step="0.1" disabled aria-label="Playback Progress (← / → to Seek)" /></div><span class="time-readout time-dim" id="timeTotal">00:00</span></div>
       <div class="transport-panel">
         <div class="transport-row transport-row-main">
           <div class="transport-sub-group transport-left-group">
-            <button class="t-btn" id="btnDeckFav" title="Favorite Track" aria-label="Favorite" disabled><svg viewBox="0 0 24 24" class="t-icon-sm" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button>
+            <button class="t-btn" id="btnDeckFav" title="Favorite Track (F)" aria-label="Favorite" disabled><svg viewBox="0 0 24 24" class="t-icon-sm" fill="none" stroke="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></button>
             <button class="t-btn" id="btnDeckAddPl" title="Add to Playlist" aria-label="Add to Playlist" disabled><svg viewBox="0 0 24 24" class="t-icon-sm"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
           </div>
           <div class="transport-main-group">
-            <button class="t-btn" id="btnPrev" title="Previous Track" aria-label="Previous"><svg viewBox="0 0 24 24" class="t-icon"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg></button>
-            <button class="t-btn t-btn-main" id="btnPlayPause" title="Play or Pause" aria-label="Play"><svg id="svgPlay" viewBox="0 0 24 24" class="t-icon-main" fill="currentColor"><polygon points="7 4 19 12 7 20 7 4"></polygon></svg><svg id="svgPause" viewBox="0 0 24 24" class="t-icon-main hide" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg></button>
-            <button class="t-btn" id="btnNext" title="Next Track" aria-label="Next"><svg viewBox="0 0 24 24" class="t-icon"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg></button>
+            <button class="t-btn" id="btnPrev" title="Previous Track (Shift+← / P)" aria-label="Previous"><svg viewBox="0 0 24 24" class="t-icon"><polygon points="19 20 9 12 19 4 19 20"></polygon><line x1="5" y1="19" x2="5" y2="5"></line></svg></button>
+            <button class="t-btn t-btn-main" id="btnPlayPause" title="Play or Pause (Space / K)" aria-label="Play"><svg id="svgPlay" viewBox="0 0 24 24" class="t-icon-main" fill="currentColor"><polygon points="7 4 19 12 7 20 7 4"></polygon></svg><svg id="svgPause" viewBox="0 0 24 24" class="t-icon-main hide" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg></button>
+            <button class="t-btn" id="btnNext" title="Next Track (Shift+→ / N)" aria-label="Next"><svg viewBox="0 0 24 24" class="t-icon"><polygon points="5 4 15 12 5 20 5 4"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg></button>
           </div>
           <div class="transport-sub-group transport-right-group">
             <button class="t-btn" id="btnLocateTrack" title="Locate Track in Archive" aria-label="Locate in Archive" disabled><svg viewBox="0 0 24 24" class="t-icon"><circle cx="12" cy="12" r="10"></circle><line x1="22" y1="12" x2="18" y2="12"></line><line x1="6" y1="12" x2="2" y2="12"></line><line x1="12" y1="6" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="18"></line></svg></button>
-            <button class="t-btn" id="btnPlayRandom" title="Play Random Track" aria-label="Play Random"><svg viewBox="0 0 24 24" class="t-icon"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="8" cy="8" r="1.5" fill="currentColor"></circle><circle cx="16" cy="8" r="1.5" fill="currentColor"></circle><circle cx="12" cy="12" r="1.5" fill="currentColor"></circle><circle cx="8" cy="16" r="1.5" fill="currentColor"></circle><circle cx="16" cy="16" r="1.5" fill="currentColor"></circle></svg></button>
+            <button class="t-btn" id="btnPlayRandom" title="Play Random Track (R)" aria-label="Play Random"><svg viewBox="0 0 24 24" class="t-icon"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="8" cy="8" r="1.5" fill="currentColor"></circle><circle cx="16" cy="8" r="1.5" fill="currentColor"></circle><circle cx="12" cy="12" r="1.5" fill="currentColor"></circle><circle cx="8" cy="16" r="1.5" fill="currentColor"></circle><circle cx="16" cy="16" r="1.5" fill="currentColor"></circle></svg></button>
           </div>
         </div>
         <div class="transport-row transport-row-sub">
           <div class="fader-cluster">
-            <button class="fader-btn" id="btnMute" aria-label="Mute Audio">
+            <button class="fader-btn" id="btnMute" title="Mute Audio (M)" aria-label="Mute Audio">
               <svg id="svgVol" viewBox="0 0 24 24" class="t-icon-sm"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
             </button>
             <div class="slider-wrap vol-slider-wrap">
-              <input type="range" id="volSlider" min="0" max="1" step="0.02" value="0.85" aria-label="Master Volume" />
+              <input type="range" id="volSlider" min="0" max="1" step="0.02" value="0.85" aria-label="Master Volume (↑ / ↓ to adjust)" />
             </div>
             <span class="vol-readout" id="volPercent">85%</span>
           </div>
-          <div class="mode-switch-slider" id="modeSwitchSlider" role="radiogroup" aria-label="Playback Mode">
+          <div class="mode-switch-slider" id="modeSwitchSlider" role="radiogroup" aria-label="Playback Mode (S to cycle, L to loop)">
             <button class="mode-switch-btn" data-mode="stop" title="Mode: Stop when track ends" aria-label="Stop">
               <svg viewBox="0 0 24 24" class="mode-icon" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg>
               <span class="mode-text">STOP</span>
@@ -235,6 +238,7 @@
   <script data-cfasync="false" src="js/data/view/scroller.js"></script>
   <script data-cfasync="false" src="js/data/storage/backup.js"></script>
   <script data-cfasync="false" src="js/data/view/library.js"></script>
+  <script data-cfasync="false" src="js/data/view/shortcuts.js"></script>
   <script data-cfasync="false" src="js/app.js"></script>
 </body>
 </html>
