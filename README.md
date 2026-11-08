@@ -292,6 +292,41 @@ Open `http://localhost:8080` in your web browser.
 
 ---
 
+## Downloading Core Dependencies Separately
+
+XM-Studio relies on WebAssembly binaries and encoder libraries that are hosted externally due to file size. Run the following commands in the project root directory to fetch all three required dependencies into `js/`:
+
+```bash
+# Download libopenmpt WebAssembly loader
+curl -L -o js/libopenmpt.js https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js
+
+# Download libopenmpt memory initialization binary
+curl -L -o js/libopenmpt.js.mem https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js.mem
+
+# Download LAME MP3 WebAssembly/JS encoder
+curl -L -o js/lame.min.js https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js
+```
+
+### Windows (PowerShell) Alternative
+
+```powershell
+Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js" -OutFile "js/libopenmpt.js"
+Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js.mem" -OutFile "js/libopenmpt.js.mem"
+Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js" -OutFile "js/lame.min.js"
+```
+
+### Verification
+
+Ensure the files are placed directly inside `js/`:
+```text
+js/
+├── lame.min.js           # ~160 KB
+├── libopenmpt.js         # ~2.2 MB
+└── libopenmpt.js.mem     # ~82 KB
+```
+
+---
+
 ## Directory Architecture
 
 ```text
