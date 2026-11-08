@@ -1,15 +1,12 @@
 /**
- * js/engine/workers/worker.js - Dedicated Web Worker for OpenMPT rendering and MP3/WAV compilation without silent fallbacks.
+ * js/engine/workers/worker.js - Dedicated Web Worker for OpenMPT rendering and MP3/WAV compilation.
  */
 /* global importScripts, libopenmpt, lamejs, computeFftBars, FFT_SIZE, FFT_BARS */
 self.libopenmpt = self.libopenmpt || {};
 self.libopenmpt.print = function(text) { console.log('[libopenmpt Worker]', text); };
 self.libopenmpt.printErr = function(text) { console.error('[libopenmpt Worker Error]', text); };
 
-let isRuntimeReady = false;
-let isRuntimeVerified = false;
-let isRuntimeAborted = false;
-let abortErrorMessage = '';
+let isRuntimeReady = false, isRuntimeVerified = false, isRuntimeAborted = false, abortErrorMessage = '';
 
 const prevInit = self.libopenmpt.onRuntimeInitialized;
 self.libopenmpt.onRuntimeInitialized = function() {
@@ -36,17 +33,19 @@ importScripts('../../lame.min.js');
 function isEngineReady() {
   if (isRuntimeAborted) return false;
   if (isRuntimeVerified) return true;
-  if (typeof libopenmpt === 'undefined') return false;
-  if (!libopenmpt.HEAPU8 || libopenmpt.HEAPU8.length === 0) return false;
-  if (typeof libopenmpt._malloc !== 'function' || typeof libopenmpt._free !== 'function') return false;
-  if (typeof libopenmpt._openmpt_module_create_from_memory !== 'function') return false;
-  if (!isRuntimeReady && !libopenmpt.calledRun && !libopenmpt.asm) return false;
-
-  const probePtr = libopenmpt._malloc(4);
-  if (!probePtr) return false;
-  libopenmpt._free(probePtr);
-  isRuntimeVerified = true;
-  return true;
+  if (typeof libopenmpt === 'undefined' || !isRuntimeReady) return false;
+  try {
+    if (!libopenmpt.HEAPU8 || libopenmpt.HEAPU8.length === 0) return false;
+    if (typeof libopenmpt._malloc !== 'function' || typeof libopenmpt._free !== 'function') return false;
+    if (typeof libopenmpt._openmpt_module_create_from_memory !== 'function') return false;
+    const probePtr = libopenmpt._malloc(4);
+    if (!probePtr) return false;
+    libopenmpt._free(probePtr);
+    isRuntimeVerified = true;
+    return true;
+  } catch (err) {
+    return false;
+  }
 }
 
 function waitForEngine(callback, errback, attempts) {
@@ -55,7 +54,9 @@ function waitForEngine(callback, errback, attempts) {
     if (errback) errback(new Error(abortErrorMessage ? abortErrorMessage : 'libopenmpt memory initialization aborted.'));
     return;
   }
-  if (isEngineReady()) {
+  let ready = false;
+  try { ready = isEngineReady(); } catch (e) { ready = false; }
+  if (ready) {
     callback();
   } else if (tries < 300) {
     setTimeout(() => waitForEngine(callback, errback, tries + 1), 50);
@@ -65,8 +66,7 @@ function waitForEngine(callback, errback, attempts) {
 }
 
 function createWavBlob(pcmChunks, totalPcmBytes, sampleRate) {
-  const header = new ArrayBuffer(44);
-  const view = new DataView(header);
+  const header = new ArrayBuffer(44), view = new DataView(header);
   function writeStr(offset, str) {
     for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
   }
@@ -87,13 +87,11 @@ function createWavBlob(pcmChunks, totalPcmBytes, sampleRate) {
 }
 
 function resolveEngineString(tracker, typeLong) {
-  const t = tracker ? tracker.trim() : '';
-  const tl = typeLong ? typeLong.trim() : '';
+  const t = tracker ? tracker.trim() : '', tl = typeLong ? typeLong.trim() : '';
   if (t && tl) {
-    const tLower = t.toLowerCase();
-    const tlLower = tl.toLowerCase();
-    if (tLower.includes('compatible') && !tlLower.includes('compatible')) return tl.toUpperCase();
-    if (tlLower.includes('compatible') && !tLower.includes('compatible')) return t.toUpperCase();
+    const tL = t.toLowerCase(), tlL = tl.toLowerCase();
+    if (tL.includes('compatible') && !tlL.includes('compatible')) return tl.toUpperCase();
+    if (tlL.includes('compatible') && !tL.includes('compatible')) return t.toUpperCase();
     return (t.length >= tl.length ? t : tl).toUpperCase();
   }
   if (tl) return tl.toUpperCase();
@@ -103,38 +101,21 @@ function resolveEngineString(tracker, typeLong) {
 
 function runCompilation(data) {
   let modulePtr = 0, ptrToFile = 0, leftBufferPtr = 0, rightBufferPtr = 0;
-
   try {
-    if (!data.sampleRate) {
-      self.postMessage({ type: 'error', message: 'Worker compilation error: sampleRate is required.' });
-      return;
-    }
-    if (!data.format) {
-      self.postMessage({ type: 'error', message: 'Worker compilation error: format is required.' });
-      return;
-    }
-    const sampleRate = data.sampleRate;
-    const isMp3 = data.format === 'mp3';
-
+    if (!data.sampleRate) throw new Error('Worker compilation error: sampleRate is required.');
+    if (!data.format) throw new Error('Worker compilation error: format is required.');
+    const sampleRate = data.sampleRate, isMp3 = data.format === 'mp3';
     const byteArray = new Uint8Array(data.buffer);
-    if (!byteArray || byteArray.byteLength === 0) {
-      self.postMessage({ type: 'error', message: 'Empty module buffer received.' });
-      return;
-    }
+    if (!byteArray || byteArray.byteLength === 0) throw new Error('Empty module buffer received.');
+
     ptrToFile = libopenmpt._malloc(byteArray.byteLength);
-    if (!ptrToFile) {
-      self.postMessage({ type: 'error', message: 'Failed to allocate memory for module.' });
-      return;
-    }
+    if (!ptrToFile) throw new Error('Failed to allocate memory for module.');
     libopenmpt.HEAPU8.set(byteArray, ptrToFile);
 
     modulePtr = libopenmpt._openmpt_module_create_from_memory(ptrToFile, byteArray.byteLength, 0, 0, 0);
     libopenmpt._free(ptrToFile);
     ptrToFile = 0;
-    if (!modulePtr) {
-      self.postMessage({ type: 'error', message: 'Unable to parse module.' });
-      return;
-    }
+    if (!modulePtr) throw new Error('Unable to parse module (null pointer returned).');
 
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 4]);
     libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
@@ -148,30 +129,22 @@ function runCompilation(data) {
     const numCh = libopenmpt._openmpt_module_get_num_channels
       ? libopenmpt._openmpt_module_get_num_channels(modulePtr)
       : libopenmpt.ccall('openmpt_module_get_num_channels', 'number', ['number'], [modulePtr]);
-    if (typeof numCh !== 'number' || numCh <= 0) {
-      throw new Error(`OpenMPT reported invalid channel count: ${numCh}`);
-    }
+    if (typeof numCh !== 'number' || numCh <= 0) throw new Error(`OpenMPT reported invalid channel count: ${numCh}`);
     const channelsStr = `${numCh}CH`;
 
     const rawDur = libopenmpt._openmpt_module_get_duration_seconds
       ? libopenmpt._openmpt_module_get_duration_seconds(modulePtr)
       : libopenmpt.ccall('openmpt_module_get_duration_seconds', 'number', ['number'], [modulePtr]);
-    if (!isFinite(rawDur) || rawDur <= 0) {
-      throw new Error(`Invalid duration reported by OpenMPT during compilation: ${rawDur}s`);
-    }
-    const duration = rawDur;
-    const totalFrames = Math.ceil(duration * sampleRate);
+    if (!isFinite(rawDur) || rawDur <= 0) throw new Error(`Invalid duration reported by OpenMPT: ${rawDur}s`);
 
+    const duration = rawDur, totalFrames = Math.ceil(duration * sampleRate);
     let mp3encoder = null;
     if (isMp3) {
-      if (typeof lamejs === 'undefined' || !lamejs.Mp3Encoder) {
-        throw new Error('LAME MP3 encoder is not available in Web Worker.');
-      }
+      if (typeof lamejs === 'undefined' || !lamejs.Mp3Encoder) throw new Error('LAME MP3 encoder is not available.');
       mp3encoder = new lamejs.Mp3Encoder(2, sampleRate, 320);
     }
 
-    const BLOCK_SIZE = 1152;
-    const chunkSize = BLOCK_SIZE * 16;
+    const BLOCK_SIZE = 1152, chunkSize = BLOCK_SIZE * 16;
     leftBufferPtr = libopenmpt._malloc(4 * chunkSize);
     rightBufferPtr = libopenmpt._malloc(4 * chunkSize);
     if (!leftBufferPtr || !rightBufferPtr) throw new Error('Failed to allocate stereo render buffers in Worker.');
@@ -183,25 +156,17 @@ function runCompilation(data) {
     const encodedChunks = [];
     let totalPcmBytes = 0;
 
-    const VIS_FPS = 15;
-    const visStep = Math.max(1, Math.round(sampleRate / VIS_FPS));
+    const VIS_FPS = 15, visStep = Math.max(1, Math.round(sampleRate / VIS_FPS));
     const totalVisFrames = Math.ceil(totalFrames / visStep) + 16;
     const visBuffer = new Uint8Array(totalVisFrames * FFT_BARS);
-    const fftWindowBuf = new Float32Array(FFT_SIZE);
-    const prevTailMono = new Float32Array(FFT_SIZE);
-    let hasPrevTail = false;
-
-    let visFrameIndex = 0;
-    let nextVisFrameTarget = 0;
-    let framesRendered = 0;
-    let lastReportedPct = -1;
+    const fftWindowBuf = new Float32Array(FFT_SIZE), prevTailMono = new Float32Array(FFT_SIZE);
+    let hasPrevTail = false, visFrameIndex = 0, nextVisFrameTarget = 0, framesRendered = 0, lastReportedPct = -1;
 
     try {
       while (framesRendered < totalFrames) {
         const framesToRead = Math.min(chunkSize, totalFrames - framesRendered);
         const actual = libopenmpt._openmpt_module_read_float_stereo(modulePtr, sampleRate, framesToRead, leftBufferPtr, rightBufferPtr);
         if (!actual || actual <= 0) break;
-
         const heapF32 = libopenmpt.HEAPF32;
 
         if (isMp3) {
@@ -235,17 +200,11 @@ function runCompilation(data) {
           const localIdx = nextVisFrameTarget - framesRendered;
           if (localIdx >= FFT_SIZE - 1) {
             const start = localIdx - (FFT_SIZE - 1);
-            for (let k = 0; k < FFT_SIZE; k++) {
-              fftWindowBuf[k] = 0.5 * (heapF32[baseL + start + k] + heapF32[baseR + start + k]);
-            }
+            for (let k = 0; k < FFT_SIZE; k++) fftWindowBuf[k] = 0.5 * (heapF32[baseL + start + k] + heapF32[baseR + start + k]);
           } else if (hasPrevTail) {
             const fromPrev = (FFT_SIZE - 1) - localIdx;
-            for (let k = 0; k < fromPrev; k++) {
-              fftWindowBuf[k] = prevTailMono[FFT_SIZE - fromPrev + k];
-            }
-            for (let k = 0; k <= localIdx; k++) {
-              fftWindowBuf[fromPrev + k] = 0.5 * (heapF32[baseL + k] + heapF32[baseR + k]);
-            }
+            for (let k = 0; k < fromPrev; k++) fftWindowBuf[k] = prevTailMono[FFT_SIZE - fromPrev + k];
+            for (let k = 0; k <= localIdx; k++) fftWindowBuf[fromPrev + k] = 0.5 * (heapF32[baseL + k] + heapF32[baseR + k]);
           } else {
             for (let k = 0; k < FFT_SIZE; k++) {
               const srcIdx = Math.max(0, localIdx - (FFT_SIZE - 1) + k);
@@ -257,11 +216,8 @@ function runCompilation(data) {
           nextVisFrameTarget += visStep;
         }
 
-        const tailCount = Math.min(FFT_SIZE, actual);
-        const tailStart = actual - tailCount;
-        for (let k = 0; k < tailCount; k++) {
-          prevTailMono[k] = 0.5 * (heapF32[baseL + tailStart + k] + heapF32[baseR + tailStart + k]);
-        }
+        const tailCount = Math.min(FFT_SIZE, actual), tailStart = actual - tailCount;
+        for (let k = 0; k < tailCount; k++) prevTailMono[k] = 0.5 * (heapF32[baseL + tailStart + k] + heapF32[baseR + tailStart + k]);
         hasPrevTail = true;
 
         framesRendered += actual;

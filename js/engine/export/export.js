@@ -1,5 +1,5 @@
 /**
- * js/engine/export/export.js - Audio export coordinator, format routing, and instant cache delivery without fallbacks.
+ * js/engine/export/export.js - Audio export coordinator, format routing, and instant cache delivery.
  */
 (function(window) {
   const savedFmt = localStorage.getItem('xm_export_format');
@@ -132,11 +132,9 @@
         if (window.XMPrecompiler && window.XMPrecompiler.onActiveCompileComplete) window.XMPrecompiler.onActiveCompileComplete();
       },
       (err) => {
-        if (!window.AudioCompiler || !window.AudioCompiler.isCompiling) return;
         console.error('[XMExport] Compilation error in startInitialCompile:', err);
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
         if (window.XMApp && window.XMApp.setCompileStatus) window.XMApp.setCompileStatus('error');
-        alert('Compilation Failed: ' + err.message);
       }
     );
   }
@@ -242,7 +240,6 @@
         if (window.XMPrecompiler && window.XMPrecompiler.onActiveCompileComplete) window.XMPrecompiler.onActiveCompileComplete();
       },
       (err) => {
-        if (!window.AudioCompiler || !window.AudioCompiler.isCompiling) return;
         isUserDownloadPending = false;
         console.error('[XMExport] Download compilation failed:', err);
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');

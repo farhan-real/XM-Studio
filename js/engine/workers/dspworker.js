@@ -6,10 +6,7 @@ self.libopenmpt = self.libopenmpt || {};
 self.libopenmpt.print = function(text) { console.log('[libopenmpt DSP]', text); };
 self.libopenmpt.printErr = function(text) { console.error('[libopenmpt DSP Error]', text); };
 
-let isRuntimeReady = false;
-let isRuntimeVerified = false;
-let isRuntimeAborted = false;
-let abortErrorMessage = '';
+let isRuntimeReady = false, isRuntimeVerified = false, isRuntimeAborted = false, abortErrorMessage = '';
 
 const prevInit = self.libopenmpt.onRuntimeInitialized;
 self.libopenmpt.onRuntimeInitialized = function() {
@@ -31,32 +28,26 @@ self.libopenmpt.locateFile = function(f) {
 
 importScripts('../../libopenmpt.js');
 
-let directPort = null;
-let sampleRate = 0;
-let modulePtr = 0;
-let ptrToFile = 0;
-let isPlaying = false;
-let repeatCount = -1;
-let leftBufferPtr = 0;
-let rightBufferPtr = 0;
-let renderedFrames = 0;
-
+let directPort = null, sampleRate = 0, modulePtr = 0, ptrToFile = 0, isPlaying = false;
+let repeatCount = -1, leftBufferPtr = 0, rightBufferPtr = 0, renderedFrames = 0;
 const CHUNK_FRAMES = 4096;
 
 function isEngineReady() {
   if (isRuntimeAborted) return false;
   if (isRuntimeVerified) return true;
-  if (typeof libopenmpt === 'undefined') return false;
-  if (!libopenmpt.HEAPU8 || libopenmpt.HEAPU8.length === 0) return false;
-  if (typeof libopenmpt._malloc !== 'function' || typeof libopenmpt._free !== 'function') return false;
-  if (typeof libopenmpt._openmpt_module_create_from_memory !== 'function') return false;
-  if (!isRuntimeReady && !libopenmpt.calledRun && !libopenmpt.asm) return false;
-
-  const probePtr = libopenmpt._malloc(4);
-  if (!probePtr) return false;
-  libopenmpt._free(probePtr);
-  isRuntimeVerified = true;
-  return true;
+  if (typeof libopenmpt === 'undefined' || !isRuntimeReady) return false;
+  try {
+    if (!libopenmpt.HEAPU8 || libopenmpt.HEAPU8.length === 0) return false;
+    if (typeof libopenmpt._malloc !== 'function' || typeof libopenmpt._free !== 'function') return false;
+    if (typeof libopenmpt._openmpt_module_create_from_memory !== 'function') return false;
+    const probePtr = libopenmpt._malloc(4);
+    if (!probePtr) return false;
+    libopenmpt._free(probePtr);
+    isRuntimeVerified = true;
+    return true;
+  } catch (err) {
+    return false;
+  }
 }
 
 function ensureScratchBuffers() {
@@ -84,20 +75,16 @@ function freeModule() {
 }
 
 function extractMetadata(mod) {
-  const meta = {};
-  const keys = ['title', 'artist', 'type_long', 'tracker', 'message'];
+  const meta = {}, keys = ['title', 'artist', 'type_long', 'tracker', 'message'];
   for (let i = 0; i < keys.length; i++) {
-    const k = keys[i];
-    meta[k] = libopenmpt.ccall('openmpt_module_get_metadata', 'string', ['number', 'string'], [mod, k]);
+    meta[keys[i]] = libopenmpt.ccall('openmpt_module_get_metadata', 'string', ['number', 'string'], [mod, keys[i]]);
   }
   if (!meta.type_long && !meta.tracker) throw new Error('OpenMPT failed to detect tracker format (type_long/tracker).');
 
   const ch = libopenmpt._openmpt_module_get_num_channels
     ? libopenmpt._openmpt_module_get_num_channels(mod)
     : libopenmpt.ccall('openmpt_module_get_num_channels', 'number', ['number'], [mod]);
-  if (typeof ch !== 'number' || ch <= 0) {
-    throw new Error(`OpenMPT reported invalid channel count: ${ch}`);
-  }
+  if (typeof ch !== 'number' || ch <= 0) throw new Error(`OpenMPT reported invalid channel count: ${ch}`);
   meta.channels = ch;
 
   libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [mod, 0]);
@@ -105,9 +92,7 @@ function extractMetadata(mod) {
     ? libopenmpt._openmpt_module_get_duration_seconds(mod)
     : libopenmpt.ccall('openmpt_module_get_duration_seconds', 'number', ['number'], [mod]);
 
-  if (!isFinite(rawDur) || rawDur <= 0) {
-    throw new Error(`Invalid duration reported by libopenmpt for module: ${rawDur}s`);
-  }
+  if (!isFinite(rawDur) || rawDur <= 0) throw new Error(`Invalid duration reported by libopenmpt: ${rawDur}s`);
   meta.duration = rawDur;
   return meta;
 }
@@ -117,13 +102,7 @@ function renderAndSendChunk() {
   ensureScratchBuffers();
 
   const chunkPos = renderedFrames / sampleRate;
-  const actual = libopenmpt._openmpt_module_read_float_stereo(
-    modulePtr,
-    sampleRate,
-    CHUNK_FRAMES,
-    leftBufferPtr,
-    rightBufferPtr
-  );
+  const actual = libopenmpt._openmpt_module_read_float_stereo(modulePtr, sampleRate, CHUNK_FRAMES, leftBufferPtr, rightBufferPtr);
 
   if (actual === 0) {
     isPlaying = false;
@@ -132,13 +111,9 @@ function renderAndSendChunk() {
   }
 
   renderedFrames += actual;
-
   const heapF32 = libopenmpt.HEAPF32;
-  const baseL = leftBufferPtr >> 2;
-  const baseR = rightBufferPtr >> 2;
-
-  const leftArray = new Float32Array(actual);
-  const rightArray = new Float32Array(actual);
+  const baseL = leftBufferPtr >> 2, baseR = rightBufferPtr >> 2;
+  const leftArray = new Float32Array(actual), rightArray = new Float32Array(actual);
 
   for (let i = 0; i < actual; i++) {
     let sL = heapF32[baseL + i], sR = heapF32[baseR + i];
@@ -168,7 +143,9 @@ function waitForEngine(callback, errback, attempts) {
     if (errback) errback(new Error(abortErrorMessage ? abortErrorMessage : 'DSP engine aborted.'));
     return;
   }
-  if (isEngineReady()) {
+  let ready = false;
+  try { ready = isEngineReady(); } catch (e) { ready = false; }
+  if (ready) {
     callback();
   } else if (tries < 300) {
     setTimeout(() => waitForEngine(callback, errback, tries + 1), 50);
@@ -187,32 +164,20 @@ self.onmessage = function(e) {
     directPort = data.port;
     sampleRate = data.sampleRate;
     directPort.onmessage = (msgEvent) => {
-      if (!msgEvent.data) return;
-      if (msgEvent.data.type === 'pull') renderBatch(msgEvent.data.count ? msgEvent.data.count : 1);
+      if (msgEvent.data && msgEvent.data.type === 'pull') renderBatch(msgEvent.data.count ? msgEvent.data.count : 1);
     };
   } else if (data.action === 'load') {
     freeModule();
-
     waitForEngine(() => {
       try {
         const byteArray = new Uint8Array(data.buffer);
-        if (!byteArray || byteArray.byteLength === 0) {
-          self.postMessage({ type: 'error', message: 'Empty module buffer received.' });
-          return;
-        }
+        if (!byteArray || byteArray.byteLength === 0) throw new Error('Empty module buffer received.');
         ptrToFile = libopenmpt._malloc(byteArray.byteLength);
-        if (!ptrToFile) {
-          self.postMessage({ type: 'error', message: 'Failed to allocate memory for module buffer.' });
-          return;
-        }
+        if (!ptrToFile) throw new Error('Failed to allocate memory for module buffer.');
         libopenmpt.HEAPU8.set(byteArray, ptrToFile);
 
         modulePtr = libopenmpt._openmpt_module_create_from_memory(ptrToFile, byteArray.byteLength, 0, 0, 0);
-        if (!modulePtr) {
-          freeModule();
-          self.postMessage({ type: 'error', message: 'Could not parse tracker module (libopenmpt returned null pointer).' });
-          return;
-        }
+        if (!modulePtr) throw new Error('Could not parse tracker module (libopenmpt returned null pointer).');
 
         libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 3, 4]);
         libopenmpt.ccall('openmpt_module_set_render_param', 'number', ['number', 'number', 'number'], [modulePtr, 4, 5]);
@@ -253,6 +218,13 @@ self.onmessage = function(e) {
     repeatCount = data.repeatCount;
     if (modulePtr) libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [modulePtr, repeatCount]);
   } else if (data.action === 'stop') {
+    isPlaying = false;
+    renderedFrames = 0;
+    if (modulePtr) {
+      libopenmpt.ccall('openmpt_module_set_position_seconds', 'number', ['number', 'number'], [modulePtr, 0]);
+    }
+    if (directPort) directPort.postMessage({ type: 'flush', position: 0 });
+  } else if (data.action === 'unload') {
     freeModule();
     if (directPort) directPort.postMessage({ type: 'flush', position: 0 });
   }

@@ -215,6 +215,20 @@
       this.currentPlayingNode.paused = true;
       this.currentPlayingNode = null;
     }
+    this.currentPosition = 0;
+    this.fireEvent('onStop');
+  };
+
+  ChiptuneJsPlayer.prototype.unload = function() {
+    if (this.dspWorker) this.dspWorker.postMessage({ action: 'unload' });
+    if (this.workletNode) {
+      this.workletNode.port.postMessage({ type: 'flush', position: 0 });
+      this.workletNode.port.postMessage({ type: 'pause' });
+    }
+    if (this.currentPlayingNode) {
+      this.currentPlayingNode.paused = true;
+      this.currentPlayingNode = null;
+    }
     this.currentMetadata = null;
     this.cachedDuration = 0;
     this.currentPosition = 0;
@@ -241,7 +255,7 @@
     if (typeof seconds !== 'number' || !isFinite(seconds) || seconds < 0) throw new Error(`Invalid seek time: ${seconds}`);
     this.currentPosition = seconds;
     if (this.workletNode) this.workletNode.port.postMessage({ type: 'seek', position: seconds });
-    if (this.dspWorker && this.currentPlayingNode) this.dspWorker.postMessage({ action: 'seek', seconds });
+    if (this.dspWorker) this.dspWorker.postMessage({ action: 'seek', seconds });
   };
 
   ChiptuneJsPlayer.prototype.getPosition = function() {

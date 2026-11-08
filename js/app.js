@@ -7,32 +7,22 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const { player, audioEl } = window.XMAudio;
-  if (window.XMVisualizer && window.XMVisualizer.start) window.XMVisualizer.start(player);
-  if (window.AudioCompiler && window.AudioCompiler.init) window.AudioCompiler.init();
-  if (window.XMCache && window.XMCache.init) window.XMCache.init();
-  if (window.XMPrecompiler && window.XMPrecompiler.init) window.XMPrecompiler.init();
+  if (window.XMVisualizer?.start) window.XMVisualizer.start(player);
+  if (window.AudioCompiler?.init) window.AudioCompiler.init();
+  if (window.XMCache?.init) window.XMCache.init();
+  if (window.XMPrecompiler?.init) window.XMPrecompiler.init();
 
-  let isSeeking = false, prevVolume = 0.85, lastReportedSec = -1, lastReportedTotalSec = -1, progressTimerId = null;
-  let deferredInstallPrompt = null;
+  let isSeeking = false, prevVolume = 0.85, lastReportedSec = -1, lastReportedTotalSec = -1, progressTimerId = null, deferredInstallPrompt = null;
 
-  const btnPlayPause = document.getElementById('btnPlayPause');
-  const svgPlay = document.getElementById('svgPlay'), svgPause = document.getElementById('svgPause');
-  const btnPrev = document.getElementById('btnPrev'), btnNext = document.getElementById('btnNext');
-  const btnPlayRandom = document.getElementById('btnPlayRandom'), btnLocateTrack = document.getElementById('btnLocateTrack');
-  const modeSwitchSlider = document.getElementById('modeSwitchSlider');
-  const btnDeckFav = document.getElementById('btnDeckFav'), btnDeckAddPl = document.getElementById('btnDeckAddPl');
-  const btnUnload = document.getElementById('btnUnload'), progressBar = document.getElementById('progressBar');
-  const timeCurrent = document.getElementById('timeCurrent'), timeTotal = document.getElementById('timeTotal');
-  const volSlider = document.getElementById('volSlider'), volPercent = document.getElementById('volPercent');
-  const btnMute = document.getElementById('btnMute'), songTitle = document.getElementById('songTitle');
-  const songArtist = document.getElementById('songArtist'), modType = document.getElementById('modType');
-  const badgeEngine = document.querySelector('.badge-engine'), channels = document.getElementById('channels');
-  const playbackBadge = document.getElementById('playbackBadge'), playbackStatus = document.getElementById('playbackStatus');
-  const compileBadge = document.getElementById('compileBadge'), compileStatus = document.getElementById('compileStatus');
-  const miniTrackNum = document.getElementById('miniTrackNum');
-  const btnToggleLeft = document.getElementById('btnToggleLeft'), btnToggleRight = document.getElementById('btnToggleRight');
-  const panelLeft = document.getElementById('panelLeft'), dropZone = document.getElementById('dropZone');
-  const readoutPanel = document.getElementById('readoutPanel');
+  const btnPlayPause = document.getElementById('btnPlayPause'), svgPlay = document.getElementById('svgPlay'), svgPause = document.getElementById('svgPause');
+  const btnPrev = document.getElementById('btnPrev'), btnNext = document.getElementById('btnNext'), btnPlayRandom = document.getElementById('btnPlayRandom'), btnLocateTrack = document.getElementById('btnLocateTrack');
+  const modeSwitchSlider = document.getElementById('modeSwitchSlider'), btnDeckFav = document.getElementById('btnDeckFav'), btnDeckAddPl = document.getElementById('btnDeckAddPl');
+  const btnUnload = document.getElementById('btnUnload'), progressBar = document.getElementById('progressBar'), timeCurrent = document.getElementById('timeCurrent'), timeTotal = document.getElementById('timeTotal');
+  const volSlider = document.getElementById('volSlider'), volPercent = document.getElementById('volPercent'), btnMute = document.getElementById('btnMute'), songTitle = document.getElementById('songTitle');
+  const songArtist = document.getElementById('songArtist'), modType = document.getElementById('modType'), badgeEngine = document.querySelector('.badge-engine'), channels = document.getElementById('channels');
+  const playbackBadge = document.getElementById('playbackBadge'), playbackStatus = document.getElementById('playbackStatus'), compileBadge = document.getElementById('compileBadge'), compileStatus = document.getElementById('compileStatus');
+  const miniTrackNum = document.getElementById('miniTrackNum'), btnToggleLeft = document.getElementById('btnToggleLeft'), btnToggleRight = document.getElementById('btnToggleRight');
+  const panelLeft = document.getElementById('panelLeft'), dropZone = document.getElementById('dropZone'), readoutPanel = document.getElementById('readoutPanel');
   const btnInstallApp = document.getElementById('btnInstallApp'), mobileInstallRow = document.getElementById('mobileInstallRow');
 
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
@@ -69,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (modeSwitchSlider) {
     modeSwitchSlider.addEventListener('click', (e) => {
       const btn = e.target.closest('.mode-switch-btn');
-      if (btn && btn.dataset.mode && window.XMQueue) window.XMQueue.setPlayMode(btn.dataset.mode);
+      if (btn?.dataset.mode && window.XMQueue) window.XMQueue.setPlayMode(btn.dataset.mode);
     });
   }
 
@@ -79,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     panelLeft.classList.remove('mobile-hide');
     dropZone.classList.remove('mobile-hide');
     dropZone.classList.add('mobile-mini');
-    if (window.XMLibrary && window.XMLibrary.refreshScroller) window.XMLibrary.refreshScroller();
+    if (window.XMLibrary?.refreshScroller) window.XMLibrary.refreshScroller();
     if (window.XMVisualizer) window.XMVisualizer.sleep();
   }
 
@@ -106,21 +96,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function formatTime(sec) {
     if (typeof sec !== 'number' || isNaN(sec) || !isFinite(sec) || sec < 0) return '00:00';
-    const totalSec = Math.floor(sec);
-    const m = Math.floor(totalSec / 60), s = totalSec % 60;
+    const totalSec = Math.floor(sec), m = Math.floor(totalSec / 60), s = totalSec % 60;
     return `${m < 10 ? '0' : ''}${m}:${s < 10 ? '0' : ''}${s}`;
   }
 
-  function resetTimeline() {
+  function resetTimeline(keepTotal = false) {
     progressBar.value = 0;
     progressBar.style.setProperty('--progress', '0%');
-    progressBar.disabled = true;
     timeCurrent.textContent = '00:00';
-    timeTotal.textContent = '00:00';
     lastReportedSec = -1;
-    lastReportedTotalSec = -1;
-    const progressTrack = document.getElementById('readoutProgressTrack');
-    const progressBarEl = document.getElementById('readoutProgressBar');
+    if (!keepTotal) {
+      progressBar.disabled = true;
+      timeTotal.textContent = '00:00';
+      lastReportedTotalSec = -1;
+    } else {
+      const dur = window.XMAudio ? window.XMAudio.getDuration() : 0;
+      if (dur > 0 && isFinite(dur)) {
+        timeTotal.textContent = formatTime(dur);
+        progressBar.disabled = false;
+      }
+    }
+    const progressTrack = document.getElementById('readoutProgressTrack'), progressBarEl = document.getElementById('readoutProgressBar');
     if (progressTrack) progressTrack.classList.add('hide');
     if (progressBarEl) progressBarEl.style.width = '0%';
   }
@@ -130,8 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const dur = window.XMAudio.getDuration(), cur = window.XMAudio.getPosition();
     if (dur > 0 && isFinite(dur)) {
       if (progressBar.disabled) progressBar.disabled = false;
-      const safeCur = Math.min(dur, Math.max(0, cur));
-      const pct = (safeCur / dur) * 100;
+      const safeCur = Math.min(dur, Math.max(0, cur)), pct = (safeCur / dur) * 100;
       progressBar.value = pct;
       progressBar.style.setProperty('--progress', `${pct}%`);
       const curSec = safeCur | 0, totSec = dur | 0;
@@ -188,7 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.hidden) {
       stopProgressLoop();
       if (window.XMVisualizer) window.XMVisualizer.sleep();
-    } else if (window.XMAudio && window.XMAudio.isPlaying()) {
+    } else if (window.XMAudio?.isPlaying()) {
       startProgressLoop();
       updateProgress();
       if (window.XMVisualizer) window.XMVisualizer.wake(player);
@@ -204,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
       playbackStatus.textContent = 'ENGINE';
     } else if (s === 'loaded' || s === 'mp3') {
       playbackBadge.classList.add('status-loaded', 'status-mp3');
-      const fmt = (window.XMExport && window.XMExport.getActiveFormat) ? window.XMExport.getActiveFormat().toUpperCase() : 'MP3';
+      const fmt = window.XMExport?.getActiveFormat ? window.XMExport.getActiveFormat().toUpperCase() : 'MP3';
       playbackStatus.textContent = (fmt === 'WAV') ? 'WAV' : 'MP3';
     } else {
       playbackStatus.textContent = s.toUpperCase();
@@ -232,8 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateDeckFavState() {
-    const t = getCurrentDeckTrack();
-    const isLoaded = Boolean(t);
+    const t = getCurrentDeckTrack(), isLoaded = Boolean(t);
     if (btnDeckFav) btnDeckFav.disabled = !isLoaded;
     if (btnDeckAddPl) btnDeckAddPl.disabled = !isLoaded;
     if (btnLocateTrack) btnLocateTrack.disabled = !isLoaded;
@@ -253,7 +247,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!t || !window.XMPlaylist) return;
       window.XMPlaylist.toggleFavorite(t);
       updateDeckFavState();
-      if (window.XMLibrary && window.XMLibrary.renderCurrentTab) window.XMLibrary.renderCurrentTab();
+      if (window.XMLibrary?.renderCurrentTab) window.XMLibrary.renderCurrentTab();
     });
   }
 
@@ -269,7 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const t = getCurrentDeckTrack();
       if (!t || !t.id) return;
       if (window.innerWidth <= 900) showMobileArchiveView();
-      if (window.XMLibrary && window.XMLibrary.jumpToArchiveTrack) window.XMLibrary.jumpToArchiveTrack(t.id);
+      if (window.XMLibrary?.jumpToArchiveTrack) window.XMLibrary.jumpToArchiveTrack(t.id);
     });
   }
 
@@ -279,20 +273,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnPlayRandom) {
     btnPlayRandom.addEventListener('click', () => {
-      let played = window.XMLibrary && window.XMLibrary.playRandomArchiveTrack ? Boolean(window.XMLibrary.playRandomArchiveTrack()) : false;
-      if (!played && window.XMAudio && window.XMAudio.playRandomTrack) window.XMAudio.playRandomTrack();
+      let played = window.XMLibrary?.playRandomArchiveTrack ? Boolean(window.XMLibrary.playRandomArchiveTrack()) : false;
+      if (!played && window.XMAudio?.playRandomTrack) window.XMAudio.playRandomTrack();
     });
   }
 
   btnUnload.addEventListener('click', () => {
     try {
-      if (window.XMExport && window.XMExport.cancelExport) window.XMExport.cancelExport();
+      if (window.XMExport?.cancelExport) window.XMExport.cancelExport();
       if (window.XMPrecompiler) window.XMPrecompiler.cancel();
       window.XMAudio.unload();
     } catch (err) {
       console.error('[App] Error during track unload:', err);
     }
-    if (window.XMVisualizer && window.XMVisualizer.clear) window.XMVisualizer.clear();
+    if (window.XMVisualizer?.clear) window.XMVisualizer.clear();
 
     songTitle.textContent = 'No Module Loaded';
     songArtist.textContent = 'Ready for FastTracker II / Audio input';
@@ -300,11 +294,10 @@ document.addEventListener('DOMContentLoaded', () => {
     modType.textContent = 'NONE';
     if (badgeEngine) { badgeEngine.classList.add('engine-none'); badgeEngine.classList.remove('engine-error'); }
     channels.textContent = '--';
-    const rateBadge = document.getElementById('rateBadge');
+    const rateBadge = document.getElementById('rateBadge'), qualityBadge = document.getElementById('qualityBadge');
     if (rateBadge) rateBadge.textContent = '--';
-    const qualityBadge = document.getElementById('qualityBadge');
     if (qualityBadge) qualityBadge.textContent = '--';
-    resetTimeline();
+    resetTimeline(false);
     const btnDownload = document.getElementById('btnDownload');
     if (btnDownload) btnDownload.disabled = true;
     if (btnLocateTrack) btnLocateTrack.disabled = true;
@@ -312,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setCompileStatus('idle');
     setPlayingState(false);
     updateDeckFavState();
-    if (window.XMLibrary && window.XMLibrary.notifyPlaying) window.XMLibrary.notifyPlaying(null);
+    if (window.XMLibrary?.notifyPlaying) window.XMLibrary.notifyPlaying(null);
   });
 
   progressBar.addEventListener('input', () => {
@@ -405,8 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
         channels.textContent = (!isError && numOnly && numOnly !== '--') ? `${numOnly}CH` : '--';
       }
       if (!window.XMExport) throw new Error('XMExport module is missing.');
-      const fmt = window.XMExport.getActiveFormat();
-      const qualityBadge = document.getElementById('qualityBadge');
+      const fmt = window.XMExport.getActiveFormat(), qualityBadge = document.getElementById('qualityBadge');
       if (qualityBadge) {
         qualityBadge.textContent = isError
           ? '--'
@@ -431,7 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     onTrackEnded: () => {
       setPlayingState(false);
-      resetTimeline();
+      resetTimeline(true);
     }
   };
 });

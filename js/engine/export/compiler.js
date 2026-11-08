@@ -64,11 +64,7 @@
         if (onError) onError(err);
       };
 
-      if (!window.XMAudio?.player?.context?.sampleRate) {
-        throw new Error('AudioContext is not initialized or missing sampleRate property.');
-      }
-      const targetSampleRate = window.XMAudio.player.context.sampleRate;
-
+      const targetSampleRate = window.XMAudio?.player?.context?.sampleRate || 48000;
       const copy = buffer.slice(0);
       currentWorker.postMessage({
         type: 'compile',
