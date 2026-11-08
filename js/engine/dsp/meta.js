@@ -3,12 +3,35 @@
  */
 (function(window) {
   const NATIVE_STREAM_EXTS = new Set(['.mp3', '.ogg', '.wav', '.flac', '.aac', '.m4a', '.weba']);
-  const SUPPORTED_EXTS = new Set([
+
+  const TRACKER_EXTS = new Set([
     'xm', 'mod', 'it', 's3m', 'mtm', 'mo3', 'med', '669', 'far', 'ptm',
     'amf', 'ams', 'dbm', 'digi', 'dmf', 'dsm', 'dtm', 'gdm', 'imf', 'j2b',
-    'mptm', 'okt', 'plm', 'psm', 'sfx', 'stm', 'ult', 'umx', 'mdl', 'stp',
-    'v2m', 'ahx', 'sid', 'mid', 'midi', 'mp3', 'ogg', 'wav', 'flac', 'aac', 'm4a', 'weba'
+    'mptm', 'okt', 'plm', 'psm', 'sfx', 'stm', 'ult', 'umx', 'mdl', 'stp'
   ]);
+
+  const NATIVE_EXTS = new Set([
+    'mp3', 'ogg', 'wav', 'flac', 'aac', 'm4a', 'weba'
+  ]);
+
+  const SUPPORTED_EXTS = new Set([...TRACKER_EXTS, ...NATIVE_EXTS]);
+
+  function isSupportedFormat(extOrTrack) {
+    if (!extOrTrack) return false;
+    let ext = '';
+    if (typeof extOrTrack === 'string') {
+      ext = extOrTrack.replace(/^\.+/, '').trim().toLowerCase();
+    } else if (typeof extOrTrack === 'object') {
+      if (extOrTrack.ext) {
+        ext = String(extOrTrack.ext).replace(/^\.+/, '').trim().toLowerCase();
+      } else if (extOrTrack.path || extOrTrack.url) {
+        const str = extOrTrack.path ? extOrTrack.path : extOrTrack.url;
+        const match = str.match(/\.([a-z0-9]+)$/i);
+        if (match) ext = match[1].toLowerCase();
+      }
+    }
+    return SUPPORTED_EXTS.has(ext);
+  }
 
   function parseTrackInfo(filename, internalMeta) {
     if (!filename && (!internalMeta || !internalMeta.title)) {
@@ -78,6 +101,9 @@
   window.XMMeta = {
     NATIVE_STREAM_EXTS,
     SUPPORTED_EXTS,
+    TRACKER_EXTS,
+    NATIVE_EXTS,
+    isSupportedFormat,
     parseTrackInfo,
     getDetailedTrackerEngine,
     resolveTrackerEngine

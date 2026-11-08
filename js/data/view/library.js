@@ -3,26 +3,14 @@
  */
 (function(window) {
   const POOL_SIZE = 32;
-  let activeTab = 'archive';
-  let renderedTab = null;
-  let currentlyPlayingId = null;
-  let activeRenderQueue = [];
-  let searchDebounceTimer = null;
-  let scroller = null;
-  let cardPool = [];
-  let emptyMsgEl = null;
+  let activeTab = 'archive', renderedTab = null, currentlyPlayingId = null;
+  let activeRenderQueue = [], searchDebounceTimer = null, scroller = null, cardPool = [], emptyMsgEl = null;
 
-  const tableBody = document.getElementById('kmTableBody');
-  const countBadge = document.getElementById('leftCountBadge');
-  const searchInput = document.getElementById('leftSearchInput');
-  const searchBarWrap = document.getElementById('searchBarWrap');
-  const tabArchive = document.getElementById('tabArchive');
-  const tabPlaylists = document.getElementById('tabPlaylists');
-  const tabFavs = document.getElementById('tabFavorites');
-  const tabSource = document.getElementById('tabSource');
-  const paneTable = document.getElementById('paneTable');
-  const panePlaylists = document.getElementById('panePlaylists');
-  const paneSource = document.getElementById('paneSource');
+  const tableBody = document.getElementById('kmTableBody'), countBadge = document.getElementById('leftCountBadge');
+  const searchInput = document.getElementById('leftSearchInput'), searchBarWrap = document.getElementById('searchBarWrap');
+  const tabArchive = document.getElementById('tabArchive'), tabPlaylists = document.getElementById('tabPlaylists');
+  const tabFavs = document.getElementById('tabFavorites'), tabSource = document.getElementById('tabSource');
+  const paneTable = document.getElementById('paneTable'), panePlaylists = document.getElementById('panePlaylists'), paneSource = document.getElementById('paneSource');
 
   function ensureDomPool() {
     if (cardPool.length > 0) return;
@@ -110,8 +98,7 @@
 
         const isFavFn = window.XMPlaylist ? window.XMPlaylist.isFavorited : () => false;
         for (let idx = start; idx < end; idx++) {
-          const slot = cardPool[idx % POOL_SIZE];
-          const track = activeRenderQueue[idx];
+          const slot = cardPool[idx % POOL_SIZE], track = activeRenderQueue[idx];
           if (forceRebuild || slot._renderedIdx !== idx || slot._trackId !== track.id) {
             updatePoolSlot(slot, track, idx, currentlyPlayingId === track.id, isFavFn(track.id));
           }
@@ -137,8 +124,7 @@
   tableBody.addEventListener('click', (e) => {
     const card = e.target.closest('.track-card');
     if (!card) return;
-    const idx = parseInt(card.dataset.idx, 10);
-    const track = activeRenderQueue[idx];
+    const idx = parseInt(card.dataset.idx, 10), track = activeRenderQueue[idx];
     if (!track) return;
     const actionBtn = e.target.closest('.km-btn-icon');
     if (actionBtn) {
@@ -197,9 +183,7 @@
     }
     const idx = activeRenderQueue.findIndex((t) => t.id === trackId);
     if (idx >= 0 && scroller) {
-      setTimeout(() => {
-        if (scroller) scroller.scrollToIndex(idx);
-      }, 50);
+      setTimeout(() => { if (scroller) scroller.scrollToIndex(idx); }, 50);
     }
   }
 
@@ -211,11 +195,26 @@
       return false;
     }
 
-    let randIdx = Math.floor(Math.random() * activeRenderQueue.length);
-    if (activeRenderQueue.length > 1 && currentlyPlayingId) {
-      const curIdx = activeRenderQueue.findIndex((t) => t.id === currentlyPlayingId);
-      if (curIdx === randIdx) randIdx = (randIdx + 1) % activeRenderQueue.length;
+    const isPlayable = (t) => window.XMMeta && window.XMMeta.isSupportedFormat ? window.XMMeta.isSupportedFormat(t) : true;
+    const playableIndices = [];
+    for (let i = 0; i < activeRenderQueue.length; i++) {
+      if (isPlayable(activeRenderQueue[i])) playableIndices.push(i);
     }
+
+    if (playableIndices.length === 0) {
+      const err = new Error('No supported playable tracks available in current view.');
+      console.error('[XMLibrary]', err);
+      alert('Random Play Error: ' + err.message);
+      return false;
+    }
+
+    let candidates = playableIndices;
+    if (playableIndices.length > 1 && currentlyPlayingId) {
+      const withoutCurrent = playableIndices.filter((idx) => activeRenderQueue[idx].id !== currentlyPlayingId);
+      if (withoutCurrent.length > 0) candidates = withoutCurrent;
+    }
+
+    const randIdx = candidates[Math.floor(Math.random() * candidates.length)];
     const track = activeRenderQueue[randIdx];
     playTrack(track, activeRenderQueue, randIdx);
     if (activeTab === 'archive' && scroller) {

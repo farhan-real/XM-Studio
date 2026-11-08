@@ -1,5 +1,5 @@
 /**
- * js/data/playlistui.js - Playlist detail view, item rendering, and modal collection picker.
+ * js/data/playlist/playlistui.js - Playlist detail view, item rendering, and modal collection picker.
  */
 (function(window) {
   let currentPlaylistId = null;
@@ -36,7 +36,7 @@
 
   function showPrompt(title, defaultVal, placeholder, onConfirm) {
     modalTitle.textContent = title;
-    modalBody.innerHTML = `<input type="text" class="modal-input" id="modalInputBox" value="${defaultVal || ''}" placeholder="${placeholder || ''}" />`;
+    modalBody.innerHTML = `<input type="text" class="modal-input" id="modalInputBox" value="${defaultVal ? defaultVal : ''}" placeholder="${placeholder ? placeholder : ''}" />`;
     modalFooter.innerHTML = `<button class="action-btn action-btn-secondary" id="btnModalCancel"><span>Cancel</span></button><button class="action-btn" id="btnModalSubmit"><span>Confirm</span></button>`;
     modalBackdrop.classList.remove('hide');
     const input = document.getElementById('modalInputBox');
@@ -84,7 +84,7 @@
     }
     const isFavFn = window.XMPlaylist.isFavorited;
     const getBadge = window.XMLibrary.getFormatBadgeClass;
-    playlistItemsWrap.innerHTML = pl.tracks.map((track, idx) => `<div class="track-card ${isFavFn(track.id) ? 'is-favorite' : ''}" data-pl-track-idx="${idx}" data-track-id="${track.id}"><span class="track-card-num">${idx + 1}</span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${getBadge(track.ext)}">${track.ext || 'XM'}</span></div><div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions"><button class="km-btn-icon" data-action="remove-added" title="Remove"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div></div></div></div>`).join('');
+    playlistItemsWrap.innerHTML = pl.tracks.map((track, idx) => `<div class="track-card ${isFavFn(track.id) ? 'is-favorite' : ''}" data-pl-track-idx="${idx}" data-track-id="${track.id}"><span class="track-card-num">${idx + 1}</span><div class="track-card-content"><div class="track-card-row1"><span class="track-card-title">${track.title}</span><span class="fmt-badge ${getBadge(track.ext)}">${track.ext}</span></div><div class="track-card-row2"><span class="track-card-artist">${track.artist}</span><div class="track-card-actions"><button class="km-btn-icon" data-action="remove-added" title="Remove"><svg viewBox="0 0 24 24" class="t-icon-xs"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></div></div></div></div>`).join('');
   }
 
   playlistItemsWrap.addEventListener('click', (e) => {
@@ -132,8 +132,7 @@
     document.getElementById('btnModalCloseOnly').addEventListener('click', closeModal);
     modalBackdrop.classList.remove('hide');
 
-    const colList = document.getElementById('modalColList');
-    const colSearch = document.getElementById('modalColSearch');
+    const colList = document.getElementById('modalColList'), colSearch = document.getElementById('modalColSearch');
     const fullCatalog = window.XMLibrary.getFullCatalog();
     let currentModalItems = [];
 
@@ -223,12 +222,24 @@
     btnShufflePlaylist.addEventListener('click', () => {
       if (!currentPlaylistId) return;
       const pl = window.XMPlaylist.getPlaylists().find(p => p.id === currentPlaylistId);
-      if (pl && pl.tracks.length > 0 && window.XMLibrary.playTrackDirect) {
-        pl.tracks._playlistId = pl.id;
-        if (window.XMAudio && !window.XMAudio.isShuffle) { window.XMAudio.toggleShuffle(); const b = document.getElementById('btnShuffle'); if (b) b.classList.add('active'); }
-        const s = Math.floor(Math.random() * pl.tracks.length);
-        window.XMLibrary.playTrackDirect(pl.tracks[s], pl.tracks, s);
+      if (!pl || pl.tracks.length === 0 || !window.XMLibrary.playTrackDirect) return;
+      pl.tracks._playlistId = pl.id;
+
+      const isPlayable = (t) => window.XMMeta && window.XMMeta.isSupportedFormat ? window.XMMeta.isSupportedFormat(t) : true;
+      const playableIndices = [];
+      for (let i = 0; i < pl.tracks.length; i++) {
+        if (isPlayable(pl.tracks[i])) playableIndices.push(i);
       }
+      if (playableIndices.length === 0) {
+        alert('Playlist Error: No supported playable tracks in this playlist.');
+        return;
+      }
+
+      if (window.XMQueue && window.XMQueue.playMode !== 'shuffle') {
+        window.XMQueue.setPlayMode('shuffle');
+      }
+      const s = playableIndices[Math.floor(Math.random() * playableIndices.length)];
+      window.XMLibrary.playTrackDirect(pl.tracks[s], pl.tracks, s);
     });
   }
   btnModifyPlaylist.addEventListener('click', () => {

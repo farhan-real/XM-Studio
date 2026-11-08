@@ -19,6 +19,17 @@
   let shuffleSequence = [];
   let shufflePos = 0;
 
+  function isTrackPlayable(track) {
+    if (!track) return false;
+    if (window.XMMeta && typeof window.XMMeta.isSupportedFormat === 'function') {
+      return window.XMMeta.isSupportedFormat(track);
+    }
+    if (!track.ext) return false;
+    const e = String(track.ext).replace(/^\.+/, '').trim().toLowerCase();
+    const unsupported = new Set(['v2m', 'ahx', 'sid', 'mid', 'midi', 'sap', 'ym', 'nsf', 'spc']);
+    return !unsupported.has(e);
+  }
+
   function rebuildShuffleSequence() {
     if (!currentQueue || currentQueue.length === 0) {
       shuffleSequence = [];
@@ -27,7 +38,12 @@
     }
     const indices = [];
     for (let i = 0; i < currentQueue.length; i++) {
-      if (i !== currentQueueIdx) indices.push(i);
+      if (i !== currentQueueIdx && isTrackPlayable(currentQueue[i])) {
+        indices.push(i);
+      }
+    }
+    if (indices.length === 0 && currentQueueIdx >= 0 && isTrackPlayable(currentQueue[currentQueueIdx])) {
+      indices.push(currentQueueIdx);
     }
     for (let i = indices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -53,14 +69,14 @@
       window.XMAudio.player.setRepeat(isLooping);
     }
     if (isShuffle) rebuildShuffleSequence();
-    if (window.XMApp?.syncPlayModeUI) window.XMApp.syncPlayModeUI(playMode);
+    if (window.XMApp && window.XMApp.syncPlayModeUI) window.XMApp.syncPlayModeUI(playMode);
     return playMode;
   }
 
   function setQueue(queue, idx, queueId) {
-    currentQueue = queue || null;
+    currentQueue = queue ? queue : null;
     currentQueueIdx = (idx !== undefined) ? idx : -1;
-    currentQueueId = queueId || (queue && queue._playlistId) || null;
+    currentQueueId = queueId ? queueId : ((queue && queue._playlistId) ? queue._playlistId : null);
     const cur = (queue && typeof idx === 'number' && queue[idx]) ? queue[idx] : null;
     currentTrackNum = (cur && cur.catalogIndex) ? cur.catalogIndex : ((typeof idx === 'number' && idx >= 0) ? (idx + 1) : 0);
     rebuildShuffleSequence();
@@ -73,20 +89,21 @@
 
   function getUpcomingTracks(count = 2) {
     if (playMode === 'stop' || !currentQueue || currentQueue.length <= 1) return [];
-    const targetCount = Math.min(count, currentQueue.length - 1);
     const upcoming = [];
     if (playMode === 'shuffle') {
       if (shuffleSequence.length === 0 || shufflePos >= shuffleSequence.length) {
         rebuildShuffleSequence();
       }
-      for (let i = 0; i < targetCount; i++) {
+      for (let i = 0; i < shuffleSequence.length && upcoming.length < count; i++) {
         const idx = shuffleSequence[(shufflePos + i) % shuffleSequence.length];
-        if (currentQueue[idx]) upcoming.push(currentQueue[idx]);
+        const t = currentQueue[idx];
+        if (t && isTrackPlayable(t)) upcoming.push(t);
       }
     } else {
-      for (let i = 1; i <= targetCount; i++) {
+      for (let i = 1; i < currentQueue.length && upcoming.length < count; i++) {
         const idx = (currentQueueIdx + i) % currentQueue.length;
-        if (currentQueue[idx]) upcoming.push(currentQueue[idx]);
+        const t = currentQueue[idx];
+        if (t && isTrackPlayable(t)) upcoming.push(t);
       }
     }
     return upcoming;
@@ -98,12 +115,12 @@
       if (item.path.startsWith('http://') || item.path.startsWith('https://')) return item.path;
       return 'https://farhan-real.github.io/XM-Music/' + encodeURI(item.path.replace(/^\/+/, ''));
     }
-    throw new Error(`Track "${item.title || item.id}" has no valid url or path defined.`);
+    throw new Error(`Track "${item.title ? item.title : item.id}" has no valid url or path defined.`);
   }
 
   async function playTrackAt(idx) {
     if (!currentQueue || idx < 0 || idx >= currentQueue.length) {
-      throw new Error(`Cannot play track: index ${idx} out of queue bounds (0..${currentQueue ? currentQueue.length - 1 : 0}).`);
+      throw new Error(`Cannot play track: index ${idx} out of queue bounds.`);
     }
     if (window.XMAudio && window.XMAudio.player) window.XMAudio.player.unlock();
     const item = currentQueue[idx];
@@ -112,11 +129,11 @@
       let blob = item.blob;
       if (!blob && window.XMCustom) blob = await window.XMCustom.getTrackBlob(item.id);
       if (!blob) throw new Error(`Custom track blob not found in IndexedDB: "${item.title}"`);
-      window.XMAudio.loadTrack(blob, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, currentQueue, idx);
+      window.XMAudio.loadTrack(blob, `${item.artist} - ${item.title}.${(item.ext ? item.ext : 'xm').toLowerCase()}`, item, currentQueue, idx);
       return;
     }
     const targetUrl = resolveTrackUrl(item);
-    window.XMAudio.loadTrack(targetUrl, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, currentQueue, idx);
+    window.XMAudio.loadTrack(targetUrl, `${item.artist} - ${item.title}.${(item.ext ? item.ext : 'xm').toLowerCase()}`, item, currentQueue, idx);
   }
 
   function ensureQueue() {
@@ -130,7 +147,7 @@
       }
       currentQueue = cat;
       currentQueueIdx = -1;
-      currentQueueId = cat._playlistId || null;
+      currentQueueId = cat._playlistId ? cat._playlistId : null;
       rebuildShuffleSequence();
     }
   }
@@ -160,10 +177,18 @@
           return;
         }
       }
-      playTrackAt(currentQueueIdx >= 0 && currentQueueIdx + 1 < currentQueue.length ? currentQueueIdx + 1 : 0);
-      return;
+      let nextIdx = (currentQueueIdx >= 0 && currentQueueIdx + 1 < currentQueue.length) ? currentQueueIdx + 1 : 0;
+      let count = 0;
+      while (count < currentQueue.length && !isTrackPlayable(currentQueue[nextIdx])) {
+        nextIdx = (nextIdx + 1) % currentQueue.length;
+        count++;
+      }
+      if (count < currentQueue.length) {
+        playTrackAt(nextIdx);
+        return;
+      }
     }
-    const err = new Error('Cannot play next track: Queue is empty.');
+    const err = new Error('Cannot play next track: No supported playable tracks in queue.');
     console.error('[XMQueue]', err);
     alert('Queue Error: ' + err.message);
   }
@@ -183,24 +208,50 @@
         return;
       }
     }
-    playTrackAt(currentQueueIdx > 0 ? currentQueueIdx - 1 : currentQueue.length - 1);
+    let prevIdx = currentQueueIdx > 0 ? currentQueueIdx - 1 : currentQueue.length - 1;
+    let count = 0;
+    while (count < currentQueue.length && !isTrackPlayable(currentQueue[prevIdx])) {
+      prevIdx = prevIdx > 0 ? prevIdx - 1 : currentQueue.length - 1;
+      count++;
+    }
+    if (count < currentQueue.length) {
+      playTrackAt(prevIdx);
+      return;
+    }
+    const err = new Error('Cannot play previous track: No supported playable tracks in queue.');
+    console.error('[XMQueue]', err);
+    alert('Queue Error: ' + err.message);
   }
 
   function playRandomTrack() {
     ensureQueue();
-    let pool = currentQueue;
-    if (!pool || pool.length === 0) {
+    if (!currentQueue || currentQueue.length === 0) {
       const err = new Error('No tracks available in queue or catalog to select randomly.');
       console.error('[XMQueue]', err);
       alert('Random Play Error: ' + err.message);
       return false;
     }
 
-    let randIdx = Math.floor(Math.random() * pool.length);
-    if (pool.length > 1 && randIdx === currentQueueIdx) {
-      randIdx = (randIdx + 1) % pool.length;
+    const playableIndices = [];
+    for (let i = 0; i < currentQueue.length; i++) {
+      if (isTrackPlayable(currentQueue[i])) playableIndices.push(i);
     }
-    playTrackAt(randIdx);
+
+    if (playableIndices.length === 0) {
+      const err = new Error('No supported playable tracks available to select randomly.');
+      console.error('[XMQueue]', err);
+      alert('Random Play Error: ' + err.message);
+      return false;
+    }
+
+    let candidates = playableIndices;
+    if (playableIndices.length > 1 && currentQueueIdx >= 0) {
+      const withoutCurrent = playableIndices.filter((idx) => idx !== currentQueueIdx);
+      if (withoutCurrent.length > 0) candidates = withoutCurrent;
+    }
+
+    const chosenIdx = candidates[Math.floor(Math.random() * candidates.length)];
+    playTrackAt(chosenIdx);
     return true;
   }
 
@@ -226,6 +277,7 @@
     setPlayMode,
     toggleLoop,
     toggleShuffle,
+    isTrackPlayable,
     get playMode() { return playMode; },
     get isLooping() { return playMode === 'repeat'; },
     get isShuffle() { return playMode === 'shuffle'; }
