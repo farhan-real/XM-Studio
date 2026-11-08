@@ -32,6 +32,32 @@ Powered by `libopenmpt` compiled to WebAssembly, XM-Studio provides sample-accur
 
 ---
 
+## Keyboard Shortcuts
+
+XM-Studio provides global desktop keyboard navigation for workstation transport, volume, playback modes, and archive searching:
+
+| Key | Action | Description |
+| :--- | :--- | :--- |
+| <kbd>Space</kbd> / <kbd>K</kbd> | **Play / Pause** | Toggle active audio synthesis / streaming |
+| <kbd>→</kbd> | **Seek Forward** | Advance playback timestamp by +5 seconds |
+| <kbd>←</kbd> | **Seek Backward** | Rewind playback timestamp by -5 seconds |
+| <kbd>↑</kbd> | **Volume Up** | Increase master output volume (+5%) |
+| <kbd>↓</kbd> | **Volume Down** | Decrease master output volume (-5%) |
+| <kbd>Shift</kbd> + <kbd>→</kbd> / <kbd>N</kbd> / <kbd>]</kbd> | **Next Track** | Advance to next playable track in queue |
+| <kbd>Shift</kbd> + <kbd>←</kbd> / <kbd>P</kbd> / <kbd>[</kbd> | **Previous Track** | Return to previous track in queue |
+| <kbd>M</kbd> | **Mute** | Toggle master output mute |
+| <kbd>F</kbd> | **Favorite** | Star / unstar currently loaded deck track |
+| <kbd>R</kbd> | **Random Track** | Pick and play a random supported track |
+| <kbd>S</kbd> | **Cycle Mode** | Rotate mode (`NEXT` ➔ `LOOP` ➔ `RAND` ➔ `STOP`) |
+| <kbd>L</kbd> | **Toggle Loop** | Toggle between Loop and Next mode |
+| <kbd>/</kbd> | **Search** | Jump cursor directly to Archive search input |
+| <kbd>?</kbd> | **Shortcut Guide** | Open on-screen interactive shortcut cheat sheet |
+| <kbd>Esc</kbd> | **Dismiss / Unfocus** | Close active modals, dismiss guides, or blur search |
+
+> *Note: Shortcuts are automatically suppressed when entering text inside input fields or search bars.*
+
+---
+
 ## The Hybrid Dual-Engine Architecture
 
 Tracker modules (`.xm`, `.mod`, etc.) are musical instructions with instrument samples, not linear audio files. Real-time software synthesis can drain mobile batteries, while waiting for full file encoding before playback causes awkward delays.
