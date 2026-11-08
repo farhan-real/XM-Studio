@@ -1,5 +1,5 @@
 /**
- * js/engine/dsp/audio.js - Master playback coordinator without silent fallbacks.
+ * js/engine/dsp/audio.js - Master playback coordinator with detailed engine identification.
  */
 (function(window) {
   const player = new ChiptuneJsPlayer();
@@ -29,9 +29,7 @@
 
   function connectNativeSource() {
     if (!player.context) return;
-    if (!nativeAudioSource) {
-      nativeAudioSource = player.context.createMediaElementSource(audioEl);
-    }
+    if (!nativeAudioSource) nativeAudioSource = player.context.createMediaElementSource(audioEl);
     nativeAudioSource.disconnect();
     nativeAudioSource.connect(player.gainNode);
   }
@@ -204,11 +202,9 @@
     const isTracker = !window.XMMeta.NATIVE_STREAM_EXTS.has(`.${currentExt}`);
     let resolvedEngine;
     if (isTracker) {
-      resolvedEngine = (activeEngine && activeEngine !== 'NONE' && activeEngine !== 'AUDIO' && activeEngine !== 'MP3' && activeEngine !== 'WAV')
-        ? activeEngine
-        : window.XMMeta.resolveTrackerEngine(engine, currentTrackItem ? currentTrackItem.ext : currentExt);
+      resolvedEngine = window.XMMeta.getDetailedTrackerEngine(engine, activeEngine, currentExt);
     } else {
-      resolvedEngine = window.XMMeta.resolveTrackerEngine(engine ? engine : activeEngine, currentTrackItem ? currentTrackItem.ext : currentExt);
+      resolvedEngine = window.XMMeta.resolveTrackerEngine(engine ? engine : activeEngine, currentExt);
     }
 
     if (!channels && (!activeChannels || activeChannels === '--')) {
@@ -308,7 +304,7 @@
     activeTitle = targetTitle;
     activeArtist = targetArtist;
     activeDuration = 0;
-    activeEngine = isDirectNativeAudio ? currentExt.toUpperCase() : window.XMMeta.resolveTrackerEngine('', currentExt);
+    activeEngine = isDirectNativeAudio ? currentExt.toUpperCase() : window.XMMeta.getDetailedTrackerEngine('', '', currentExt);
     activeChannels = isDirectNativeAudio ? '2CH' : '--';
     currentRawBuffer = null;
     currentAudioBlob = null;
@@ -332,7 +328,7 @@
       isNativeStream = true;
       currentAudioBlob = cached.blob;
       activeDuration = cached.duration;
-      activeEngine = window.XMMeta.resolveTrackerEngine(cached.engine, currentExt);
+      activeEngine = window.XMMeta.getDetailedTrackerEngine(cached.engine, '', currentExt);
       activeChannels = cached.channels;
 
       activeObjectUrl = URL.createObjectURL(cached.blob);
@@ -403,7 +399,7 @@
       }
       const meta = player.currentMetadata;
       if (!meta) throw new Error('Tracker playback error: Metadata was not extracted by engine.');
-      activeEngine = window.XMMeta.resolveTrackerEngine(meta.type_long, currentExt);
+      activeEngine = window.XMMeta.getDetailedTrackerEngine(meta.tracker, meta.type_long, currentExt);
       if (typeof meta.channels !== 'number' || meta.channels <= 0) {
         throw new Error(`Invalid channel count reported by engine: ${meta.channels}`);
       }

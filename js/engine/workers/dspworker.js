@@ -90,7 +90,7 @@ function extractMetadata(mod) {
     const k = keys[i];
     meta[k] = libopenmpt.ccall('openmpt_module_get_metadata', 'string', ['number', 'string'], [mod, k]);
   }
-  if (!meta.type_long) throw new Error('OpenMPT failed to detect tracker format (type_long).');
+  if (!meta.type_long && !meta.tracker) throw new Error('OpenMPT failed to detect tracker format (type_long/tracker).');
 
   const ch = libopenmpt._openmpt_module_get_num_channels
     ? libopenmpt._openmpt_module_get_num_channels(mod)

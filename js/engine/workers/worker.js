@@ -86,6 +86,21 @@ function createWavBlob(pcmChunks, totalPcmBytes, sampleRate) {
   return new Blob([buffer, ...pcmChunks], { type: 'audio/wav' });
 }
 
+function resolveEngineString(tracker, typeLong) {
+  const t = tracker ? tracker.trim() : '';
+  const tl = typeLong ? typeLong.trim() : '';
+  if (t && tl) {
+    const tLower = t.toLowerCase();
+    const tlLower = tl.toLowerCase();
+    if (tLower.includes('compatible') && !tlLower.includes('compatible')) return tl.toUpperCase();
+    if (tlLower.includes('compatible') && !tLower.includes('compatible')) return t.toUpperCase();
+    return (t.length >= tl.length ? t : tl).toUpperCase();
+  }
+  if (tl) return tl.toUpperCase();
+  if (t) return t.toUpperCase();
+  throw new Error('OpenMPT failed to determine tracker engine metadata (type_long/tracker).');
+}
+
 function runCompilation(data) {
   let modulePtr = 0, ptrToFile = 0, leftBufferPtr = 0, rightBufferPtr = 0;
 
@@ -127,8 +142,8 @@ function runCompilation(data) {
     libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [modulePtr, 0]);
 
     const typeLong = libopenmpt.ccall('openmpt_module_get_metadata', 'string', ['number', 'string'], [modulePtr, 'type_long']);
-    if (!typeLong) throw new Error('OpenMPT failed to determine module type_long metadata.');
-    const engineName = typeLong.toUpperCase();
+    const trackerName = libopenmpt.ccall('openmpt_module_get_metadata', 'string', ['number', 'string'], [modulePtr, 'tracker']);
+    const engineName = resolveEngineString(trackerName, typeLong);
 
     const numCh = libopenmpt._openmpt_module_get_num_channels
       ? libopenmpt._openmpt_module_get_num_channels(modulePtr)

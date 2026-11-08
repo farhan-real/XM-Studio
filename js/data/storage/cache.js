@@ -3,7 +3,7 @@
  */
 (function(window) {
   const DB_NAME = 'xm_studio_cache_db';
-  const DB_VERSION = 5;
+  const DB_VERSION = 6;
   const STORE_NAME = 'compiled_songs';
   const MAX_GLOBAL_ITEMS = 35;
   const MAX_PER_PLAYLIST = 10;

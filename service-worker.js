@@ -1,5 +1,5 @@
 // service-worker.js - Resilient offline PWA runtime caching with network-first app shell.
-const CACHE_NAME = 'xm-runtime-v53';
+const CACHE_NAME = 'xm-runtime-v54';
 
 const PRECACHE_ASSETS = [
   './',

@@ -84,7 +84,6 @@
 
       const qId = window.XMQueue.getQueueId();
       if (!targetTrack.ext) throw new Error(`Precompile error: Extension missing on track "${targetTrack.title}".`);
-      const trackExtEngine = targetTrack.ext.replace(/^\./, '').toUpperCase();
 
       window.AudioCompiler.compilePreload(
         buf,
@@ -97,7 +96,7 @@
           if (!channels) throw new Error(`Precompile error: Channels missing from render for "${targetTrack.title}".`);
 
           if (window.XMCache && blob) {
-            const trackerEngine = (engine !== 'MP3' && engine !== 'WAV') ? engine : trackExtEngine;
+            const trackerEngine = window.XMMeta.getDetailedTrackerEngine(engine, '', targetTrack.ext);
             window.XMCache.set(
               targetTrack.id,
               'mp3',

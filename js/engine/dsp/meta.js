@@ -33,6 +33,27 @@
     return { title, artist };
   }
 
+  function getDetailedTrackerEngine(tracker, typeLong, ext) {
+    const cleanExt = ext ? ext.replace(/^\./, '').toUpperCase() : '';
+    const t = tracker ? tracker.trim() : '';
+    const tl = typeLong ? typeLong.trim() : '';
+
+    if (t && tl) {
+      const tLower = t.toLowerCase();
+      const tlLower = tl.toLowerCase();
+      if (tLower.includes('compatible') && !tlLower.includes('compatible')) return tl.toUpperCase();
+      if (tlLower.includes('compatible') && !tLower.includes('compatible')) return t.toUpperCase();
+      return (t.length >= tl.length ? t : tl).toUpperCase();
+    }
+    if (tl && tl.toUpperCase() !== cleanExt) return tl.toUpperCase();
+    if (t && t.toUpperCase() !== cleanExt) return t.toUpperCase();
+    if (tl) return tl.toUpperCase();
+    if (t) return t.toUpperCase();
+    if (cleanExt && cleanExt !== 'MP3' && cleanExt !== 'WAV') return cleanExt;
+
+    throw new Error(`Unable to determine tracker engine: tracker="${tracker}", typeLong="${typeLong}", ext="${ext}"`);
+  }
+
   function resolveTrackerEngine(candidate, ext) {
     if (!ext) throw new Error('Engine resolution error: Missing file extension.');
     const cleanExt = ext.replace(/^\./, '').toUpperCase();
@@ -58,6 +79,7 @@
     NATIVE_STREAM_EXTS,
     SUPPORTED_EXTS,
     parseTrackInfo,
+    getDetailedTrackerEngine,
     resolveTrackerEngine
   };
 })(window);
