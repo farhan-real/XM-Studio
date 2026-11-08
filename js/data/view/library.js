@@ -1,5 +1,5 @@
 /**
- * js/data/view/library.js - Pooled DOM virtual list, custom scroller binding, and archive navigation.
+ * js/data/view/library.js - Pooled DOM virtual list, custom scroller binding, and archive navigation without fallbacks.
  */
 (function(window) {
   const POOL_SIZE = 32;
@@ -101,7 +101,7 @@
             cardPool[i].style.display = 'none';
             cardPool[i]._renderedIdx = -1;
           }
-          emptyMsgEl.textContent = 'No matching tracks found.';
+          emptyMsgEl.textContent = 'No tracks available in this view.';
           emptyMsgEl.style.display = 'block';
           return;
         }
@@ -161,18 +161,19 @@
   });
 
   async function playTrack(track, queue, idx) {
+    if (!track) throw new Error('Cannot play track: null track provided to playTrack.');
     if (window.XMAudio?.player) window.XMAudio.player.unlock();
     currentlyPlayingId = track.id;
     updateActiveCards();
     if (track.isCustom || track.isFolderTrack) {
       let blob = track.blob;
       if (!blob && window.XMCustom) blob = await window.XMCustom.getTrackBlob(track.id);
-      if (blob) {
-        window.XMAudio.loadTrack(blob, `${track.artist} - ${track.title}.${(track.ext || 'xm').toLowerCase()}`, track, queue, idx);
-        return;
-      }
+      if (!blob) throw new Error(`Failed to load audio data for custom track: ${track.title}`);
+      window.XMAudio.loadTrack(blob, `${track.artist} - ${track.title}.${(track.ext || 'xm').toLowerCase()}`, track, queue, idx);
+      return;
     }
     const resolvedUrl = track.url || (track.path ? (track.path.startsWith('http') ? track.path : 'https://farhan-real.github.io/XM-Music/' + encodeURI(track.path.replace(/^\/+/, ''))) : '');
+    if (!resolvedUrl) throw new Error(`No audio URL or path defined for track: ${track.title}`);
     window.XMAudio.loadTrack(resolvedUrl, `${track.artist} - ${track.title}.${(track.ext || 'xm').toLowerCase()}`, track, queue, idx);
   }
 
@@ -203,33 +204,22 @@
   }
 
   function playRandomArchiveTrack() {
-    let catalog = (activeRenderQueue && activeRenderQueue.length > 0)
-      ? activeRenderQueue
-      : (window.XMCatalog ? window.XMCatalog.getDisplayCatalog() : []);
-    if (!catalog || catalog.length === 0) catalog = window.XMCatalog ? window.XMCatalog.getFullCatalog() : [];
-    if (!catalog || catalog.length === 0) {
-      if (window.XMPlaylist) {
-        const favs = window.XMPlaylist.getFavorites();
-        if (favs && favs.length > 0) catalog = favs;
-      }
+    if (!activeRenderQueue || activeRenderQueue.length === 0) {
+      const err = new Error('No tracks available in current view to play.');
+      console.error('[XMLibrary]', err);
+      alert('Error: ' + err.message);
+      return false;
     }
-    if (!catalog || catalog.length === 0) return false;
 
-    let randIdx = Math.floor(Math.random() * catalog.length);
-    if (catalog.length > 1 && currentlyPlayingId) {
-      const curIdx = catalog.findIndex((t) => t.id === currentlyPlayingId);
-      if (curIdx === randIdx) randIdx = (randIdx + 1) % catalog.length;
+    let randIdx = Math.floor(Math.random() * activeRenderQueue.length);
+    if (activeRenderQueue.length > 1 && currentlyPlayingId) {
+      const curIdx = activeRenderQueue.findIndex((t) => t.id === currentlyPlayingId);
+      if (curIdx === randIdx) randIdx = (randIdx + 1) % activeRenderQueue.length;
     }
-    const track = catalog[randIdx];
-    if (!track) return false;
-
-    const queue = (activeRenderQueue && activeRenderQueue.length > 0) ? activeRenderQueue : catalog;
-    const queueIdx = queue.findIndex((t) => t.id === track.id);
-    const targetIdx = queueIdx >= 0 ? queueIdx : randIdx;
-
-    playTrack(track, queue, targetIdx);
+    const track = activeRenderQueue[randIdx];
+    playTrack(track, activeRenderQueue, randIdx);
     if (activeTab === 'archive' && scroller) {
-      requestAnimationFrame(() => scroller.scrollToIndex(targetIdx));
+      requestAnimationFrame(() => scroller.scrollToIndex(randIdx));
     }
     return track;
   }
@@ -311,13 +301,20 @@
   });
 
   async function loadAllCatalogs() {
-    ensureDomPool();
-    emptyMsgEl.textContent = 'Syncing active repository catalogs...';
-    emptyMsgEl.style.display = 'block';
-    await window.XMCatalog.fetchRemoteCatalogs();
-    const disp = await window.XMCatalog.syncFullCatalog();
-    renderedTab = 'archive';
-    if (activeTab === 'archive') renderTrackList(disp, true);
+    try {
+      ensureDomPool();
+      emptyMsgEl.textContent = 'Syncing active repository catalogs...';
+      emptyMsgEl.style.display = 'block';
+      await window.XMCatalog.fetchRemoteCatalogs();
+      const disp = await window.XMCatalog.syncFullCatalog();
+      renderedTab = 'archive';
+      if (activeTab === 'archive') renderTrackList(disp, true);
+    } catch (err) {
+      console.error('[XMLibrary] Failed to load catalogs:', err);
+      emptyMsgEl.textContent = 'Failed to load catalogs: ' + err.message;
+      emptyMsgEl.style.display = 'block';
+      alert('Catalog Sync Failed: ' + err.message);
+    }
   }
 
   loadAllCatalogs();

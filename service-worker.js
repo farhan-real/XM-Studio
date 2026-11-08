@@ -1,5 +1,5 @@
 // service-worker.js - Resilient offline PWA runtime caching with network-first app shell.
-const CACHE_NAME = 'xm-runtime-v51';
+const CACHE_NAME = 'xm-runtime-v52';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -39,12 +39,17 @@ async function fetchAssetWithRetry(req) {
   try {
     const res = await fetch(req);
     if (isValidResponse(req, res)) return res;
-  } catch (e) {}
+    console.error('[ServiceWorker] Initial asset fetch returned invalid response:', req.url);
+  } catch (err) {
+    console.error('[ServiceWorker] Initial asset fetch failed:', req.url, err);
+  }
 
   await new Promise((r) => setTimeout(r, 60));
   const retryRes = await fetch(req, { cache: 'reload' });
   if (!isValidResponse(req, retryRes)) {
-    throw new Error('Invalid asset response');
+    const err = new Error(`Asset fetch failed permanently for: ${req.url}`);
+    console.error('[ServiceWorker]', err);
+    throw err;
   }
   return retryRes;
 }
@@ -76,13 +81,19 @@ self.addEventListener('fetch', (e) => {
         const clone = res.clone();
         caches.open(CACHE_NAME).then((c) => c.put(req, clone));
         return res;
-      }).catch(async () => {
+      }).catch(async (err) => {
+        console.error('[ServiceWorker] App shell request failed:', req.url, err);
         const cached = await caches.match(req, { ignoreSearch: true });
         if (cached && isValidResponse(req, cached)) return cached;
         if (isDocNavigation) {
-          return (await caches.match('./')) || (await caches.match('./index.html'));
+          const fallbackDoc = (await caches.match('./')) || (await caches.match('./index.html'));
+          if (fallbackDoc) return fallbackDoc;
         }
-        return new Response('', { status: 504, statusText: 'Gateway Timeout' });
+        return new Response(`Workstation ServiceWorker Offline Error: ${err.message}`, {
+          status: 504,
+          statusText: 'Gateway Timeout',
+          headers: { 'Content-Type': 'text/plain' }
+        });
       })
     );
     return;

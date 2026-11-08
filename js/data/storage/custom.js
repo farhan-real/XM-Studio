@@ -19,6 +19,7 @@
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => {
+        console.error('[XMCustom] Failed to open custom tracks DB:', req.error);
         dbPromise = null;
         reject(req.error);
       };
@@ -54,7 +55,10 @@
         store.put(records[i]);
       }
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => {
+        console.error('[XMCustom] Error saving tracks batch:', tx.error);
+        reject(tx.error);
+      };
     });
   }
 
@@ -69,7 +73,10 @@
         for (let i = 0; i < raw.length; i++) light[i] = stripBlob(raw[i]);
         resolve(light);
       };
-      req.onerror = () => reject(req.error);
+      req.onerror = () => {
+        console.error('[XMCustom] Error loading tracks:', req.error);
+        reject(req.error);
+      };
     });
   }
 
@@ -78,8 +85,18 @@
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const req = tx.objectStore(STORE_NAME).get(id);
-      req.onsuccess = () => resolve(req.result ? req.result.blob : null);
-      req.onerror = () => reject(req.error);
+      req.onsuccess = () => {
+        if (!req.result || !req.result.blob) {
+          const err = new Error(`Audio blob for track ID "${id}" was not found in storage.`);
+          console.error('[XMCustom]', err);
+          return reject(err);
+        }
+        resolve(req.result.blob);
+      };
+      req.onerror = () => {
+        console.error(`[XMCustom] Error fetching blob for "${id}":`, req.error);
+        reject(req.error);
+      };
     });
   }
 
@@ -89,7 +106,10 @@
       const tx = db.transaction(STORE_NAME, 'readwrite');
       tx.objectStore(STORE_NAME).delete(id);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => {
+        console.error(`[XMCustom] Error deleting track "${id}":`, tx.error);
+        reject(tx.error);
+      };
     });
   }
 
@@ -99,7 +119,10 @@
       const tx = db.transaction(STORE_NAME, 'readwrite');
       tx.objectStore(STORE_NAME).clear();
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => {
+        console.error('[XMCustom] Error clearing tracks:', tx.error);
+        reject(tx.error);
+      };
     });
   }
 
@@ -112,7 +135,10 @@
       const store = tx.objectStore(STORE_NAME);
       for (let i = 0; i < toDelete.length; i++) store.delete(toDelete[i].id);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => {
+        console.error(`[XMCustom] Error deleting folder tracks for "${folderId}":`, tx.error);
+        reject(tx.error);
+      };
     });
   }
 
@@ -125,7 +151,10 @@
       const store = tx.objectStore(STORE_NAME);
       for (let i = 0; i < toDelete.length; i++) store.delete(toDelete[i].id);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
+      tx.onerror = () => {
+        console.error('[XMCustom] Error clearing all folder tracks:', tx.error);
+        reject(tx.error);
+      };
     });
   }
 

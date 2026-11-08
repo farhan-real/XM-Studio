@@ -3,8 +3,8 @@
  */
 /* global importScripts, libopenmpt */
 self.libopenmpt = self.libopenmpt || {};
-self.libopenmpt.print = function() {};
-self.libopenmpt.printErr = function() {};
+self.libopenmpt.print = function(text) { console.log('[libopenmpt DSP]', text); };
+self.libopenmpt.printErr = function(text) { console.error('[libopenmpt DSP Error]', text); };
 
 let isRuntimeReady = false;
 let isRuntimeVerified = false;
@@ -21,21 +21,15 @@ const prevAbort = self.libopenmpt.onAbort;
 self.libopenmpt.onAbort = function(msg) {
   isRuntimeAborted = true;
   abortErrorMessage = String(msg || 'Module aborted');
+  console.error('[libopenmpt DSP Abort]', abortErrorMessage);
   if (typeof prevAbort === 'function') prevAbort(msg);
 };
 
 self.libopenmpt.locateFile = function(f) {
-  return self.USE_CDN
-    ? 'https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/' + f
-    : '../../' + f;
+  return '../../' + f;
 };
 
-try {
-  importScripts('../../libopenmpt.js');
-} catch (e) {
-  self.USE_CDN = true;
-  importScripts('https://cdn.jsdelivr.net/gh/deskjet/chiptune2.js@master/libopenmpt.js');
-}
+importScripts('../../libopenmpt.js');
 
 let directPort = null;
 let sampleRate = 48000;
@@ -52,29 +46,27 @@ const CHUNK_FRAMES = 4096;
 function isEngineReady() {
   if (isRuntimeAborted) return false;
   if (isRuntimeVerified) return true;
-  try {
-    if (typeof libopenmpt === 'undefined') return false;
-    if (!libopenmpt.HEAPU8 || libopenmpt.HEAPU8.length === 0) return false;
-    if (typeof libopenmpt._malloc !== 'function' || typeof libopenmpt._free !== 'function') return false;
-    if (typeof libopenmpt._openmpt_module_create_from_memory !== 'function') return false;
-    if (!isRuntimeReady && !libopenmpt.calledRun && !libopenmpt.asm) return false;
+  if (typeof libopenmpt === 'undefined') return false;
+  if (!libopenmpt.HEAPU8 || libopenmpt.HEAPU8.length === 0) return false;
+  if (typeof libopenmpt._malloc !== 'function' || typeof libopenmpt._free !== 'function') return false;
+  if (typeof libopenmpt._openmpt_module_create_from_memory !== 'function') return false;
+  if (!isRuntimeReady && !libopenmpt.calledRun && !libopenmpt.asm) return false;
 
-    const probePtr = libopenmpt._malloc(4);
-    if (!probePtr) return false;
-    libopenmpt._free(probePtr);
-    isRuntimeVerified = true;
-    return true;
-  } catch (e) {
-    return false;
-  }
+  const probePtr = libopenmpt._malloc(4);
+  if (!probePtr) return false;
+  libopenmpt._free(probePtr);
+  isRuntimeVerified = true;
+  return true;
 }
 
 function ensureScratchBuffers() {
   if (!leftBufferPtr && isEngineReady()) {
     leftBufferPtr = libopenmpt._malloc(4 * CHUNK_FRAMES);
+    if (!leftBufferPtr) throw new Error('Failed to allocate scratch buffer for left channel.');
   }
   if (!rightBufferPtr && isEngineReady()) {
     rightBufferPtr = libopenmpt._malloc(4 * CHUNK_FRAMES);
+    if (!rightBufferPtr) throw new Error('Failed to allocate scratch buffer for right channel.');
   }
 }
 
@@ -100,13 +92,17 @@ function extractMetadata(mod) {
   }
   meta.channels = libopenmpt._openmpt_module_get_num_channels
     ? libopenmpt._openmpt_module_get_num_channels(mod)
-    : (libopenmpt.ccall('openmpt_module_get_num_channels', 'number', ['number'], [mod]) || 0);
+    : libopenmpt.ccall('openmpt_module_get_num_channels', 'number', ['number'], [mod]);
 
   libopenmpt.ccall('openmpt_module_set_repeat_count', 'number', ['number', 'number'], [mod, 0]);
   const rawDur = libopenmpt._openmpt_module_get_duration_seconds
     ? libopenmpt._openmpt_module_get_duration_seconds(mod)
-    : (libopenmpt.ccall('openmpt_module_get_duration_seconds', 'number', ['number'], [mod]) || 0);
-  meta.duration = (isFinite(rawDur) && rawDur > 0) ? rawDur : 180;
+    : libopenmpt.ccall('openmpt_module_get_duration_seconds', 'number', ['number'], [mod]);
+
+  if (!isFinite(rawDur) || rawDur <= 0) {
+    throw new Error(`Invalid duration reported by libopenmpt for module: ${rawDur}s`);
+  }
+  meta.duration = rawDur;
   return meta;
 }
 
@@ -118,18 +114,16 @@ function renderAndSendChunk() {
   ensureScratchBuffers();
 
   let chunkPos = renderedFrames / sampleRate;
-  try {
-    let rawPos = null;
-    if (typeof libopenmpt._openmpt_module_get_position_seconds === 'function') {
-      rawPos = libopenmpt._openmpt_module_get_position_seconds(modulePtr);
-    } else if (typeof libopenmpt.ccall === 'function') {
-      rawPos = libopenmpt.ccall('openmpt_module_get_position_seconds', 'number', ['number'], [modulePtr]);
-    }
-    if (typeof rawPos === 'number' && isFinite(rawPos) && rawPos > 0) {
-      chunkPos = rawPos;
-      renderedFrames = Math.round(rawPos * sampleRate);
-    }
-  } catch (e) {}
+  let rawPos = null;
+  if (typeof libopenmpt._openmpt_module_get_position_seconds === 'function') {
+    rawPos = libopenmpt._openmpt_module_get_position_seconds(modulePtr);
+  } else if (typeof libopenmpt.ccall === 'function') {
+    rawPos = libopenmpt.ccall('openmpt_module_get_position_seconds', 'number', ['number'], [modulePtr]);
+  }
+  if (typeof rawPos === 'number' && isFinite(rawPos) && rawPos > 0) {
+    chunkPos = rawPos;
+    renderedFrames = Math.round(rawPos * sampleRate);
+  }
 
   const actual = libopenmpt._openmpt_module_read_float_stereo(
     modulePtr,
@@ -215,16 +209,20 @@ self.onmessage = function(e) {
       try {
         const byteArray = new Uint8Array(data.buffer);
         if (!byteArray || byteArray.byteLength === 0) {
-          self.postMessage({ type: 'error', message: 'Empty module buffer.' });
+          self.postMessage({ type: 'error', message: 'Empty module buffer received.' });
           return;
         }
         ptrToFile = libopenmpt._malloc(byteArray.byteLength);
+        if (!ptrToFile) {
+          self.postMessage({ type: 'error', message: 'Failed to allocate memory for module buffer.' });
+          return;
+        }
         libopenmpt.HEAPU8.set(byteArray, ptrToFile);
 
         modulePtr = libopenmpt._openmpt_module_create_from_memory(ptrToFile, byteArray.byteLength, 0, 0, 0);
         if (!modulePtr) {
           freeModule();
-          self.postMessage({ type: 'error', message: 'Could not parse tracker module.' });
+          self.postMessage({ type: 'error', message: 'Could not parse tracker module (libopenmpt returned null pointer).' });
           return;
         }
 
@@ -239,13 +237,18 @@ self.onmessage = function(e) {
         renderedFrames = 0;
         self.postMessage({ type: 'metadata', meta: meta });
       } catch (err) {
+        console.error('[dspworker] Exception during module load:', err);
         self.postMessage({ type: 'error', message: err.message });
       }
     }, (err) => {
+      console.error('[dspworker] Engine readiness error:', err);
       self.postMessage({ type: 'error', message: err.message });
     });
   } else if (data.action === 'play') {
-    if (!modulePtr) return;
+    if (!modulePtr) {
+      self.postMessage({ type: 'error', message: 'Cannot play: No tracker module is loaded.' });
+      return;
+    }
     isPlaying = true;
     renderBatch(14);
   } else if (data.action === 'pause') {

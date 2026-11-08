@@ -12,21 +12,28 @@
   AudioCompiler.prototype.init = function() {
     if (!this.worker && !this.isCompiling) {
       try {
-        const workerUrl = 'js/engine/workers/worker.js' + (window.USE_CDN ? '?cdn=1' : '');
-        this.worker = new Worker(workerUrl);
-      } catch (e) {}
+        this.worker = new Worker('js/engine/workers/worker.js');
+      } catch (err) {
+        console.error('[AudioCompiler] Worker instantiation failed:', err);
+        throw err;
+      }
     }
   };
 
   AudioCompiler.prototype.compile = function(buffer, format, onProgress, onComplete, onError) {
+    if (!buffer || buffer.byteLength === 0) {
+      const err = new Error('Cannot compile empty audio buffer.');
+      console.error('[AudioCompiler]', err);
+      if (onError) onError(err);
+      return;
+    }
     this.cancel();
     const self = this;
     self.isCompiling = true;
     self.isPreload = false;
 
     try {
-      const workerUrl = 'js/engine/workers/worker.js' + (window.USE_CDN ? '?cdn=1' : '');
-      const currentWorker = new Worker(workerUrl);
+      const currentWorker = new Worker('js/engine/workers/worker.js');
       self.worker = currentWorker;
 
       currentWorker.onmessage = function(e) {
@@ -43,7 +50,9 @@
         } else if (msg.type === 'error') {
           self.isCompiling = false;
           self.cleanup();
-          if (onError) onError(new Error(msg.message || 'Compilation failed'));
+          const err = new Error(msg.message || 'Worker compilation failed');
+          console.error('[AudioCompiler]', err);
+          if (onError) onError(err);
         }
       };
 
@@ -51,16 +60,14 @@
         if (self.worker !== currentWorker || !self.isCompiling || self.isPreload) return;
         self.isCompiling = false;
         self.cleanup();
+        console.error('[AudioCompiler] Web Worker error:', err);
         if (onError) onError(err);
       };
 
-      let targetSampleRate = 48000;
-      if (window.XMAudio?.player?.context) {
-        const ctxRate = window.XMAudio.player.context.sampleRate;
-        if (ctxRate === 44100 || ctxRate === 48000 || ctxRate === 32000) {
-          targetSampleRate = ctxRate;
-        }
+      if (!window.XMAudio?.player?.context?.sampleRate) {
+        throw new Error('AudioContext is not initialized or missing sampleRate property.');
       }
+      const targetSampleRate = window.XMAudio.player.context.sampleRate;
 
       const copy = buffer.slice(0);
       currentWorker.postMessage({
@@ -72,12 +79,19 @@
     } catch (e) {
       self.isCompiling = false;
       self.cleanup();
+      console.error('[AudioCompiler] compile execution failed:', e);
       if (onError) onError(e);
     }
   };
 
   AudioCompiler.prototype.compilePreload = function(buffer, format, trackId, onComplete, onError) {
     if (this.isCompiling && !this.isPreload) return;
+    if (!buffer || buffer.byteLength === 0) {
+      const err = new Error(`Cannot preload empty buffer for track ${trackId}.`);
+      console.error('[AudioCompiler]', err);
+      if (onError) onError(err);
+      return;
+    }
     this.cancel();
     const self = this;
     self.isCompiling = true;
@@ -85,8 +99,7 @@
     self.activeTrackId = trackId;
 
     try {
-      const workerUrl = 'js/engine/workers/worker.js' + (window.USE_CDN ? '?cdn=1' : '');
-      const currentWorker = new Worker(workerUrl);
+      const currentWorker = new Worker('js/engine/workers/worker.js');
       self.worker = currentWorker;
 
       currentWorker.onmessage = function(e) {
@@ -105,7 +118,9 @@
           self.isPreload = false;
           self.activeTrackId = null;
           self.cleanup();
-          if (onError) onError(new Error(msg.message || 'Preload failed'));
+          const err = new Error(msg.message || 'Worker preload failed');
+          console.error('[AudioCompiler]', err);
+          if (onError) onError(err);
         }
       };
 
@@ -115,6 +130,7 @@
         self.isPreload = false;
         self.activeTrackId = null;
         self.cleanup();
+        console.error('[AudioCompiler] Web Worker preload error:', err);
         if (onError) onError(err);
       };
 
@@ -129,6 +145,7 @@
       self.isCompiling = false;
       self.isPreload = false;
       self.cleanup();
+      console.error('[AudioCompiler] compilePreload execution error:', e);
       if (onError) onError(e);
     }
   };

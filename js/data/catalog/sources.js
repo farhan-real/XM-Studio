@@ -3,27 +3,16 @@
  */
 (function(window) {
   const DEFAULT_REPO = { id: 'repo_default', name: 'Default Repository', url: 'https://farhan-real.github.io/XM-Music/', enabled: true, isDefault: true, trackCount: 0 };
-  const BACKUP_REPO = { id: 'repo_backup', name: 'Backup Repository', url: 'https://xm-archive.pages.dev/', enabled: false, isBackup: true, trackCount: 0 };
   const SUPPORTED_EXTS = ['.xm', '.mod', '.it', '.s3m', '.mtm', '.flac', '.mp3', '.ogg', '.wav', '.v2m', '.mid', '.ahx', '.sid'];
 
   function getRepos() {
     try {
       const saved = JSON.parse(localStorage.getItem('xm_remote_repos'));
-      if (Array.isArray(saved) && saved.length > 0) {
-        let changed = false;
-        if (!saved.some(r => r.id === 'repo_backup' || r.url.includes('xm-archive.pages.dev'))) {
-          saved.push(BACKUP_REPO);
-          changed = true;
-        }
-        if (changed) saveRepos(saved);
-        return saved;
-      }
-    } catch (e) {}
-    const legacy = localStorage.getItem('xm_custom_library_url');
-    if (legacy && legacy.trim() && legacy.trim() !== DEFAULT_REPO.url) {
-      return [DEFAULT_REPO, BACKUP_REPO, { id: `repo_${Date.now()}`, name: 'Custom Repository', url: legacy.trim(), enabled: true, isDefault: false, trackCount: 0 }];
+      if (Array.isArray(saved) && saved.length > 0) return saved;
+    } catch (err) {
+      console.error('[XMSources] Corrupted repository storage format:', err);
     }
-    return [DEFAULT_REPO, BACKUP_REPO];
+    return [DEFAULT_REPO];
   }
 
   function saveRepos(repos) { localStorage.setItem('xm_remote_repos', JSON.stringify(repos)); }
@@ -32,7 +21,8 @@
     try {
       const saved = JSON.parse(localStorage.getItem('xm_local_folder_sources'));
       return Array.isArray(saved) ? saved.map(f => ({ ...f, enabled: f.enabled !== false })) : [];
-    } catch (e) {
+    } catch (err) {
+      console.error('[XMSources] Failed to parse local folder sources from localStorage:', err);
       return [];
     }
   }
@@ -67,8 +57,8 @@
     const activeCount = repos.filter(r => r.enabled).length;
     if (reposCountBadge) reposCountBadge.textContent = `${activeCount} ACTIVE`;
     remoteReposList.innerHTML = repos.map(repo => {
-      const tag = repo.isDefault ? '<span class="badge" style="font-size:0.55rem;padding:1px 4px;">DEFAULT</span>' : (repo.isBackup ? '<span class="badge" style="font-size:0.55rem;padding:1px 4px;">BACKUP</span>' : '');
-      const canDelete = !repo.isDefault && !repo.isBackup;
+      const tag = repo.isDefault ? '<span class="badge" style="font-size:0.55rem;padding:1px 4px;">DEFAULT</span>' : '';
+      const canDelete = !repo.isDefault;
       return `<div class="source-item-row"><label class="source-item-info" style="cursor:pointer;"><div class="source-item-title">${repo.name} ${tag}</div><div class="source-item-sub">${repo.url}</div></label><div class="source-item-actions"><input type="checkbox" class="source-toggle" data-toggle-repo="${repo.id}" ${repo.enabled ? 'checked' : ''} title="Toggle active status" />${canDelete ? `<button class="km-btn-icon btn-danger-text" data-del-repo="${repo.id}" title="Remove repository"><svg viewBox="0 0 24 24" class="t-icon-xs"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>` : ''}</div></div>`;
     }).join('');
   }
@@ -144,43 +134,47 @@
   async function fetchRemoteCatalogs() {
     const repos = getRepos().filter(r => r.enabled);
     const allTracks = [];
-    let successCount = 0;
+    const syncErrors = [];
 
     await Promise.all(repos.map(async (repo) => {
       try {
         const url = `${repo.url.replace(/\/+$/, '')}/tracks.json`;
         const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status} retrieving tracks.json`);
         const data = await res.json();
-        if (Array.isArray(data)) {
-          const cleanBase = repo.url.replace(/\/+$/, '') + '/';
-          for (let i = 0; i < data.length; i++) {
-            const t = data[i];
-            const cleanPath = (t.path || '').replace(/^\/+/, '');
-            const extMatch = cleanPath.match(/\.([a-z0-9]+)$/i);
-            const ext = t.ext || (extMatch ? extMatch[1].toUpperCase() : 'XM');
-            allTracks.push({
-              id: `${repo.id}_${cleanPath || i}`,
-              title: (t.title || t.name || cleanPath.split('/').pop().replace(/\.[^.]+$/, '') || `Track ${i + 1}`).trim(),
-              artist: (t.artist || t.author || repo.name).trim(),
-              ext: ext,
-              path: cleanPath,
-              url: cleanPath.startsWith('http://') || cleanPath.startsWith('https://') ? cleanPath : cleanBase + encodeURI(cleanPath),
-              repoId: repo.id,
-              repoName: repo.name,
-              folder: t.folder || cleanPath.split('/')[0] || repo.name
-            });
-          }
-          repo.trackCount = data.length;
-          successCount++;
+        if (!Array.isArray(data)) throw new Error('Repository catalog tracks.json is not an array.');
+        const cleanBase = repo.url.replace(/\/+$/, '') + '/';
+        for (let i = 0; i < data.length; i++) {
+          const t = data[i];
+          const cleanPath = (t.path || '').replace(/^\/+/, '');
+          const extMatch = cleanPath.match(/\.([a-z0-9]+)$/i);
+          const ext = t.ext || (extMatch ? extMatch[1].toUpperCase() : 'XM');
+          allTracks.push({
+            id: `${repo.id}_${cleanPath || i}`,
+            title: (t.title || t.name || cleanPath.split('/').pop().replace(/\.[^.]+$/, '') || `Track ${i + 1}`).trim(),
+            artist: (t.artist || t.author || repo.name).trim(),
+            ext: ext,
+            path: cleanPath,
+            url: cleanPath.startsWith('http://') || cleanPath.startsWith('https://') ? cleanPath : cleanBase + encodeURI(cleanPath),
+            repoId: repo.id,
+            repoName: repo.name,
+            folder: t.folder || cleanPath.split('/')[0] || repo.name
+          });
         }
+        repo.trackCount = data.length;
       } catch (err) {
         repo.trackCount = 0;
+        console.error(`[XMSources] Failed to sync repo ${repo.name} (${repo.url}):`, err);
+        syncErrors.push(`${repo.name}: ${err.message}`);
       }
     }));
 
-    if (repoStatusMsg) {
-      repoStatusMsg.textContent = `Synced ${successCount}/${repos.length} active repos (${allTracks.length} tracks).`;
+    if (syncErrors.length > 0) {
+      const errMsg = `Repository sync failures:\n${syncErrors.join('\n')}`;
+      if (repoStatusMsg) repoStatusMsg.textContent = errMsg;
+      alert(errMsg);
+    } else if (repoStatusMsg) {
+      repoStatusMsg.textContent = `Synced ${repos.length} active repos (${allTracks.length} tracks).`;
       setTimeout(() => { if (repoStatusMsg) repoStatusMsg.textContent = ''; }, 4000);
     }
     return allTracks;
@@ -202,7 +196,9 @@
     const files = Array.from(fileList || []);
     const valid = files.filter(f => SUPPORTED_EXTS.some(ext => f.name.toLowerCase().endsWith(ext)));
     if (valid.length === 0) {
-      if (folderStatusMsg) folderStatusMsg.textContent = 'No supported tracker or audio files found in directory.';
+      const msg = 'No supported tracker or audio files found in directory.';
+      if (folderStatusMsg) folderStatusMsg.textContent = msg;
+      alert(msg);
       return;
     }
 
@@ -238,7 +234,10 @@
   if (btnAddRepo && inputNewRepoUrl) {
     btnAddRepo.addEventListener('click', () => {
       const url = normalizeUrl(inputNewRepoUrl.value);
-      if (!url.startsWith('http://') && !url.startsWith('https://')) return;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        alert('Invalid repository URL: Must start with http:// or https://');
+        return;
+      }
       const repos = getRepos();
       let repoName = 'Remote Repository';
       try { repoName = new URL(url).hostname; } catch (e) {}
@@ -253,8 +252,7 @@
   if (btnSyncAllRepos) btnSyncAllRepos.addEventListener('click', () => { if (window.XMLibrary) window.XMLibrary.refreshArchive(); });
   if (btnResetRepos) {
     btnResetRepos.addEventListener('click', () => {
-      saveRepos([DEFAULT_REPO, BACKUP_REPO]);
-      localStorage.removeItem('xm_custom_library_url');
+      saveRepos([DEFAULT_REPO]);
       renderRemoteReposList();
       if (window.XMLibrary) window.XMLibrary.refreshArchive();
     });

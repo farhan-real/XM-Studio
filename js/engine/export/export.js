@@ -1,5 +1,5 @@
 /**
- * js/engine/export/export.js - Audio export coordinator, format routing, and instant cache delivery.
+ * js/engine/export/export.js - Audio export coordinator, format routing, and instant cache delivery without fallbacks.
  */
 (function(window) {
   let activeFormat = 'mp3';
@@ -55,6 +55,7 @@
   }
 
   function triggerBlobDownload(blob, filename) {
+    if (!blob) throw new Error('Cannot download null or undefined blob.');
     const a = document.createElement('a');
     const blobUrl = URL.createObjectURL(blob);
     a.href = blobUrl;
@@ -74,7 +75,9 @@
   }
 
   function startInitialCompile(raw, targetTrackId) {
-    if (!raw || !window.AudioCompiler) return;
+    if (!raw) throw new Error('Cannot start compilation: Raw buffer is missing.');
+    if (!window.AudioCompiler) throw new Error('AudioCompiler engine is not available.');
+
     const format = (activeFormat === 'wav') ? 'wav' : 'mp3';
     const cached = window.XMAudio?.getCachedCompiled ? window.XMAudio.getCachedCompiled(targetTrackId, format) : null;
     if (cached && cached.blob) {
@@ -116,20 +119,24 @@
         }
         if (window.XMPrecompiler?.onActiveCompileComplete) window.XMPrecompiler.onActiveCompileComplete();
       },
-      () => {
+      (err) => {
         if (!window.AudioCompiler?.isCompiling) return;
+        console.error('[XMExport] Compilation error in startInitialCompile:', err);
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
         if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('error');
+        alert('Compilation Failed: ' + err.message);
       }
     );
   }
 
   async function handleExportDownload() {
-    const info = window.XMAudio?.getCurrentInfo() || { title: 'track', artist: 'artist' };
+    const info = window.XMAudio?.getCurrentInfo();
+    if (!info || !info.title || info.title === 'No Module Loaded') {
+      alert('Cannot export: No track currently loaded.');
+      return;
+    }
     const ext = window.XMAudio?.getCurrentExtension ? window.XMAudio.getCurrentExtension() : 'xm';
     const targetTrackId = window.XMAudio?.currentTrackItem?.id || window.XMAudio?.currentAudioSrc || info.title;
-
-    if (!info || !info.title || info.title === 'No Module Loaded') return;
 
     const outExt = (activeFormat === 'raw') ? ext : activeFormat;
     const downloadFilename = `${info.artist} - ${info.title}.${outExt}`.replace(/[/\\?%*:|"<>]/g, '_');
@@ -140,12 +147,20 @@
         blob = new Blob([window.XMAudio.currentRawBuffer], { type: 'application/octet-stream' });
       }
       if (!blob && window.XMAudio?.currentAudioSrc) {
-        try { const res = await fetch(window.XMAudio.currentAudioSrc); blob = await res.blob(); } catch (e) {}
+        const res = await fetch(window.XMAudio.currentAudioSrc);
+        if (!res.ok) throw new Error(`HTTP ${res.status} retrieving raw track file`);
+        blob = await res.blob();
       }
       if (!blob && window.XMAudio?.currentAudioBlob) {
         blob = window.XMAudio.currentAudioBlob;
       }
-      if (blob) triggerBlobDownload(blob, downloadFilename);
+      if (!blob) {
+        const err = new Error('Raw module data could not be located for download.');
+        console.error('[XMExport]', err);
+        alert(err.message);
+        return;
+      }
+      triggerBlobDownload(blob, downloadFilename);
       return;
     }
 
@@ -166,9 +181,13 @@
     if (!isTracker && (window.XMAudio?.currentAudioBlob || window.XMAudio?.currentAudioSrc)) {
       let blob = window.XMAudio.currentAudioBlob;
       if (!blob && window.XMAudio.currentAudioSrc) {
-        try { const res = await fetch(window.XMAudio.currentAudioSrc); blob = await res.blob(); } catch (e) {}
+        const res = await fetch(window.XMAudio.currentAudioSrc);
+        if (!res.ok) throw new Error(`HTTP ${res.status} retrieving audio file`);
+        blob = await res.blob();
       }
-      if (blob) { triggerBlobDownload(blob, `${info.artist} - ${info.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_')); return; }
+      if (!blob) throw new Error('Audio file data could not be retrieved.');
+      triggerBlobDownload(blob, `${info.artist} - ${info.title}.${ext}`.replace(/[/\\?%*:|"<>]/g, '_'));
+      return;
     }
 
     if (window.AudioCompiler?.isCompilingActive) {
@@ -178,11 +197,18 @@
 
     let raw = window.XMAudio?.currentRawBuffer;
     if (!raw && window.XMAudio?.currentAudioSrc) {
-      try { const res = await fetch(window.XMAudio.currentAudioSrc); raw = await res.arrayBuffer(); } catch (e) {}
+      const res = await fetch(window.XMAudio.currentAudioSrc);
+      if (!res.ok) throw new Error(`HTTP ${res.status} retrieving source for compilation`);
+      raw = await res.arrayBuffer();
     } else if (!raw && window.XMAudio?.currentAudioBlob) {
-      try { raw = await window.XMAudio.currentAudioBlob.arrayBuffer(); } catch (e) {}
+      raw = await window.XMAudio.currentAudioBlob.arrayBuffer();
     }
-    if (!raw) return;
+    if (!raw) {
+      const err = new Error('Cannot export: Tracker binary buffer is unavailable.');
+      console.error('[XMExport]', err);
+      alert(err.message);
+      return;
+    }
 
     isUserDownloadPending = true;
     if (window.XMPrecompiler?.cancel) window.XMPrecompiler.cancel();
@@ -211,11 +237,13 @@
         }
         if (window.XMPrecompiler?.onActiveCompileComplete) window.XMPrecompiler.onActiveCompileComplete();
       },
-      () => {
+      (err) => {
         if (!window.AudioCompiler?.isCompiling) return;
         isUserDownloadPending = false;
+        console.error('[XMExport] Download compilation failed:', err);
         if (readoutProgressTrack) readoutProgressTrack.classList.add('hide');
         if (window.XMApp?.setCompileStatus) window.XMApp.setCompileStatus('error');
+        alert('Export Audio Failed: ' + err.message);
       }
     );
   }

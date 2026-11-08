@@ -2,7 +2,11 @@
  * js/app.js - Main workstation transport coordinator and deck status manager.
  */
 document.addEventListener('DOMContentLoaded', () => {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./service-worker.js').catch((err) => {
+      console.error('[App] Service worker registration failed:', err);
+    });
+  }
 
   const { player, audioEl } = window.XMAudio;
   if (window.XMVisualizer?.start) window.XMVisualizer.start(player);
@@ -57,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (mobileInstallRow) mobileInstallRow.classList.add('hide');
         }
       } else {
-        alert('To install XM-Studio:\n\n• On Android Chrome: Tap the three dots (⋮) menu and select "Install app" or "Add to Home screen".\n• On iOS Safari: Tap Share and select "Add to Home Screen".');
+        alert('To install XM-Studio:\n\n• On Android Chrome: Tap the three dots (⋮) menu and select "Install app".\n• On iOS Safari: Tap Share and select "Add to Home Screen".');
       }
     });
   }
@@ -84,9 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     modeSwitchSlider.addEventListener('click', (e) => {
       const btn = e.target.closest('.mode-switch-btn');
-      if (btn?.dataset.mode && window.XMQueue) {
-        window.XMQueue.setPlayMode(btn.dataset.mode);
-      }
+      if (btn?.dataset.mode && window.XMQueue) window.XMQueue.setPlayMode(btn.dataset.mode);
     });
 
     let isDragging = false, startX = 0;
@@ -213,6 +215,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const d = window.XMAudio.getDuration();
     if (d > 0) window.XMApp.updateDuration(d);
   });
+  audioEl.addEventListener('error', () => {
+    const err = audioEl.error;
+    const msg = err ? `Media Error Code ${err.code}: ${err.message || 'Decode/Network failure'}` : 'Unknown HTMLAudioElement error';
+    console.error('[Audio Error]', msg);
+    alert('Audio Stream Error: ' + msg);
+    setPlaybackStatus('idle');
+    setCompileStatus('error');
+    setPlayingState(false);
+  });
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
@@ -314,11 +325,10 @@ document.addEventListener('DOMContentLoaded', () => {
       if (window.XMExport?.cancelExport) window.XMExport.cancelExport();
       if (window.XMPrecompiler) window.XMPrecompiler.cancel();
       window.XMAudio.unload();
-    } catch (e) {}
-    try {
-      if (window.XMVisualizer?.clear) window.XMVisualizer.clear();
-      else if (window.XMVisualizer?.clearCanvas) window.XMVisualizer.clearCanvas();
-    } catch (e) {}
+    } catch (err) {
+      console.error('[App] Error during track unload:', err);
+    }
+    if (window.XMVisualizer?.clear) window.XMVisualizer.clear();
 
     songTitle.textContent = 'No Module Loaded';
     songArtist.textContent = 'Ready for FastTracker II / Audio input';

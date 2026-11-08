@@ -7,12 +7,10 @@
     const saved = localStorage.getItem('xm_play_mode');
     if (['stop', 'next', 'repeat', 'shuffle'].includes(saved)) {
       playMode = saved;
-    } else if (localStorage.getItem('xm_loop') === '1') {
-      playMode = 'repeat';
-    } else if (localStorage.getItem('xm_shuffle') === '1') {
-      playMode = 'shuffle';
     }
-  } catch (e) {}
+  } catch (err) {
+    console.error('[XMQueue] Corrupted play mode in localStorage:', err);
+  }
 
   let currentQueue = null;
   let currentQueueIdx = -1;
@@ -42,15 +40,13 @@
   }
 
   function setPlayMode(mode) {
-    if (!['stop', 'next', 'repeat', 'shuffle'].includes(mode)) return playMode;
+    if (!['stop', 'next', 'repeat', 'shuffle'].includes(mode)) {
+      throw new Error(`Unsupported play mode: "${mode}". Valid modes: stop, next, repeat, shuffle.`);
+    }
     playMode = mode;
     const isLooping = (mode === 'repeat');
     const isShuffle = (mode === 'shuffle');
-    try {
-      localStorage.setItem('xm_play_mode', mode);
-      localStorage.setItem('xm_loop', isLooping ? '1' : '0');
-      localStorage.setItem('xm_shuffle', isShuffle ? '1' : '0');
-    } catch (e) {}
+    localStorage.setItem('xm_play_mode', mode);
 
     if (window.XMAudio) {
       window.XMAudio.audioEl.loop = isLooping;
@@ -98,23 +94,26 @@
 
   function resolveTrackUrl(item) {
     if (item.url) return item.url;
-    if (!item.path) return null;
-    if (item.path.startsWith('http://') || item.path.startsWith('https://')) return item.path;
-    return 'https://farhan-real.github.io/XM-Music/' + encodeURI(item.path.replace(/^\/+/, ''));
+    if (item.path) {
+      if (item.path.startsWith('http://') || item.path.startsWith('https://')) return item.path;
+      return 'https://farhan-real.github.io/XM-Music/' + encodeURI(item.path.replace(/^\/+/, ''));
+    }
+    throw new Error(`Track "${item.title || item.id}" has no valid url or path defined.`);
   }
 
   async function playTrackAt(idx) {
-    if (!currentQueue || idx < 0 || idx >= currentQueue.length) return;
+    if (!currentQueue || idx < 0 || idx >= currentQueue.length) {
+      throw new Error(`Cannot play track: index ${idx} out of queue bounds (0..${currentQueue ? currentQueue.length - 1 : 0}).`);
+    }
     if (window.XMAudio && window.XMAudio.player) window.XMAudio.player.unlock();
     const item = currentQueue[idx];
     currentTrackNum = item.catalogIndex ? item.catalogIndex : (idx + 1);
     if (item.isCustom || item.isFolderTrack) {
       let blob = item.blob;
       if (!blob && window.XMCustom) blob = await window.XMCustom.getTrackBlob(item.id);
-      if (blob) {
-        window.XMAudio.loadTrack(blob, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, currentQueue, idx);
-        return;
-      }
+      if (!blob) throw new Error(`Custom track blob not found in IndexedDB: "${item.title}"`);
+      window.XMAudio.loadTrack(blob, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, currentQueue, idx);
+      return;
     }
     const targetUrl = resolveTrackUrl(item);
     window.XMAudio.loadTrack(targetUrl, `${item.artist} - ${item.title}.${(item.ext || 'xm').toLowerCase()}`, item, currentQueue, idx);
@@ -122,15 +121,17 @@
 
   function ensureQueue() {
     if (!currentQueue || currentQueue.length === 0) {
-      if (window.XMLibrary && window.XMLibrary.getDisplayCatalog) {
-        const cat = window.XMLibrary.getDisplayCatalog();
-        if (cat && cat.length > 0) {
-          currentQueue = cat;
-          currentQueueIdx = -1;
-          currentQueueId = cat._playlistId || null;
-          rebuildShuffleSequence();
-        }
+      if (!window.XMLibrary || !window.XMLibrary.getDisplayCatalog) {
+        throw new Error('No active queue and XMLibrary display catalog is not available.');
       }
+      const cat = window.XMLibrary.getDisplayCatalog();
+      if (!cat || cat.length === 0) {
+        throw new Error('Cannot navigate queue: Catalog is empty.');
+      }
+      currentQueue = cat;
+      currentQueueIdx = -1;
+      currentQueueId = cat._playlistId || null;
+      rebuildShuffleSequence();
     }
   }
 
@@ -162,13 +163,19 @@
       playTrackAt(currentQueueIdx >= 0 && currentQueueIdx + 1 < currentQueue.length ? currentQueueIdx + 1 : 0);
       return;
     }
-    if (window.XMAudio) window.XMAudio.notifyPlayState(false);
-    if (window.XMApp) window.XMApp.onTrackEnded();
+    const err = new Error('Cannot play next track: Queue is empty.');
+    console.error('[XMQueue]', err);
+    alert('Queue Error: ' + err.message);
   }
 
   function playPrevTrack() {
     ensureQueue();
-    if (!currentQueue || currentQueue.length === 0) return;
+    if (!currentQueue || currentQueue.length === 0) {
+      const err = new Error('Cannot play previous track: Queue is empty.');
+      console.error('[XMQueue]', err);
+      alert('Queue Error: ' + err.message);
+      return;
+    }
     if (playMode === 'shuffle') {
       if (shuffleSequence.length > 0) {
         shufflePos = (shufflePos - 1 + shuffleSequence.length) % shuffleSequence.length;
@@ -183,23 +190,18 @@
     ensureQueue();
     let pool = currentQueue;
     if (!pool || pool.length === 0) {
-      pool = (window.XMLibrary && window.XMLibrary.getFullCatalog) ? window.XMLibrary.getFullCatalog() : null;
+      const err = new Error('No tracks available in queue or catalog to select randomly.');
+      console.error('[XMQueue]', err);
+      alert('Random Play Error: ' + err.message);
+      return false;
     }
-    if (!pool || pool.length === 0) return false;
 
     let randIdx = Math.floor(Math.random() * pool.length);
-    if (pool.length > 1 && randIdx === currentQueueIdx && pool === currentQueue) {
+    if (pool.length > 1 && randIdx === currentQueueIdx) {
       randIdx = (randIdx + 1) % pool.length;
     }
-    if (pool === currentQueue) {
-      playTrackAt(randIdx);
-      return true;
-    }
-    if (window.XMLibrary && window.XMLibrary.playTrackDirect) {
-      window.XMLibrary.playTrackDirect(pool[randIdx], pool, randIdx);
-      return true;
-    }
-    return false;
+    playTrackAt(randIdx);
+    return true;
   }
 
   function toggleLoop() {

@@ -1,5 +1,5 @@
 /**
- * js/engine/export/precompiler.js - Lookahead playlist precompiler with battery and priority throttling.
+ * js/engine/export/precompiler.js - Lookahead playlist precompiler without silent fallbacks.
  */
 (function(window) {
   let isRunning = false;
@@ -17,27 +17,30 @@
   }
 
   async function resolveTrackBuffer(track) {
-    if (!track) return null;
+    if (!track) throw new Error('Cannot resolve buffer for null track');
     if (track.isCustom || track.isFolderTrack) {
       let blob = track.blob;
       if (!blob && window.XMCustom) blob = await window.XMCustom.getTrackBlob(track.id);
-      if (blob) return await blob.arrayBuffer();
+      if (!blob) throw new Error(`Custom track blob not found in DB: ${track.id}`);
+      return await blob.arrayBuffer();
     }
     const resolvedUrl = track.url || (track.path ? (track.path.startsWith('http') ? track.path : 'https://farhan-real.github.io/XM-Music/' + encodeURI(track.path.replace(/^\/+/, ''))) : null);
-    if (!resolvedUrl) return null;
+    if (!resolvedUrl) throw new Error(`No path or URL found for track: ${track.title}`);
 
     const res = await fetch(resolvedUrl, { signal: abortController ? abortController.signal : undefined });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status} fetching track for precompile`);
     return await res.arrayBuffer();
   }
 
   async function checkBatteryAllowPrecompile() {
-    try {
-      if ('getBattery' in navigator) {
+    if ('getBattery' in navigator) {
+      try {
         const b = await navigator.getBattery();
         if (!b.charging && b.level < 0.15) return false;
+      } catch (err) {
+        console.error('[XMPrecompiler] Battery status check error:', err);
       }
-    } catch (e) {}
+    }
     return true;
   }
 
@@ -103,14 +106,18 @@
           }
           schedule(400);
         },
-        () => {
+        (err) => {
           isRunning = false;
           currentPrecompileTrackId = null;
+          console.error(`[XMPrecompiler] Precompile failed for track "${targetTrack.title}":`, err);
         }
       );
     } catch (err) {
       isRunning = false;
       currentPrecompileTrackId = null;
+      if (err.name !== 'AbortError') {
+        console.error(`[XMPrecompiler] Cycle execution error for track "${targetTrack.title}":`, err);
+      }
     }
   }
 
@@ -129,7 +136,7 @@
   function cancel() {
     cancelSchedule();
     if (abortController) {
-      try { abortController.abort(); } catch (e) {}
+      abortController.abort();
       abortController = null;
     }
     if (isRunning && window.AudioCompiler && window.AudioCompiler.isPreload) {

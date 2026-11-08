@@ -17,7 +17,8 @@
     try {
       const list = JSON.parse(localStorage.getItem('xm_recent_playlists'));
       return Array.isArray(list) ? list : [];
-    } catch (e) {
+    } catch (err) {
+      console.error('[XMCache] Corrupted recent playlists storage:', err);
       return [];
     }
   }
@@ -29,13 +30,17 @@
     if (list.length > MAX_ACTIVE_PLAYLISTS) {
       list = list.slice(0, MAX_ACTIVE_PLAYLISTS);
     }
-    try { localStorage.setItem('xm_recent_playlists', JSON.stringify(list)); } catch (e) {}
+    localStorage.setItem('xm_recent_playlists', JSON.stringify(list));
   }
 
   function openDB() {
     if (dbPromise) return dbPromise;
-    dbPromise = new Promise((resolve) => {
-      if (!window.indexedDB) return resolve(null);
+    dbPromise = new Promise((resolve, reject) => {
+      if (!window.indexedDB) {
+        const err = new Error('IndexedDB is not available in current environment.');
+        console.error('[XMCache]', err);
+        return reject(err);
+      }
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
@@ -49,8 +54,9 @@
       };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => {
+        console.error('[XMCache] Failed to open IndexedDB:', req.error);
         dbPromise = null;
-        resolve(null);
+        reject(req.error);
       };
     });
     return dbPromise;
@@ -111,7 +117,10 @@
           store.delete(id);
         });
       };
-    } catch (e) {}
+      req.onerror = () => console.error('[XMCache] Enforce quotas transaction failed:', req.error);
+    } catch (err) {
+      console.error('[XMCache] Failed during quota enforcement:', err);
+    }
   }
 
   async function init() {
@@ -155,7 +164,10 @@
           enforceQuotas(db);
         }
       };
-    } catch (e) {}
+      req.onerror = () => console.error('[XMCache] Error loading cache entries on init:', req.error);
+    } catch (err) {
+      console.error('[XMCache] Init failed:', err);
+    }
   }
 
   function has(trackId, format) {
@@ -171,36 +183,34 @@
         ramCache.delete(key);
         openDB().then((db) => {
           if (!db) return;
-          try {
-            const tx = db.transaction(STORE_NAME, 'readwrite');
-            tx.objectStore(STORE_NAME).delete(key);
-          } catch (e) {}
-        });
+          const tx = db.transaction(STORE_NAME, 'readwrite');
+          tx.objectStore(STORE_NAME).delete(key);
+        }).catch((err) => console.error('[XMCache] Error deleting stale cache entry:', err));
         return null;
       }
 
       openDB().then((db) => {
         if (!db) return;
-        try {
-          const tx = db.transaction(STORE_NAME, 'readwrite');
-          const store = tx.objectStore(STORE_NAME);
-          const getReq = store.get(key);
-          getReq.onsuccess = () => {
-            const record = getReq.result;
-            if (record) {
-              record.timestamp = Date.now();
-              store.put(record);
-            }
-          };
-        } catch (err) {}
-      });
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        const store = tx.objectStore(STORE_NAME);
+        const getReq = store.get(key);
+        getReq.onsuccess = () => {
+          const record = getReq.result;
+          if (record) {
+            record.timestamp = Date.now();
+            store.put(record);
+          }
+        };
+      }).catch((err) => console.error('[XMCache] Error updating LRU timestamp:', err));
       return item;
     }
     return null;
   }
 
   async function set(trackId, format, blob, visData, visFps, duration, playlistId, engine, channels) {
-    if (!trackId || !blob) return;
+    if (!trackId || !blob) {
+      throw new Error(`Invalid cache set parameters: trackId="${trackId}", blob=${Boolean(blob)}`);
+    }
     const fmt = (format || 'mp3').toLowerCase();
     const key = `${trackId}_${fmt}`;
     if (playlistId) touchRecentPlaylist(playlistId);
@@ -241,18 +251,19 @@
         timestamp: Date.now()
       });
       tx.oncomplete = () => enforceQuotas(db);
-    } catch (err) {}
+      tx.onerror = () => console.error('[XMCache] Error persisting record to IndexedDB:', tx.error);
+    } catch (err) {
+      console.error('[XMCache] Set transaction failure:', err);
+    }
   }
 
   function clear() {
     ramCache.clear();
     openDB().then((db) => {
       if (!db) return;
-      try {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        tx.objectStore(STORE_NAME).clear();
-      } catch (e) {}
-    });
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).clear();
+    }).catch((err) => console.error('[XMCache] Clear cache error:', err));
   }
 
   window.XMCache = { init, get, has, set, clear, MAX_PER_PLAYLIST, MAX_GLOBAL_ITEMS };

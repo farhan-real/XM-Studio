@@ -1,18 +1,11 @@
 /**
- * js/data/catalog/catalog.js - Catalog indexing, sorting, track number search, and filtering.
+ * js/data/catalog/catalog.js - Catalog indexing, sorting, track number search, and filtering without fallbacks.
  */
 (function(window) {
   let fullCatalog = [];
   let displayCatalog = [];
   let remoteCatalog = [];
   let customCatalog = [];
-
-  const FALLBACK_DEMO_TRACKS = [
-    { id: 'demo_chipsounds', title: 'Chipsounds', artist: 'Dubmood', ext: 'MOD', path: 'tunes/chipsounds.mod', url: 'https://deskjet.github.io/chiptune2.js/tunes/chipsounds.mod', repoId: 'repo_default', repoName: 'Default Repository', folder: 'Demoscene' },
-    { id: 'demo_mysterysterium', title: 'Mysterysterium', artist: 'Maktone', ext: 'MOD', path: 'tunes/mysterysterium.mod', url: 'https://deskjet.github.io/chiptune2.js/tunes/mysterysterium.mod', repoId: 'repo_default', repoName: 'Default Repository', folder: 'Demoscene' },
-    { id: 'demo_cydonian_sky', title: 'Cydonian Sky', artist: 'Dubmood', ext: 'MOD', path: 'tunes/cydonian_sky.mod', url: 'https://deskjet.github.io/chiptune2.js/tunes/cydonian_sky.mod', repoId: 'repo_default', repoName: 'Default Repository', folder: 'Demoscene' },
-    { id: 'demo_rf_chip', title: 'RF Chip #001', artist: 'Dubmood & Bliss', ext: 'MOD', path: 'tunes/rf_chip_001.mod', url: 'https://deskjet.github.io/chiptune2.js/tunes/rf_chip_001.mod', repoId: 'repo_default', repoName: 'Default Repository', folder: 'Demoscene' }
-  ];
 
   function indexTrack(track, idx) {
     const a = (track.artist || '').toLowerCase();
@@ -62,11 +55,13 @@
       customCatalog = disabledFolders.size > 0
         ? allCustom.filter(t => !t.folderSourceId || !disabledFolders.has(t.folderSourceId))
         : allCustom;
-    } catch (e) {
-      customCatalog = [];
+    } catch (err) {
+      console.error('[XMCatalog] Critical error retrieving custom library:', err);
+      throw err;
     }
+
     const combined = [...customCatalog, ...remoteCatalog];
-    fullCatalog = sortAlphabetical(combined.length > 0 ? combined : [...FALLBACK_DEMO_TRACKS]);
+    fullCatalog = sortAlphabetical(combined);
     for (let i = 0; i < fullCatalog.length; i++) {
       fullCatalog[i].catalogIndex = i + 1;
       fullCatalog[i]._trackNum = i + 1;
@@ -76,11 +71,10 @@
   }
 
   async function fetchRemoteCatalogs() {
-    if (window.XMSources && window.XMSources.fetchRemoteCatalogs) {
-      remoteCatalog = await window.XMSources.fetchRemoteCatalogs();
-    } else {
-      remoteCatalog = [];
+    if (!window.XMSources || !window.XMSources.fetchRemoteCatalogs) {
+      throw new Error('XMSources module is not loaded or missing fetchRemoteCatalogs function.');
     }
+    remoteCatalog = await window.XMSources.fetchRemoteCatalogs();
     return remoteCatalog;
   }
 

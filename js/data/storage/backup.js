@@ -1,5 +1,5 @@
 /**
- * js/data/backup.js - Structured ZIP workstation backup and batched restore engine.
+ * js/data/backup.js - Structured ZIP workstation backup and batched restore engine without fallbacks.
  */
 (function(window) {
   const btnExport = document.getElementById('btnExportData');
@@ -52,14 +52,12 @@
 
       for (const t of customTracks) {
         const blob = window.XMCustom ? await window.XMCustom.getTrackBlob(t.id) : null;
+        if (!blob) throw new Error(`Custom track ${t.id} (${t.title}) audio blob could not be retrieved from IndexedDB.`);
         const ext = (t.ext || 'xm').toLowerCase();
         const safeFileName = `${t.id}.${ext}`;
         const zipPath = `custom_music/${safeFileName}`;
-
-        if (blob) {
-          const ab = await blob.arrayBuffer();
-          zip.addFile(zipPath, ab);
-        }
+        const ab = await blob.arrayBuffer();
+        zip.addFile(zipPath, ab);
 
         metaList.push({
           id: t.id,
@@ -88,7 +86,9 @@
       setStatus(`Exported ZIP with ${customTracks.length} tracks & ${playlists.length} playlists!`, 'SAVED');
       setTimeout(() => setStatus('', 'READY'), 4000);
     } catch (err) {
+      console.error('[XMBackup] Export failed:', err);
       setStatus(`Export failed: ${err.message}`, 'ERROR', true);
+      alert('Backup Export Error: ' + err.message);
     }
   }
 
@@ -114,10 +114,10 @@
         const restoredPlaylists = [];
         for (const [path, entry] of zipFiles.entries()) {
           if (path.startsWith('playlists/') && path.endsWith('.json')) {
-            try {
-              const plData = JSON.parse(await entry.text());
-              if (plData && plData.name) restoredPlaylists.push(plData);
-            } catch (e) {}
+            const rawText = await entry.text();
+            const plData = JSON.parse(rawText);
+            if (!plData || !plData.name) throw new Error(`Invalid playlist format in backup: ${path}`);
+            restoredPlaylists.push(plData);
           }
         }
         if (restoredPlaylists.length > 0 && window.XMPlaylist) {
@@ -130,7 +130,8 @@
             const batch = [];
             for (const cm of customMeta) {
               const fileEntry = zipFiles.get(cm.filename);
-              const trackBlob = fileEntry ? await fileEntry.blob() : null;
+              if (!fileEntry) throw new Error(`Referenced audio file missing in ZIP: ${cm.filename}`);
+              const trackBlob = await fileEntry.blob();
               batch.push({
                 id: cm.id,
                 title: cm.title,
@@ -151,6 +152,9 @@
       } else {
         const text = await file.text();
         const bundle = JSON.parse(text);
+        if (!bundle || (!Array.isArray(bundle.playlists) && !Array.isArray(bundle.favorites))) {
+          throw new Error('Invalid JSON backup file: Must contain playlists or favorites array.');
+        }
         if (Array.isArray(bundle.playlists)) window.XMPlaylist.savePlaylists(bundle.playlists);
         if (Array.isArray(bundle.favorites)) window.XMPlaylist.saveFavorites(bundle.favorites);
       }
@@ -161,7 +165,9 @@
       setStatus('Workstation restored successfully!', 'RESTORED');
       setTimeout(() => setStatus('', 'READY'), 4000);
     } catch (err) {
+      console.error('[XMBackup] Restore failed:', err);
       setStatus(`Restore failed: ${err.message}`, 'ERROR', true);
+      alert('Backup Restore Error: ' + err.message);
     }
   }
 
