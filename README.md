@@ -6,36 +6,31 @@
 
 ## Use the App
 
-XM-Studio runs directly in any modern web browser with zero installation:
+XM-Studio runs directly in modern web browsers with zero installation:
 
 **Launch Online:** **[farhan-real.github.io/XM-Studio](https://farhan-real.github.io/XM-Studio)** or **[xm-studio.pages.dev](https://xm-studio.pages.dev/)**
 
-* **Runs Everywhere:** Works seamlessly across Desktop and Android browsers (Chrome, Firefox, Safari, Edge).
-* **100% Client-Side Privacy:** All audio synthesis, DSP mixing, and file processing happen locally via WebAssembly and Web Audio. Nothing is uploaded to external servers.
-* **Offline Capable:** Progressive Web App (PWA) with runtime caching for instant offline playback.
+* **Runs Everywhere:** Desktop and Android browsers (Chrome, Firefox, Safari, Edge).
+* **100% Client-Side Privacy:** Audio synthesis, DSP mixing, and file processing happen locally via WebAssembly and Web Audio.
+* **Offline Capable:** Progressive Web App (PWA) with runtime caching for offline playback.
 
 ---
 
 ## Overview
 
-XM-Studio plays, visualizes, curates, and exports classic tracker music modules along with modern lossless and compressed audio streams:
+XM-Studio plays, visualizes, curates, and exports classic tracker music modules and audio streams:
 
-* **FastTracker II (`.xm`)**
-* **ProTracker (`.mod`)**
-* **Impulse Tracker (`.it`)**
-* **ScreamTracker (`.s3m`)**
+* **FastTracker II (`.xm`)**, **ProTracker (`.mod`)**, **Impulse Tracker (`.it`)**, **ScreamTracker (`.s3m`)**, **MTM (`.mtm`)**
 * **Chiptune & Retro (`.v2m`, `.ahx`, `.sid`, `.mid`)**
 * **Lossless & Native Streams (`.flac`, `.wav`, `.mp3`, `.ogg`)**
 
-Powered by `libopenmpt` compiled to WebAssembly, XM-Studio provides sample-accurate hardware synthesis, sinc interpolation, stereo separation, and responsive frequency spectrum analysis.
+Powered by `libopenmpt` compiled to WebAssembly, XM-Studio provides sample-accurate hardware synthesis, sinc interpolation, stereo separation, and frequency spectrum analysis.
 
 ---
 
 ## The Hybrid Dual-Engine Architecture
 
-Tracker modules (`.xm`, `.mod`, etc.) are musical instructions with instrument samples, not linear audio files. Real-time software synthesis can drain mobile batteries, while waiting for file encoding before playback causes awkward delays.
-
-XM-Studio solves this with an intelligent **three-phase playback pipeline**:
+Tracker modules are musical instructions with instrument samples, not linear audio files. XM-Studio coordinates a three-phase playback pipeline:
 
 ```text
 [Select Track] ──▶ Phase 1: Real-time Live DSP (0ms Instant Sound)
@@ -47,84 +42,48 @@ XM-Studio solves this with an intelligent **three-phase playback pipeline**:
                    Phase 3: Seamless Native Handoff (0% DSP CPU, Battery Friendly)
 ```
 
-### Phase 1: Instant Start (`PLAYBACK: LIVE`)
-* The moment you tap a tracker module, raw binary is dispatched to an isolated WebAssembly synthesis worker (`dspworker.js` running `libopenmpt`).
-* Float PCM chunks stream through a zero-copy transferable `MessagePort` directly into a hardware-thread `AudioWorkletProcessor` (`worklet.js`).
-* Playback begins **instantly with 0ms latency**.
-* Deck status glows green: **`PLAYBACK: LIVE`**.
+### Phase 1: Instant Start (`PLAYBACK: ENGINE`)
+* Raw binary is dispatched to an isolated WebAssembly synthesis worker (`dspworker.js` running `libopenmpt`).
+* Float PCM chunks stream through a zero-copy transferable `MessagePort` directly into an `AudioWorkletProcessor` (`worklet.js`).
+* Playback begins with **0ms latency**.
+* Deck status glows green: **`PLAYBACK: ENGINE`**.
 
 ### Phase 2: Parallel Background Compilation (`COMPILE: COMPILING`)
-* An independent compilation worker (`worker.js`) renders the full song in the background into 320k MP3 or 16-bit WAV audio.
-* Simultaneously, the worker precomputes 28-band frequency spectrum frames for every frame of the song into an array buffer (`visData`).
-* Because rendering executes on a separate CPU core, **the playing music never stutters, drops frames, or glitches**.
+* An independent worker (`worker.js`) renders the full song in the background into 320k MP3 or 16-bit WAV audio.
+* Simultaneously, the worker precomputes 28-band frequency spectrum frames for every frame into `visData`.
 * Deck status pulses gold with live progress: **`COMPILE: COMPILING`** (e.g. `45%`).
 
-### Phase 3: Seamless Native Handoff (`PLAYBACK: LOADED`)
-* The moment compilation reaches 100%, the compiled `Blob` and precomputed visualizer data are cached in memory.
-* The browser's native `<audio id="nativeAudio">` loads the stream, aligns playback with the live millisecond position, and takes over output.
+### Phase 3: Seamless Native Handoff (`PLAYBACK: MP3`)
+* When compilation completes, the browser's native `<audio id="nativeAudio">` pre-seeks to the exact phase-aligned timestamp.
+* An equal-power linear de-clicking ramp seamlessly transitions output from the Worklet to native audio.
 * The WebAssembly synthesis worker stops, cutting DSP CPU usage down to **0%**.
-* Deck status transitions to sky-blue: **`PLAYBACK: LOADED`**, and compile status turns to green: **`COMPILE: READY`**.
+* Deck status transitions to sky-blue: **`PLAYBACK: MP3`**, and compile status turns to green: **`COMPILE: READY`**.
 
 ---
 
 ## Features
 
-### Audio Engine & Multithreaded DSP
+### Audio Engine & Zero-Stutter Handoff
 
-* **Worker-to-Worklet Multithreaded Pipeline:** Offloads 100% of OpenMPT module synthesis into a background Web Worker (`dspworker.js`) communicating directly with a real-time `AudioWorkletProcessor` (`worklet.js`) via a zero-copy transferable `MessagePort`. The browser's main UI thread never handles audio calculations.
-* **Sample-Accurate 48 kHz Synthesis:** Synthesizes audio natively at 48,000 Hz with interactive latency hints, eliminating resampling jitter or frequency aliasing.
-* **Deep Jitter-Buffered Worklet Queue:** Maintains a 1.2-second (14-chunk) pre-buffered FIFO queue on the audio thread with proactive low-watermark refilling and instant underrun recovery, insulating playback from background thread scheduling delays and GC pauses.
-* **0.03ms Fast TypedArray Memory Transfers:** OpenMPT PCM buffer copies use native vector operations (`TypedArray.prototype.set`), cutting block transfer times down to **0.03ms** per block.
-* **25 Hz DC-Blocking Highpass Filter:** Biquad highpass filter cuts sub-audible infrasound and DC bias inherent in retro tracker instruments before reaching the output stage.
-* **Lossless FLAC & Native Hardware Audio:** Direct hardware-accelerated playback for `.flac`, `.mp3`, and `.wav` with automatic `URL.revokeObjectURL` lifecycle cleanup.
+* **Latency-Compensated Handoff:** Compensates for LAME MP3's 528-sample (11ms) priming delay and browser hardware buffer dispatch lead time (34ms), preventing phase skips or beat repetition during engine transition.
+* **Click-Free Micro-Ramp:** Uses a 15ms linear de-clicking ramp anchored to current parameter values, eliminating DC offset pops and comb-filtering flam artifacts.
+* **Detailed Engine Identification:** Evaluates both `tracker` and `type_long` OpenMPT metadata, resolving exact software and format versions (e.g. `FASTTRACKER 2 V1.04`, `PROTRACKER 2.3D`, `IMPULSE TRACKER 2.14`, `SCREAM TRACKER 3.20`) rather than generic extensions.
+* **Strict Zero-Fallback Validation:** Falsy fallback operators (`||`) and placeholder defaults (`"Custom Artist"`, `"Local Artist"`, `"Unknown"`, generic `'XM'`) are eliminated. Corrupt metadata and missing fields produce clear, actionable errors.
+* **Sample-Accurate Linear Clocks:** `dspworker.js` tracks continuous linear frame counts (`renderedFrames / sampleRate`), eliminating pattern-row quantization position jitter.
+* **25 Hz DC-Blocking Filter:** Biquad highpass filter cuts sub-audible infrasound and DC bias before output.
 
-### 2-Track Lookahead Playlist Precompilation
+### Lookahead Precompilation & Multi-Tier Storage
 
-* **Proactive Sliding Window:** XM-Studio continuously precompiles the upcoming 2 tracks in the playlist ($N+1$ and $N+2$). Skipping songs is instantaneous (0ms) and starts directly in native battery-friendly `LOADED` mode.
-* **Deterministic Shuffle Synchronization:** In shuffle mode, the queue precomputes a deterministic shuffle sequence so background precompilation targets the exact randomized tracks that will play next.
-* **Serial Off-Thread Worker Architecture:** Runs precompilation on a dedicated background Web Worker (`worker.js`). Precompilation executes sequentially (one track at a time) to prevent CPU saturation, thermal throttling, and worklet buffer starvation on mobile devices.
-* **Zero-Latency Preemption:** The playing track always holds top compilation priority. If the user skips or seeks mid-precompilation, the in-flight precompile cancels instantly (0ms) with zero UI hitching.
-* **Battery & Visibility Gating:** Pauses precompilation when the browser tab is hidden or when mobile device battery drops below 15% on battery power.
+* **2-Track Lookahead:** Precompiles the upcoming 2 tracks ($N+1$ and $N+2$). Skipping songs is instantaneous and starts directly in native `MP3` mode.
+* **Dynamic Database Migrations:** IndexedDB object stores upgrade dynamically (`e.oldVersion < e.newVersion`) without hardcoded version numbers, automatically evicting stale cache records.
+* **Metadata Self-Healing:** Automatically repairs playlists, favorites, and custom track libraries by synchronizing corrected artist/title tags from the catalog and module binary headers.
+* **35-Song Global Cache:** Stores up to 35 fully compiled songs (audio Blobs and calibrated 15 FPS FFT frames) in IndexedDB (`xm_studio_cache_db`), balancing storage quotas with instant replays.
 
-### Multi-Tier IndexedDB Cache Architecture
+### Zero-Lag Visualizer
 
-* **Expanded 35-Song Global Ceiling:** Stores up to 35 fully compiled songs—including audio Blobs and calibrated 15 FPS FFT spectrum frames—in IndexedDB (`xm_studio_cache_db`), balancing instant replay with browser storage quotas (~210 MB cap).
-* **Per-Playlist Quota (Max 10 Tracks):** Caps each playlist's cached songs at 10 tracks, automatically evicting tracks furthest from the active playhead to prevent large playlists (500+ tracks) from exhausting disk space.
-* **Active Playlist Recency Quota (Last 3 Playlists):** Tracks playlist recency across sessions, automatically purging compiled assets belonging exclusively to older, inactive playlists.
-* **Instant 0ms Downloads:** Clicking **Download** on any track currently playing in `LOADED` state (or stored in the cache) saves the file immediately without re-encoding.
-
-### Zero-Lag Visualizer & Offline Spectrum Caching
-
-* **$O(1)$ Memory Spectrum Lookup:** Once a track is compiled, the visualizer reads from precomputed 28-band frames rather than polling live Web Audio analysers. This eliminates audio thread synchronization overhead on weak devices.
-* **Calibrated Web Audio Decibel Curve:** The offline worker calculates FFT magnitudes matching native Web Audio decibel scaling ($-100\text{ dB}$ to $-30\text{ dB} \rightarrow 0..255$) and identical logarithmic bin mapping, ensuring a seamless visual transition during handoff.
-* **15 FPS Frame Pacing:** Paced at 15 FPS (~67ms interval) to eliminate up to 83% of redundant draw calls.
-* **1.25× DPR Resolution Cap:** Caps canvas pixel density to 1.25× on high-density mobile screens, saving over 60% of GPU fill-rate overhead.
-* **Scroll Throttling:** Pauses non-critical canvas re-renders during active touch scrolling or dragging to keep Android momentum scrolling silky smooth.
-* **Pristine Canvas Clearing:** Unloading a track (`btnUnload`), pausing, or stopping immediately wipes frozen spectrum bars and restores the dark grid chassis.
-
-### Workstation Deck & Status Badges
-
-* **Dual Right-Aligned Status Cluster:**
-  * **PLAYBACK Badge:** Displays **`LIVE`** (phosphor green, real-time DSP synthesis), **`LOADED`** (cyan/blue, native hardware stream), or **`IDLE`** (slate gray).
-  * **COMPILE Badge:** Displays **`COMPILING`** (gold, live rendering percentage and pulse animation), **`READY`** (green), or **`IDLE`** (slate gray).
-* **Streamlined Channel Badge:** Displays channel count directly as **`32CH`**, **`16CH`**, **`4CH`**, or **`2CH`** without redundant labels.
-* **Hardware Fader & Scrubber:** Interactive timeline progress bar with elapsed/total time readouts, master volume fader with mute toggle, and sample rate indicators.
-* **Deck Transport & Playlist Controls:** Deck favorite star, playlist picker, shuffle, loop, previous, play/pause, next, and jump-to-random track buttons.
-
-### Background Playback & OS Integration
-
-* **Chrome Media Visibility & Tab Audio Indicators:** Displays browser tab speaker icons, desktop Chrome Global Media Controls, and dynamic tab titles (`▶ Song Title - Artist`).
-* **Audio Focus & Media Carrier:** Continuous carrier audio element synchronization satisfies background audio-focus policies across Android and desktop browsers.
-* **Full MediaSession Integration:** Lock-screen, notification shade, and Bluetooth controls for play/pause, previous, next, stop, and seeking with dual rasterized/vector artwork.
-* **Mobile Miniplayer:** Compact docked bottom bar on the mobile Archive view displaying track number badge, song title, artist, and transport controls, with one-tap toggle to the full Player Deck.
-
-### Multi-Source Catalog & Directory Mounting
-
-* **Multi-Repository Streaming:** Stream and aggregate tracker modules from multiple online repositories simultaneously, with native support for primary and mirrored sources (**XM-Music**, **XM-Archive**).
-* **Independent Source Toggling:** Instantly toggle individual remote repositories and mounted local directory sources on or off to isolate collections without deleting catalog data.
-* **Local Directory Ingestion:** Mount entire local folder trees recursively using the directory picker, mapping folder hierarchies and caching binary blobs directly in IndexedDB.
-* **Persistent 32-Node DOM Virtualization:** Recycles a fixed pool of 32 GPU-translated DOM nodes to navigate catalogs of 5,000+ tracks smoothly without layout thrashing.
-* **Workstation Backup & Restore:** Export full workstation backups as ZIP archives (including custom tracks, playlists, favorites, and settings) or restore them in a single operation.
+* **$O(1)$ Spectrum Lookup:** Reads from precomputed 28-band frames rather than polling live analysers during native playback.
+* **15 FPS Frame Pacing & 1.25× DPR Cap:** Caps draw frequency to 15 FPS (~67ms) and DPR to 1.25× on high-density displays, preserving mobile GPU efficiency.
+* **Pristine State Clearing:** Unloading a track (`btnUnload`) or stopping immediately wipes spectrum bars and restores the chassis grid.
 
 ---
 
@@ -138,47 +97,22 @@ XM-Studio solves this with an intelligent **three-phase playback pipeline**:
 
 ---
 
-## Music Repositories & XM-Music Integration
+## Music Repositories & Local Sources
 
-XM-Studio streams audio on demand directly into client-side DSP memory without bundling music into application assets.
-
-* **Default Repository (XM-Music):** Streams thousands of indexed demoscene tracker modules hosted via GitHub Pages (`https://farhan-real.github.io/XM-Music/`).
-* **Backup Repository (XM-Archive):** Secondary mirror (`https://xm-archive.pages.dev/`) available under the **Source** tab.
-
-### Setting Up a Custom Music Repository
-
-You can host your own audio library on GitHub Pages or any static web server:
-
-1. Create a repository with a `music/` folder containing files named `Artist - Title.ext`.
-2. Generate a `tracks.json` manifest at the repository root:
-
-```json
-[
-  {
-    "title": "Catch That Goblin",
-    "artist": "Skaven",
-    "folder": "Demoscene",
-    "path": "music/Demoscene/Skaven - Catch That Goblin.xm",
-    "ext": "XM"
-  }
-]
-```
-
-3. Enable GitHub Pages (**Settings** → **Pages** → Deploy from `main` root).
-4. In XM-Studio, open the **Source** tab, enter your repository URL under **Online Repositories**, click **+ Add**, and click **Sync All Repos**.
+* **Default Repository (XM-Music):** Streams indexed demoscene modules from GitHub Pages (`https://farhan-real.github.io/XM-Music/`).
+* **Multi-Repository Streaming:** Add custom server or GitHub Pages URLs hosting a `tracks.json` catalog manifest.
+* **Local Directory Mounting:** Mount entire local folder trees recursively via directory picker; tracks are cataloged into IndexedDB.
+* **DOM Virtualization:** Recycles a fixed pool of 32 GPU-translated DOM cards to scroll 5,000+ tracks smoothly.
 
 ---
 
-## Local Development (Python)
+## Local Development
 
-To run or test XM-Studio locally, serve the directory with Python:
+Serve the project root using Python:
 
 ```bash
-# Clone the repository
 git clone https://github.com/farhan-real/XM-Studio.git
 cd XM-Studio
-
-# Start local server with Python
 python3 -m http.server 8080
 ```
 
@@ -190,50 +124,52 @@ Open `http://localhost:8080` in your web browser.
 
 ```text
 .
-├── index.html                  # Workstation HTML chassis layout
+├── index.html                  # Chassis layout & script bindings
 ├── manifest.json               # Progressive Web App manifest
-├── service-worker.js           # Offline runtime asset caching
-├── icon.svg                    # Application chassis icon
+├── service-worker.js           # Runtime caching & network-first shell
+├── icon.svg                    # Vector chassis application icon
 ├── README.md                   # Technical documentation
 ├── css/
-│   ├── main.css                # Chassis base layout & global tokens
-│   ├── badges.css              # Hardware badges & dual status cluster
-│   ├── player.css              # Deck chassis, readout & mobile miniplayer
-│   ├── controls.css            # Transport controls, fader & buttons
-│   ├── tracks.css              # Virtual list viewport & custom scrollbar
+│   ├── main.css                # Chassis layout & CSS variables
+│   ├── badges.css              # Status indicators & engine badges
+│   ├── player.css              # Deck chassis, readout & miniplayer
+│   ├── controls.css            # Transport controls & volume fader
+│   ├── tracks.css              # Virtual list viewport & scrollbar
 │   └── library.css             # Navigation tabs & source configuration
 └── js/
-    ├── app.js                  # Main workstation transport coordinator
+    ├── app.js                  # Main transport coordinator & deck status
     ├── engine/
     │   ├── dsp/
-    │   │   ├── audio.js        # Master audio coordinator & 3-phase handoff
-    │   │   ├── background.js   # MediaSession, lock screen & carrier audio
+    │   │   ├── audio.js        # Master playback & zero-stutter handoff
+    │   │   ├── background.js   # MediaSession, lock screen & carrier
     │   │   ├── chiptune2.js    # AudioWorklet player manager & event bus
-    │   │   ├── queue.js        # Playback queue, shuffle sequence & preview
-    │   │   └── visualizer.js   # O(1) spectrum cache visualizer loop
+    │   │   ├── meta.js         # Engine identification & metadata validation
+    │   │   ├── queue.js        # Playback queue, modes & lookahead
+    │   │   └── visualizer.js   # 15 FPS spectrum visualizer loop
     │   ├── export/
-    │   │   ├── compiler.js     # Background export & preload worker coordinator
-    │   │   ├── export.js       # Export formats, background compiler & ingest
+    │   │   ├── compiler.js     # Background export worker coordinator
+    │   │   ├── export.js       # Audio export formats & instant download
     │   │   └── precompiler.js  # 2-track lookahead playlist precompiler
     │   └── workers/
-    │       ├── dspworker.js    # Background libopenmpt synthesis worker
-    │       ├── worker.js       # Background MP3/WAV render & FFT worker
-    │       └── worklet.js      # Native audio thread AudioWorkletProcessor
+    │       ├── dspworker.js    # Off-thread libopenmpt synthesis worker
+    │       ├── fft.js          # 64-point FFT & logarithmic decibel mapping
+    │       ├── worker.js       # Background MP3/WAV compilation worker
+    │       └── worklet.js      # Real-time audio thread AudioWorkletProcessor
     └── data/
         ├── catalog/
-        │   ├── catalog.js      # Catalog indexing, search filtering & sorting
-        │   └── sources.js      # Multi-repo aggregator & local folder sources
+        │   ├── catalog.js      # Catalog indexing, search & sorting
+        │   └── sources.js      # Multi-repo aggregator & local folders
         ├── playlist/
-        │   ├── playlist.js     # Playlist CRUD, favorites Set & persistence
-        │   └── playlistui.js   # Playlist UI rendering & modals
+        │   ├── playlist.js     # Playlist CRUD & metadata synchronization
+        │   └── playlistui.js   # Playlist views & modal collection picker
         ├── storage/
-        │   ├── backup.js       # Full workstation ZIP export & restore
-        │   ├── cache.js        # Multi-tier 35-song IndexedDB LRU cache
-        │   ├── custom.js       # IndexedDB track metadata & blob storage
-        │   └── zip.js          # Pure JS binary ZIP writer & reader
+        │   ├── backup.js       # Full workstation ZIP backup & restore
+        │   ├── cache.js        # Dynamic IndexedDB cache & quota management
+        │   ├── custom.js       # IndexedDB custom track store & migration
+        │   └── zip.js          # Pure JS binary ZIP reader & writer
         └── view/
-            ├── library.js      # Virtual DOM card pool & archive table
-            └── scroller.js     # Zero-reflow custom scrollbar & momentum
+            ├── library.js      # Virtual DOM card pool & archive navigation
+            └── scroller.js     # Momentum custom scrollbar coordinator
 ```
 
 ---
