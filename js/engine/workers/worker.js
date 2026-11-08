@@ -87,7 +87,7 @@ function createWavBlob(pcmChunks, totalPcmBytes, sampleRate) {
 }
 
 function runCompilation(data) {
-  let modulePtr = 0, leftBufferPtr = 0, rightBufferPtr = 0;
+  let modulePtr = 0, ptrToFile = 0, leftBufferPtr = 0, rightBufferPtr = 0;
 
   try {
     const byteArray = new Uint8Array(data.buffer);
@@ -95,7 +95,7 @@ function runCompilation(data) {
       self.postMessage({ type: 'error', message: 'Empty module buffer.' });
       return;
     }
-    const ptrToFile = libopenmpt._malloc(byteArray.byteLength);
+    ptrToFile = libopenmpt._malloc(byteArray.byteLength);
     if (!ptrToFile) {
       self.postMessage({ type: 'error', message: 'Failed to allocate memory for module.' });
       return;
@@ -104,6 +104,7 @@ function runCompilation(data) {
 
     modulePtr = libopenmpt._openmpt_module_create_from_memory(ptrToFile, byteArray.byteLength, 0, 0, 0);
     libopenmpt._free(ptrToFile);
+    ptrToFile = 0;
     if (!modulePtr) {
       self.postMessage({ type: 'error', message: 'Unable to parse module.' });
       return;
@@ -241,6 +242,10 @@ function runCompilation(data) {
       channels: channelsStr
     }, [trimmedVisBuffer.buffer]);
   } catch (err) {
+    if (ptrToFile) { libopenmpt._free(ptrToFile); ptrToFile = 0; }
+    if (modulePtr) { libopenmpt._openmpt_module_destroy(modulePtr); modulePtr = 0; }
+    if (leftBufferPtr) { libopenmpt._free(leftBufferPtr); leftBufferPtr = 0; }
+    if (rightBufferPtr) { libopenmpt._free(rightBufferPtr); rightBufferPtr = 0; }
     console.error('[worker] runCompilation exception:', err);
     self.postMessage({ type: 'error', message: err.message });
   }

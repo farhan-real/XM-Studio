@@ -92,6 +92,7 @@
           isRunning = false;
           currentPrecompileTrackId = null;
           if (window.XMCache && blob) {
+            const trackerEngine = (engine && engine !== 'MP3' && engine !== 'WAV') ? engine : fallbackEngine;
             window.XMCache.set(
               targetTrack.id,
               'mp3',
@@ -100,7 +101,7 @@
               visFps,
               duration,
               qId,
-              engine || fallbackEngine,
+              trackerEngine,
               channels || ''
             );
           }

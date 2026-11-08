@@ -32,12 +32,20 @@
   function resolveTrackerEngine(candidate, ext) {
     const cleanExt = (ext || '').replace(/^\./, '').toUpperCase();
     const cand = (candidate || '').trim().toUpperCase();
-    if (cand && cand !== 'MP3' && cand !== 'WAV' && cand !== 'AUDIO' && cand !== 'NONE') {
-      return cand;
+    const isTracker = !NATIVE_STREAM_EXTS.has(`.${(ext || '').replace(/^\./, '').toLowerCase()}`);
+
+    if (isTracker) {
+      if (cand && cand !== 'MP3' && cand !== 'WAV' && cand !== 'AUDIO' && cand !== 'NONE') {
+        return cand;
+      }
+      if (cleanExt && cleanExt !== 'MP3' && cleanExt !== 'WAV') {
+        return cleanExt;
+      }
+      return 'TRACKER';
     }
-    if (cleanExt) {
-      return cleanExt;
-    }
+
+    if (cand && cand !== 'NONE') return cand;
+    if (cleanExt) return cleanExt;
     throw new Error('Unable to resolve engine type for audio track');
   }
 

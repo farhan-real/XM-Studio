@@ -207,7 +207,16 @@
     }
     activeDuration = duration;
 
-    const resolvedEngine = window.XMMeta.resolveTrackerEngine(engine || activeEngine, currentTrackItem?.ext || currentExt);
+    const isTracker = !window.XMMeta.NATIVE_STREAM_EXTS.has(`.${currentExt}`);
+    let resolvedEngine;
+    if (isTracker) {
+      resolvedEngine = (activeEngine && activeEngine !== 'NONE' && activeEngine !== 'AUDIO' && activeEngine !== 'MP3' && activeEngine !== 'WAV')
+        ? activeEngine
+        : window.XMMeta.resolveTrackerEngine(engine, currentTrackItem?.ext || currentExt);
+    } else {
+      resolvedEngine = window.XMMeta.resolveTrackerEngine(engine || activeEngine, currentTrackItem?.ext || currentExt);
+    }
+
     const resolvedChannels = (activeChannels && activeChannels !== '--') ? activeChannels : (channels || '2CH');
 
     setCachedCompiled(targetTrackId || currentId, targetExt, blob, visData, visFps, activeDuration, resolvedEngine, resolvedChannels);
@@ -297,7 +306,7 @@
     activeTitle = targetTitle;
     activeArtist = targetArtist;
     activeDuration = 0;
-    activeEngine = currentExt.toUpperCase() || 'AUDIO';
+    activeEngine = isDirectNativeAudio ? currentExt.toUpperCase() : (window.XMMeta.resolveTrackerEngine('', currentExt));
     activeChannels = isDirectNativeAudio ? '2CH' : '--';
     currentRawBuffer = null;
     currentAudioBlob = null;
