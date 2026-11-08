@@ -3,7 +3,9 @@
  */
 document.addEventListener('DOMContentLoaded', () => {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js').catch((err) => console.error('[App] SW registration failed:', err));
+    navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' })
+      .then((reg) => { if (navigator.onLine && reg.update) reg.update().catch(() => {}); })
+      .catch((err) => console.error('[App] SW registration failed:', err));
   }
 
   if (!window.XMAudio) throw new Error('Fatal: XMAudio module is not loaded.');

@@ -1,21 +1,8 @@
 // service-worker.js - Resilient offline PWA runtime caching with network-first app shell.
-const CACHE_NAME = 'xm-runtime-v56';
-
-const PRECACHE_ASSETS = [
-  './',
-  'index.html'
-];
+const CACHE_NAME = 'xm-runtime-v57';
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_ASSETS))
-      .then(() => self.skipWaiting())
-      .catch((err) => {
-        console.error('[ServiceWorker] Precache failed during install:', err);
-        self.skipWaiting();
-      })
-  );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
@@ -26,42 +13,23 @@ self.addEventListener('activate', (e) => {
   );
 });
 
-function isAssetRequest(url) {
+function isShellAsset(url) {
+  const clean = url.split('#')[0].split('?')[0].toLowerCase();
   return (
-    url.endsWith('.js') ||
-    url.includes('.js?') ||
-    url.endsWith('.css') ||
-    url.includes('.css?') ||
-    url.endsWith('.json') ||
-    url.endsWith('.wasm') ||
-    url.endsWith('.mem') ||
-    url.endsWith('.svg')
+    clean.endsWith('.js') ||
+    clean.endsWith('.css') ||
+    clean.endsWith('.json') ||
+    clean.endsWith('.svg') ||
+    clean.includes('/js/') ||
+    clean.includes('/css/')
   );
 }
 
-function isValidResponse(req, res) {
+function isValidResponse(res) {
   if (!res || res.status !== 200) return false;
-  if (isAssetRequest(req.url)) {
-    const contentType = (res.headers.get('content-type') || '').toLowerCase();
-    if (contentType.includes('text/html')) return false;
-  }
+  const contentType = (res.headers.get('content-type') || '').toLowerCase();
+  if (contentType.includes('text/html')) return false;
   return true;
-}
-
-async function fetchAssetWithRetry(req) {
-  try {
-    const res = await fetch(req);
-    if (isValidResponse(req, res)) return res;
-  } catch (err) {}
-
-  await new Promise((r) => setTimeout(r, 60));
-  const retryRes = await fetch(req.url, { cache: 'reload' });
-  if (!isValidResponse(req, retryRes)) {
-    const err = new Error(`Asset fetch failed permanently for: ${req.url}`);
-    console.error('[ServiceWorker]', err);
-    throw err;
-  }
-  return retryRes;
 }
 
 self.addEventListener('fetch', (e) => {
@@ -79,83 +47,109 @@ self.addEventListener('fetch', (e) => {
 
   if (isDocNavigation) {
     e.respondWith(
-      fetch(req).then((res) => {
-        if (isValidResponse(req, res)) {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then((c) => {
-            c.put(req, clone.clone());
-            c.put('./', clone);
-          });
-          return res;
+      (async () => {
+        if (navigator.onLine) {
+          try {
+            const netRes = await fetch(req.url, { cache: 'no-cache' });
+            if (netRes && netRes.status === 200) {
+              const clone = netRes.clone();
+              const cache = await caches.open(CACHE_NAME);
+              await cache.put(req, clone.clone());
+              await cache.put('./', clone.clone());
+              await cache.put('index.html', clone);
+              return netRes;
+            }
+          } catch (err) {}
         }
-        throw new Error(`Invalid navigation response status: ${res ? res.status : 'null'}`);
-      }).catch(async (err) => {
+
         const cached = (await caches.match(req, { ignoreSearch: true })) ||
                        (await caches.match('./')) ||
+                       (await caches.match('index.html')) ||
                        (await caches.match('./index.html'));
-        if (cached && isValidResponse(req, cached)) return cached;
-        console.error('[ServiceWorker] Navigation request failed and no offline cache available:', req.url, err);
-        return new Response(`Workstation Offline Error: ${err.message}`, {
+        if (cached && cached.status === 200) return cached;
+
+        return new Response('Workstation Offline: App shell is unavailable.', {
           status: 504,
           statusText: 'Gateway Timeout',
           headers: { 'Content-Type': 'text/plain' }
         });
-      })
+      })()
     );
     return;
   }
 
-  const isAppShellAsset = (
-    url.endsWith('.css') ||
-    url.includes('.css?') ||
-    url.endsWith('.js') ||
-    url.includes('.js?') ||
-    url.includes('/js/') ||
-    url.endsWith('manifest.json') ||
-    url.endsWith('icon.svg')
-  );
-
-  if (isAppShellAsset) {
+  if (isShellAsset(url)) {
     e.respondWith(
-      fetchAssetWithRetry(req).then((res) => {
-        const clone = res.clone();
-        caches.open(CACHE_NAME).then((c) => c.put(req, clone));
-        return res;
-      }).catch(async (err) => {
+      (async () => {
+        if (navigator.onLine) {
+          try {
+            const netRes = await fetch(req.url, { cache: 'no-cache' });
+            if (isValidResponse(netRes)) {
+              const clone = netRes.clone();
+              const cache = await caches.open(CACHE_NAME);
+              await cache.put(req, clone);
+              return netRes;
+            }
+          } catch (netErr) {}
+        }
+
         const cached = await caches.match(req, { ignoreSearch: true });
-        if (cached && isValidResponse(req, cached)) return cached;
-        console.error('[ServiceWorker] Asset fetch failed and not cached:', req.url, err);
-        return new Response(`Workstation Asset Error: ${err.message}`, {
+        if (cached && isValidResponse(cached)) {
+          return cached;
+        }
+
+        if (navigator.onLine) {
+          try {
+            const reloadRes = await fetch(req.url, { cache: 'reload' });
+            if (isValidResponse(reloadRes)) {
+              const clone = reloadRes.clone();
+              const cache = await caches.open(CACHE_NAME);
+              await cache.put(req, clone);
+              return reloadRes;
+            }
+          } catch (reloadErr) {}
+        }
+
+        return new Response(`Workstation Asset Unavailable: ${req.url}`, {
           status: 504,
           statusText: 'Gateway Timeout',
           headers: { 'Content-Type': 'text/plain' }
         });
-      })
+      })()
     );
     return;
   }
 
   e.respondWith(
-    caches.match(req).then((cached) => {
-      if (cached && isValidResponse(req, cached)) return cached;
-      return fetch(req).then((res) => {
+    (async () => {
+      const cached = await caches.match(req, { ignoreSearch: true });
+      if (cached && (cached.status === 200 || cached.status === 206)) {
+        return cached;
+      }
+
+      try {
+        const netRes = await fetch(req);
         if (
-          isValidResponse(req, res) && (
-            url.includes('.xm') ||
-            url.includes('.mod') ||
-            url.includes('.flac') ||
-            url.includes('libopenmpt.js.mem') ||
-            url.endsWith('.wasm')
-          )
+          netRes &&
+          netRes.status === 200 &&
+          (url.includes('.xm') ||
+           url.includes('.mod') ||
+           url.includes('.it') ||
+           url.includes('.s3m') ||
+           url.includes('.flac') ||
+           url.includes('.mp3') ||
+           url.includes('.wav') ||
+           url.includes('libopenmpt.js.mem') ||
+           url.endsWith('.wasm'))
         ) {
-          const clone = res.clone();
+          const clone = netRes.clone();
           caches.open(CACHE_NAME).then((c) => c.put(req, clone));
         }
-        return res;
-      }).catch((err) => {
-        console.error('[ServiceWorker] Media fetch failed:', req.url, err);
+        return netRes;
+      } catch (err) {
+        if (cached) return cached;
         throw err;
-      });
-    })
+      }
+    })()
   );
 });
