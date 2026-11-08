@@ -55,6 +55,7 @@
         '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:rgba(255,255,255,0.03);border-radius:4px;"><span style="font-size:0.78rem;color:var(--text-secondary);">Random Track</span><span style="font-family:var(--font-mono);font-size:0.70rem;color:var(--text-primary);font-weight:700;">R</span></div>' +
         '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:rgba(255,255,255,0.03);border-radius:4px;"><span style="font-size:0.78rem;color:var(--text-secondary);">Cycle Mode (Next, Loop, Rand, Stop)</span><span style="font-family:var(--font-mono);font-size:0.70rem;color:var(--col-rose);font-weight:700;">S</span></div>' +
         '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:rgba(255,255,255,0.03);border-radius:4px;"><span style="font-size:0.78rem;color:var(--text-secondary);">Focus Archive Search</span><span style="font-family:var(--font-mono);font-size:0.70rem;color:var(--text-primary);font-weight:700;">/</span></div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:rgba(255,255,255,0.03);border-radius:4px;"><span style="font-size:0.78rem;color:var(--text-secondary);">Shortcut Guide / Help</span><span style="font-family:var(--font-mono);font-size:0.70rem;color:var(--accent);font-weight:700;">H / F1</span></div>' +
         '<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:rgba(255,255,255,0.03);border-radius:4px;"><span style="font-size:0.78rem;color:var(--text-secondary);">Close Modal / Cancel</span><span style="font-family:var(--font-mono);font-size:0.70rem;color:var(--text-tertiary);font-weight:700;">Esc</span></div>' +
       '</div>';
 
@@ -82,7 +83,7 @@
 
     if (isInput) return;
 
-    if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+    if (e.key === 'h' || e.key === 'H' || e.key === 'F1') {
       e.preventDefault();
       openHelpModal();
       return;

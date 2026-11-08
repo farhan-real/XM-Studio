@@ -51,7 +51,7 @@ XM-Studio provides global desktop keyboard navigation for workstation transport,
 | <kbd>S</kbd> | **Cycle Mode** | Rotate mode (`NEXT` ➔ `LOOP` ➔ `RAND` ➔ `STOP`) |
 | <kbd>L</kbd> | **Toggle Loop** | Toggle between Loop and Next mode |
 | <kbd>/</kbd> | **Search** | Jump cursor directly to Archive search input |
-| <kbd>?</kbd> | **Shortcut Guide** | Open on-screen interactive shortcut cheat sheet |
+| <kbd>H</kbd> / <kbd>F1</kbd> | **Shortcut Guide** | Open on-screen interactive shortcut cheat sheet |
 | <kbd>Esc</kbd> | **Dismiss / Unfocus** | Close active modals, dismiss guides, or blur search |
 
 > *Note: Shortcuts are automatically suppressed when entering text inside input fields or search bars.*
